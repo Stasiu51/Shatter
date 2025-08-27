@@ -49,4 +49,3 @@ function beginPathPolygon(ctx, coords) {
 }
 
 export {beginPathPolygon}
-

@@ -80,4 +80,3 @@ function *iter_gates_solo_measurements() {
 }
 
 export {iter_gates_solo_measurements};
-

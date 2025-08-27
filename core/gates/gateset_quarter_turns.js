@@ -145,4 +145,3 @@ function *iter_gates_quarter_turns() {
 }
 
 export {iter_gates_quarter_turns};
-

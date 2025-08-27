@@ -383,11 +383,11 @@ class PauliFrame {
             let za = this.zs[a];
             let xb = this.xs[b];
             let zb = this.zs[b];
-
-            this.xs[a] = za ^ xa ^ xb;
-            this.zs[a] = xa ^ xb;
-            this.xs[b] = za ^ xb;
-            this.zs[b] = za ^ xa ^ zb;
+            let xab = xa ^ xb;
+            this.xs[a] = xb;
+            this.zs[a] = zb ^ xab;
+            this.xs[b] = xa;
+            this.zs[b] = za ^ xab;
         }
     }
 
@@ -567,6 +567,18 @@ class PauliFrame {
     }
 
     /**
+     * @param {!Array<!int>} targets
+     */
+    do_cz(targets) {
+        for (let k = 0; k < targets.length; k += 2) {
+            let control = targets[k];
+            let target = targets[k + 1];
+            this.zs[target] ^= this.xs[control];
+            this.zs[control] ^= this.xs[target];
+        }
+    }
+
+    /**
      * @param {!Gate} gate
      * @param {!Array<!int>} targets
      */
@@ -607,4 +619,3 @@ class PauliFrame {
 }
 
 export {PauliFrame}
-

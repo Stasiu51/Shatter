@@ -96,4 +96,3 @@ function make_spp_gate(bases, dag) {
 }
 
 export {make_mpp_gate, make_spp_gate};
-

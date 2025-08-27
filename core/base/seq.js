@@ -20,4 +20,3 @@ function groupBy(items, func) {
 }
 
 export {groupBy};
-

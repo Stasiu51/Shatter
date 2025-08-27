@@ -128,12 +128,7 @@ function simplifiedSPP(tag, args, dag, combinedTargets) {
         }
     }
 
-    let gate = undefined;
-    if (dag) {
-        gate = GATE_MAP.get('SPP_DAG:' + bases);
-    } else {
-        gate = GATE_MAP.get('SPP:' + bases);
-    }
+    let gate = GATE_MAP.get((dag ? 'SPP_DAG:' : 'SPP:') + bases);
     if (gate === undefined) {
         gate = make_spp_gate(bases, dag);
     }
@@ -168,9 +163,6 @@ class Circuit {
         let lines = stimCircuit.replaceAll(';', '\n').
             replaceAll('#!pragma ERR', 'ERR').
             replaceAll('#!pragma MARK', 'MARK').
-            replaceAll('#!pragma MARKX', 'MARKX').
-            replaceAll('#!pragma MARKY', 'MARKY').
-            replaceAll('#!pragma MARKZ', 'MARKZ').
             replaceAll('#!pragma POLYGON', 'POLYGON').
             replaceAll('_', ' ').
             replaceAll('Q(', 'QUBIT_COORDS(').
@@ -370,121 +362,67 @@ class Circuit {
             for (let targ of targets) {
                 if (targ.startsWith("rec[")) {
                     if (name === "CX" || name === "CY" || name === "CZ" || name === "ZCX" || name === "ZCY") {
-                        // Okay.
-                    } else {
-                        console.warn("Ignoring instruction due to feedback: " + line);
-                        return;
+                        has_feedback = true;
                     }
-                    has_feedback = true;
-                    break;
+                } else if (typeof parseInt(targ) !== 'number') {
+                    throw new Error(line);
                 }
             }
             if (has_feedback) {
-                let fixedTargets = [];
-                for (let targ of targets) {
-                    if (targ.startsWith("rec[")) {
-                        fixedTargets.push(parseInt(targ.substring(4)));
-                    } else if (targ === '*') {
-                        fixedTargets.push('*');
+                let clean_targets = [];
+                for (let k = 0; k < targets.length; k += 2) {
+                    let b0 = targets[k].startsWith("rec[");
+                    let b1 = targets[k + 1].startsWith("rec[");
+                    if (b0 || b1) {
+                        if (!b0) {
+                            layers[layers.length - 1].put(new Operation(
+                                GATE_MAP.get("ERR"),
+                                tag,
+                                new Float32Array([]),
+                                new Uint32Array([targets[k]]),
+                            ));
+                        }
+                        if (!b1) {
+                            layers[layers.length - 1].put(new Operation(
+                                GATE_MAP.get("ERR"),
+                                tag,
+                                new Float32Array([]),
+                                new Uint32Array([targets[k + 1]]),
+                            ));
+                        }
+                        console.warn("Feedback isn't supported yet. Ignoring", name, targets[k], targets[k + 1]);
                     } else {
-                        console.warn("Ignoring instruction due to mixed feedback: " + line);
-                        return;
+                        clean_targets.push(targets[k]);
+                        clean_targets.push(targets[k + 1]);
                     }
                 }
-                if (fixedTargets.length % 2 !== 0 || name === 'CZ') {
-                    console.warn("Ignoring instruction due to feedback CZ or non pair count: " + line);
+                targets = clean_targets;
+                if (targets.length === 0) {
                     return;
                 }
-                let splitTargets = splitUncombinedTargets(fixedTargets);
-                let layer = layers[layers.length - 1]
-                for (let k = 0; k < splitTargets.length; k++) {
-                    let combo = splitTargets[k];
-                    let q1 = parseInt(combo[0]);
-                    let q2 = parseInt(combo[1]);
-                    let q3 = parseInt(combo[2]);
-                    if (name !== 'ZCX' && name !== 'ZCY') {
-                        throw new Error(name);
-                    }
-                    layer.put(
-                        new Operation(GATE_MAP.get(name),
-                            tag,
-                            new Float32Array([q1, q3, q2]),
-                            new Uint32Array([q1, q3])), false);
-                }
-                return;
             }
+
             let gate = GATE_MAP.get(name);
             if (gate === undefined) {
-                if (name === 'MPP' || name === 'SPP' || name === 'SPP_DAG') {
-                    // Will be special cased later.
-                } else {
-                    console.warn("Ignoring unrecognized instruction: " + line);
-                    return;
-                }
+                console.warn("Ignoring unrecognized instruction: " + line);
+                return;
             }
-            if (gate !== undefined && gate.defaultArgument !== undefined && args.length === 0) {
-                args.push(/** @type {!number} */ (gate.defaultArgument));
-            }
-            if (reverse_pairs) {
-                for (let k = 0; k + 1 < targets.length; k += 2) {
-                    let t = targets[k];
-                    targets[k] = targets[k + 1];
-                    targets[k + 1] = t;
+            let a = new Float32Array(args);
+
+            let layer = layers[layers.length - 1];
+            if (gate.num_qubits === undefined) {
+                layer.put(new Operation(gate, tag, a, new Uint32Array(targets)));
+            } else {
+                if (targets.length % gate.num_qubits !== 0) {
+                    throw new Error("Incorrect number of targets in line " + line);
                 }
-            }
-            while (targets.length > 0) {
-                while (targets.length > 0 && targets[targets.length - 1] === '*') {
-                    targets.pop();
-                }
-                if (targets.length === 0) {
-                    continue;
-                }
-                let t = targets.pop();
-                let target = parseInt(t);
-                if (target !== target) {
-                    console.warn("Ignoring instruction due to unparseable target: " + line);
-                    return;
-                }
-                let parts = [target];
-                if (gate !== undefined && (gate.num_qubits === 2 || gate.num_qubits === 3)) {
-                    while (targets.length > 0 && targets[targets.length - 1] === '*') {
-                        targets.pop();
-                        if (targets.length === 0) {
-                            console.warn("Ignoring instruction due to dangling combiner: " + line);
-                            return;
-                        }
-                        let t2 = targets.pop();
-                        let target2 = parseInt(t2);
-                        if (target2 !== target2) {
-                            console.warn("Ignoring instruction due to non-qubit combiner: " + line);
-                            return;
-                        }
-                        parts.push(target2);
-                        if (gate.num_qubits === 3) {
-                            if (targets.length === 0 || targets[targets.length - 1] !== '*') {
-                                console.warn("Ignoring instruction due to missing two combiners for 3-qubit gate: " + line);
-                                return;
-                            }
-                            targets.pop();
-                            let t3 = targets.pop();
-                            let target3 = parseInt(t3);
-                            if (target3 !== target3) {
-                                console.warn("Ignoring instruction due to non-qubit combiner: " + line);
-                                return;
-                            }
-                            parts.push(target3);
-                        }
+                for (let k = 0; k < targets.length; k += gate.num_qubits) {
+                    let sub_targets = targets.slice(k, k + gate.num_qubits);
+                    if (reverse_pairs) {
+                        sub_targets.reverse();
                     }
-                }
-                parts.reverse();
-                let layer = layers[layers.length - 1]
-                if (gate !== undefined && gate.num_qubits === 1 && parts.length > 1) {
-                    for (let k = parts.length - 1; k >= 0; k--) {
-                        let p = parts[k];
-                        layer.put(new Operation(gate, tag, new Float32Array(args), new Uint32Array([p])), false);
-                    }
-                } else {
-                    let op = new Operation(/** @type {!Gate} */ (gate), tag, new Float32Array(args), new Uint32Array(parts));
+                    let qs = new Uint32Array(sub_targets);
+                    let op = new Operation(gate, tag, a, qs);
                     try {
                         layer.put(op, false);
                     } catch (_) {
@@ -499,24 +437,26 @@ class Circuit {
             }
         };
 
-        for (let k = 0; k < lines.length; k++) {
-            let line = lines[k];
-            line = line.split('#')[0].trim();
-            if (line.toLowerCase().startsWith("repeat ")) {
-                let reps = parseInt(line.split(" ")[1]);
-                let k2 = findEndOfBlock(lines, k, lines.length);
-                processLineChunk(lines, k + 1, k2, reps);
-                k = k2;
-            } else {
-                processLine(line);
-            }
+        processLineChunk(lines, 0, lines.length, 1);
+        if (layers.length > 0 && layers[layers.length - 1].isEmpty()) {
+            layers.pop();
         }
 
-        function ensure_has_coords(q) {
-            if (q * 2 >= i2q.size * 2) {
-                i2q.set(q, [q & 1, q >> 1]);
+        let next_auto_position_x = 0;
+        let ensure_has_coords = (t) => {
+            let b = true;
+            while (!i2q.has(t)) {
+                let x = b ? t : next_auto_position_x;
+                let k = `${x},0`;
+                if (!used_positions.has(k)) {
+                    used_positions.add(k);
+                    i2q.set(t, [x, 0]);
+                }
+                next_auto_position_x += !b;
+                b = false;
             }
-        }
+        };
+
         for (let layer of layers) {
             for (let op of layer.iter_gates_and_markers()) {
                 for (let t of op.id_targets) {
@@ -581,32 +521,47 @@ class Circuit {
             scale = 1;
         } else {
             scale = 1 / step;
-        }
-        while ((scale & (scale - 1)) !== 0) {
-            scale *= 2;
-        }
-        let placement = new Map();
-        for (let [x, y] of coordSet.values()) {
-            let x2 = Math.round((x - minX) * scale);
-            let y2 = Math.round((y - minY) * scale);
-            let e = 0;
-            while (placement.has(`${x2+e},${y2+e}`)) {
-                e++;
+            let mask = 0;
+            for (let [x, y] of coordSet.values()) {
+                let b1 = (x - minX + y - minY) % (2 * step);
+                let b2 = (x - minX - y + minY) % (2 * step);
+                mask |= b1 === 0 ? 1 : 2;
+                mask |= b2 === 0 ? 4 : 8;
             }
-            placement.set(`${x2+e},${y2+e}`, [x2+e, y2+e]);
-        }
-        return (x, y) => {
-            let x2 = Math.round((x - minX) * scale);
-            let y2 = Math.round((y - minY) * scale);
-            for (let e = 0; e < 1000; e++) {
-                let key = `${x2+e},${y2+e}`;
-                if (!placement.has(key)) {
-                    placement.set(key, [x, y]);
-                    return [x2+e, y2+e];
-                }
+            if (mask === (1 | 4)) {
+                scale /= 2;
+            } else if (mask === (2 | 8)) {
+                minX -= step;
+                scale /= 2;
             }
-            return [x, y];
-        };
+        }
+
+        let offsetX = -minX;
+        let offsetY = -minY;
+        return (x, y) => [(x + offsetX) * scale, (y + offsetY) * scale];
+    }
+
+    /**
+     * @returns {!Circuit}
+     */
+    afterRectification() {
+        return this.afterCoordTransform(this.coordTransformForRectification());
+    }
+
+    /**
+     * @param {!number} dx
+     * @param {!number} dy
+     * @returns {!Circuit}
+     */
+    shifted(dx, dy) {
+        return this.afterCoordTransform((x, y) => [x + dx, y + dy]);
+    }
+
+    /**
+     * @return {!Circuit}
+     */
+    copy() {
+        return this.shifted(0, 0);
     }
 
     /**

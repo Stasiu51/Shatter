@@ -243,4 +243,3 @@ function equate_Objects(subject, other) {
 }
 
 export {equate, equate_Maps}
-

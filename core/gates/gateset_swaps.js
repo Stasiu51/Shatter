@@ -116,4 +116,3 @@ function *iter_gates_swaps() {
 }
 
 export {iter_gates_swaps};
-

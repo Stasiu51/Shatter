@@ -77,4 +77,3 @@ function *iter_gates_resets() {
 }
 
 export {iter_gates_resets};
-

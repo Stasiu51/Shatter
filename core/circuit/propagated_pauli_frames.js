@@ -309,4 +309,3 @@ class PropagatedPauliFrames {
 }
 
 export {PropagatedPauliFrames, PropagatedPauliFrameLayer};
-

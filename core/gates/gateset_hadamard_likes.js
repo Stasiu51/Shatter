@@ -148,4 +148,3 @@ function *iter_gates_hadamard_likes() {
 }
 
 export {iter_gates_hadamard_likes};
-

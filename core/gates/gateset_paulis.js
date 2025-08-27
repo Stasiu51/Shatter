@@ -120,4 +120,3 @@ function *iter_gates_paulis() {
 }
 
 export {iter_gates_paulis};
-

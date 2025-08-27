@@ -225,4 +225,3 @@ function *iter_gates_sqrt_pauli_pairs() {
 }
 
 export {iter_gates_sqrt_pauli_pairs};
-

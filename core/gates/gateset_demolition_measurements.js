@@ -77,4 +77,3 @@ function *iter_gates_demolition_measurements() {
 }
 
 export {iter_gates_demolition_measurements};
-

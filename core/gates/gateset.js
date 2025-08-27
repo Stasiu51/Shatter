@@ -92,4 +92,3 @@ const GATE_MAP = /** @type {Map<!string, !Gate>} */ make_gate_map();
 const GATE_ALIAS_MAP = /** @type {!Map<!string, !{name: undefined|!string, rev_pair: undefined|!boolean, ignore: undefined|!boolean}>} */ make_gate_alias_map();
 
 export {GATE_MAP, GATE_ALIAS_MAP};
-

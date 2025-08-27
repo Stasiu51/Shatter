@@ -183,4 +183,3 @@ function *iter_gates_markers() {
 }
 
 export {iter_gates_markers, marker_placement};
-

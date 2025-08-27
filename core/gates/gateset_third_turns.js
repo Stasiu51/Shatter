@@ -197,4 +197,3 @@ function *iter_gates_third_turns() {
 }
 
 export {iter_gates_third_turns};
-

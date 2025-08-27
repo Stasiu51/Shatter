@@ -138,4 +138,3 @@ function *iter_gates_controlled_paulis() {
 }
 
 export {iter_gates_controlled_paulis};
-
