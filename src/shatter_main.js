@@ -76,6 +76,8 @@ const timelineCtl = setupTimelineUI({
     renderTimelineCore({canvas, circuit, currentLayer, timelineZoom, timelineScrollY});
     updateLayerIndicator();
   },
+  onResizing: () => { renderAllPanels(); },
+  onResized: () => { renderAllPanels(); },
 });
 
 // Import/Export handlers

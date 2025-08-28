@@ -13,6 +13,8 @@ export function setupTimelineUI({
   getCircuit,
   getCurrentLayer,
   renderWithState,
+  onResizing, // optional: called during drag to allow external re-rendering (e.g., panels)
+  onResized,  // optional: called after drag completes or width resets
 }) {
   // Internal UI state persisted locally.
   let dragging = false;
@@ -66,6 +68,7 @@ export function setupTimelineUI({
     const newW = Math.min(Math.max(startW - dx, 200), Math.max(260, Math.floor(window.innerWidth * 0.8)));
     rootStyle.setProperty('--timeline-width', newW + 'px');
     render();
+    onResizing?.();
   });
   window.addEventListener('mouseup', () => {
     if (!dragging) return;
@@ -74,11 +77,13 @@ export function setupTimelineUI({
     timelineEl.classList.remove('resizing');
     const w = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--timeline-width'));
     if (!Number.isNaN(w)) localStorage.setItem('timelineWidth', String(w));
+    onResized?.();
   });
   resizerEl.addEventListener('dblclick', () => {
     rootStyle.setProperty('--timeline-width', '360px');
     localStorage.setItem('timelineWidth', '360');
     render();
+    onResized?.();
   });
 
   // Collapse toggles
