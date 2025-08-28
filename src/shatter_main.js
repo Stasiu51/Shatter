@@ -171,6 +171,22 @@ function renderAllPanels() {
   if (!currentCircuit) return;
   console.log('[main] renderAllPanels start. panels=%s layer=%s', mgr.panels.length, currentLayer);
   for (const p of mgr.panels) {
+    if (!p.canvas) {
+      // Fallback: find or create a canvas inside the panel body.
+      const existing = p.body && p.body.querySelector && p.body.querySelector('canvas');
+      if (existing) {
+        p.canvas = existing;
+        console.log('[main] adopted existing canvas');
+      } else if (p.body) {
+        const cv = document.createElement('canvas');
+        cv.style.width = '100%';
+        cv.style.height = '100%';
+        p.body.innerHTML = '';
+        p.body.appendChild(cv);
+        p.canvas = cv;
+        console.log('[main] created missing canvas');
+      }
+    }
     if (!p?.canvas) continue;
     const r = p.canvas.getBoundingClientRect();
     console.log('[main] panel canvas rect %sx%s', Math.round(r.width), Math.round(r.height));
