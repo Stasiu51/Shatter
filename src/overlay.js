@@ -147,10 +147,13 @@ export function parseOverlayFromStim(text) {
       }
     }
 
-    // Pairing checks for immediate pragma lines.
-    if (/^##!\s+(POLY|MARK|ERR)/i.test(s)) {
+    // Pairing checks for immediate pragma lines (skip POLY STYLE).
+    const isPolyInstance = /^##!\s+POLY\b(?!\s+STYLE\b)/i.test(s);
+    const isMarkInstance = /^##!\s+MARK\b/i.test(s);
+    const isErrInstance  = /^##!\s+ERR\b/i.test(s);
+    if (isPolyInstance || isMarkInstance || isErrInstance) {
       const next = lines[i + 1] ?? '';
-      if (!/^\s*#!pragma/.test(next)) {
+      if (!/^\s*#!pragma\b/.test(next)) {
         diagnostics.push({line: i + 1, code: 'PR001', severity: 'warning', message: 'Directive missing immediate #!pragma pairing.'});
       }
     }
@@ -189,7 +192,7 @@ export function toStimCircuit(baseText, opts = {}) {
     const s = lines[i];
     out.push(s);
     const t = s.trim();
-    if (/^##!\s+POLY/i.test(t)) {
+    if (/^##!\s+POLY\b(?!\s+STYLE\b)/i.test(t)) {
       const next = lines[i + 1] || '';
       if (!/^\s*#!pragma\s+POLYGON/i.test(next)) {
         // Insert a minimal fallback pragma with no vertices and gentle color.
@@ -207,7 +210,6 @@ export function toStimCircuit(baseText, opts = {}) {
       }
     }
   }
-  return out.join('
-');
-}
+  return out.join('\n');
 
+}
