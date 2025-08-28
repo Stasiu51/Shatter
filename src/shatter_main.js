@@ -29,6 +29,9 @@ const timelineCanvas = document.getElementById('timeline-canvas');
 const zoomInBtn = document.getElementById('timeline-zoom-in');
 const zoomOutBtn = document.getElementById('timeline-zoom-out');
 const zoomResetBtn = document.getElementById('timeline-zoom-reset');
+const panelsZoomInBtn = document.getElementById('panels-zoom-in');
+const panelsZoomOutBtn = document.getElementById('panels-zoom-out');
+const panelsZoomResetBtn = document.getElementById('panels-zoom-reset');
 const nameEl = document.getElementById('circuit-name');
 const statusEl = document.getElementById('statusbar');
 const statusText = document.getElementById('status-text');
@@ -46,6 +49,8 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 let currentCircuit = null;
 let currentLayer = 0;
 let currentName = localStorage.getItem('circuitName') || 'circuit';
+let panelZoom = parseFloat(localStorage.getItem('panelZoom') || '1');
+if (!(panelZoom > 0)) panelZoom = 1;
 const nameCtl = setupNameEditor(nameEl, currentName, {
   onCommit: (n) => { currentName = n; localStorage.setItem('circuitName', currentName); }
 });
@@ -190,7 +195,7 @@ function renderAllPanels() {
     if (!p?.canvas) continue;
     const r = p.canvas.getBoundingClientRect();
     console.log('[main] panel canvas rect %sx%s', Math.round(r.width), Math.round(r.height));
-    renderCrumblePanel({canvas: p.canvas, circuit: currentCircuit, currentLayer});
+    renderCrumblePanel({canvas: p.canvas, circuit: currentCircuit, currentLayer, panelZoom});
   }
   console.log('[main] renderAllPanels done');
 }
@@ -208,3 +213,14 @@ function schedulePanelsRender() {
 window.addEventListener('resize', () => {
   schedulePanelsRender();
 });
+
+function setPanelZoom(z) {
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  panelZoom = clamp(z, 0.5, 3);
+  localStorage.setItem('panelZoom', String(panelZoom));
+  schedulePanelsRender();
+}
+
+panelsZoomInBtn?.addEventListener('click', () => setPanelZoom(panelZoom * 1.25));
+panelsZoomOutBtn?.addEventListener('click', () => setPanelZoom(panelZoom / 1.25));
+panelsZoomResetBtn?.addEventListener('click', () => setPanelZoom(1));

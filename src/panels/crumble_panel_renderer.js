@@ -7,7 +7,7 @@ export function computeCanvasSize(rect, dpr) {
   return {w, h};
 }
 
-export function renderPanel({canvas, circuit, currentLayer}) {
+export function renderPanel({canvas, circuit, currentLayer, panelZoom = 1}) {
   if (!canvas || !circuit) return;
   const dpr = Math.max(1, window.devicePixelRatio || 1);
   const rect = canvas.getBoundingClientRect();
@@ -21,8 +21,10 @@ export function renderPanel({canvas, circuit, currentLayer}) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   // Offscreen at double width to satisfy Crumble's left/right split.
   const off = document.createElement('canvas');
-  off.width = Math.max(2, w * 2);
-  off.height = Math.max(2, h);
+  const srcW = Math.max(2, Math.ceil(w / Math.max(0.1, panelZoom)));
+  const srcH = Math.max(2, Math.ceil(h / Math.max(0.1, panelZoom)));
+  off.width = Math.max(2, srcW * 2);
+  off.height = Math.max(2, srcH);
   const offCtx = off.getContext('2d');
   offCtx.setTransform(1, 0, 0, 1, 0, 0);
   offCtx.clearRect(0, 0, off.width, off.height);
@@ -36,6 +38,10 @@ export function renderPanel({canvas, circuit, currentLayer}) {
   );
   draw(offCtx, snap);
 
-  // Blit the left half into the panel canvas.
-  ctx.drawImage(off, 0, 0, off.width / 2, off.height, 0, 0, canvas.width, canvas.height);}
+  // Blit a portion of the left half into the panel canvas at the requested zoom.
+  const sx = 0;
+  const sy = 0;
+  const sWidth = Math.min(srcW, off.width / 2);
+  const sHeight = Math.min(srcH, off.height);
+  ctx.drawImage(off, sx, sy, sWidth, sHeight, 0, 0, w, h);}
 
