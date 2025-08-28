@@ -18,7 +18,6 @@ seg.addEventListener('click', (e) => {
   btn.classList.add('active');
   mgr.setLayout(btn.dataset.layout);
   renderAllPanels();
-  console.log('[main] layout changed to %s. panels=%s', btn.dataset.layout, mgr.panels.length);
 });
 
 // Timeline sizing & collapse
@@ -89,7 +88,6 @@ btnImport?.addEventListener('click', async () => {
     currentLayer = 0;
     // Rebuild panels to ensure fresh canvases (avoid stale placeholders).
     mgr.build();
-    console.log('[main] import: circuit layers=%s, panels=%s', currentCircuit.layers.length, mgr.panels.length);
     timelineCtl.setScrollY(0);
     timelineCtl.render();
     renderAllPanels();
