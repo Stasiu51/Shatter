@@ -98,8 +98,8 @@ export function renderTimeline({canvas, circuit, currentLayer, timelineZoom, tim
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const off = document.createElement('canvas');
-  off.width = Math.max(2, Math.round((w * 2) / timelineZoom));
-  const minOffH = Math.max(2, Math.round(h / timelineZoom));
+  off.width = Math.max(2, Math.ceil((w * 2) / timelineZoom));
+  const minOffH = Math.max(2, Math.ceil(h / timelineZoom));
   off.height = Math.max(minOffH, computeContentOffHeight(circuit, minOffH));
   const offCtx = off.getContext('2d');
   offCtx.setTransform(1, 0, 0, 1, 0, 0);
