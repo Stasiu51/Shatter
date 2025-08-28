@@ -1,6 +1,6 @@
-import {test, assertThat} from "./test_util.js";
-import {Circuit} from "../circuit/circuit.js";
-import {toPragmaStim} from "../../src/io/pragma_export.js";
+import {test, assertThat} from "../core/test/test_util.js";
+import {Circuit} from "../stim_crumble/circuit/circuit.js";
+import {toPragmaStim} from "../src/io/pragma_export.js";
 
 function lines(s) { return (s || '').trim().split(/\n+/); }
 function hasLineStartingWith(s, prefix) {
@@ -38,3 +38,4 @@ test("pragma_export.works_with_first_line_ops", () => {
   const out = toPragmaStim(raw);
   assertThat(lines(out)[0].startsWith('#!pragma MARK')).isEqualTo(true);
 });
+
