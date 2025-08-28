@@ -17,7 +17,7 @@ seg.addEventListener('click', (e) => {
   for (const b of seg.querySelectorAll('button')) b.classList.remove('active');
   btn.classList.add('active');
   mgr.setLayout(btn.dataset.layout);
-  renderAllPanels();
+  schedulePanelsRender();
 });
 
 // Timeline sizing & collapse
@@ -149,7 +149,7 @@ function setLayer(layer) {
   currentLayer = clamped;
   timelineCtl.render();
   updateLayerIndicator();
-  renderAllPanels();
+  schedulePanelsRender();
 }
 
 // Layer keyboard handling
@@ -195,6 +195,16 @@ function renderAllPanels() {
   console.log('[main] renderAllPanels done');
 }
 
+let panelsRenderScheduled = false;
+function schedulePanelsRender() {
+  if (panelsRenderScheduled) return;
+  panelsRenderScheduled = true;
+  requestAnimationFrame(() => {
+    panelsRenderScheduled = false;
+    renderAllPanels();
+  });
+}
+
 window.addEventListener('resize', () => {
-  renderAllPanels();
+  schedulePanelsRender();
 });
