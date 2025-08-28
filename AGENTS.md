@@ -160,7 +160,9 @@ Current UI Decisions (Repo State)
 
 Testing
 
-- Keep Crumble tests intact (headless and browser); add overlay parse/save and smoke rendering tests for panels/sheets.
+- Keep Crumble tests intact (headless and browser) under `core/` — treat as read‑only.
+- Colocate Shatter tests next to the modules they cover, following Crumble’s convention (e.g., `src/io/pragma_export.test.js`).
+- Run all tests via the top‑level `run_tests_headless.js` (executes Crumble’s suite and our colocalized tests). Browser-only specs remain under `core/test/test.html`.
 
 Open Questions (defer)
 
