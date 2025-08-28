@@ -7,29 +7,27 @@ QUBIT_COORDS(0, 0) 0
 QUBIT_COORDS(1, 0) 1
 QUBIT_COORDS(2, 0) 2
 
-# QU001: QUBIT without Q= must attach to an instruction that mentions qubits.
-##! QUBIT X=100 Y=100 LAYER=UPPER COLOUR=#123456 TEXT="no-anchor"
-# (The next line is a TICK; no qubits mentioned) → error QU001
-TICK
+##! QUBIT X=100 Y=100 LAYER=UPPER COLOUR=#123456 TEXT="no-anchor"  # QU001
+TICK  # next line is TICK (no qubits mentioned)
 
 # QU002: referenced qubit doesn't exist in the circuit.
 ##! QUBIT Q=99 X=200 Y=200 LAYER=LOWER COLOUR=#654321 TEXT="bad-qubit"
 
-# PR001: MARK missing immediate #!pragma MARK line.
-##! MARK STYLE=HOT TEXT="missing pragma"
-# (No #!pragma MARK follows)
+##! MARK STYLE=HOT TEXT="missing pragma"  # PR001 (no following pragma)
 
-# EMB01: CONN ROUTE=TORUS without global TORUS EMBEDDING params.
 ##! EMBEDDING TYPE=PLANE
-##! CONN SET EDGES=(0-1) LAYER=UPPER DROOP=0.1 COLOUR=#00AA88 TEXT="route-torus" ROUTE=TORUS
+##! CONN SET EDGES=(0-1) LAYER=UPPER DROOP=0.1 COLOUR=#00AA88 TEXT="route-torus" ROUTE=TORUS  # EMB01
 
 # Paired pragma mismatch: POLY without pragma → expect insertion when ensurePragmas:true.
-##! POLY LAYER=UPPER STYLE=CELL TEXT="missing-pragma"
+##! POLY LAYER=UPPER STYLE=CELL TEXT="missing-pragma"  # PR001 (POLY will need pragma on save)
 
 # Bad set syntax (parse error to be reported succinctly).
-##! SET NAME=@bad VALUE=2..1   # reversed range
+##! SET NAME=@bad VALUE=2..1   # parse error: reversed range
 
 # Circuit body (minimal)
+##! HIGHLIGHT GATE QUBITS=0,2 STYLE=ACTIVE TEXT="mismatch"  # HL002 vs next CX 0 1
+##! HIGHLIGHT GATE QUBITS=99 STYLE=ACTIVE TEXT="missing-qubit"  # QU002
+##! HIGHLIGHT GATE STYLE=ACTIVE TEXT="no gate here"  # HL001 (next non-trivia is TICK)
 TICK
 H 0 1 2
 M 0 1 2

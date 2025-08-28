@@ -26,9 +26,12 @@ test("overlay.fixtures_valid_contains_all_kinds", () => {
   // Polygons with paired pragmas
   assertThat(/##!\s+POLY\s+LAYER=UPPER/.test(txt)).isEqualTo(true);
   assertThat(/#!pragma\s+POLYGON\(/.test(txt)).isEqualTo(true);
-  // Highlights
+  // Highlights (qubits/edges/gate with and without filter)
   assertThat(/##!\s+HIGHLIGHT\s+STYLE\s+NAME=ACTIVE/.test(txt)).isEqualTo(true);
   assertThat(/##!\s+HIGHLIGHT\s+QUBITS=3,4/.test(txt)).isEqualTo(true);
+  assertThat(/##!\s+HIGHLIGHT\s+EDGES=\(/.test(txt)).isEqualTo(true);
+  assertThat(/##!\s+HIGHLIGHT\s+GATE\s+QUBITS=0,1/.test(txt)).isEqualTo(true);
+  assertThat(/##!\s+HIGHLIGHT\s+GATE\s+STYLE=ACTIVE/.test(txt)).isEqualTo(true);
   // Marks & ERR with pragmas
   assertThat(/##!\s+MARK\s+STYLE=HOT/.test(txt)).isEqualTo(true);
   assertThat(/#!pragma\s+MARK\(0\)/.test(txt)).isEqualTo(true);
@@ -51,4 +54,8 @@ test("overlay.fixtures_invalid_contains_expected_bad_cases", () => {
   // EMB01: ROUTE=TORUS without EMBEDDING torus params
   assertThat(/##!\s+EMBEDDING\s+TYPE=PLANE/.test(txt)).isEqualTo(true);
   assertThat(/ROUTE=TORUS/.test(txt)).isEqualTo(true);
+  // HL001/HL002/QU002 present as comments/fixtures
+  assertThat(/HIGHLIGHT\s+GATE\s+QUBITS=0,2/.test(txt)).isEqualTo(true);
+  assertThat(/HIGHLIGHT\s+GATE\s+QUBITS=99/.test(txt)).isEqualTo(true);
+  assertThat(/HIGHLIGHT\s+GATE\s+STYLE=ACTIVE\s+TEXT=\"no gate here\"/.test(txt)).isEqualTo(true);
 });

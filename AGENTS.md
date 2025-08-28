@@ -419,10 +419,17 @@ This command declares a reusable style that can be reused in style commands
 Apply
 
 ##! HIGHLIGHT QUBITS=3,4 STYLE=ACTIVE TEXT="hot"
-##! HIGHLIGHT EDGES=(0-1,1-2) STYLE=5 MOUSEOVER="syndrome path"
-##! HIGHLIGHT GATES=120,121 STYLE=2
+##! HIGHLIGHT EDGES=(0-1,1-2) STYLE=PATH MOUSEOVER="syndrome path"
+##! HIGHLIGHT GATE STYLE=ACTIVE
+##! HIGHLIGHT GATE QUBITS=0,1 STYLE=ACTIVE TEXT="two-qubit gate"
 
-Targets: QUBITS, EDGES, or GATES (instruction indices).
+Targets: QUBITS, EDGES, or GATE.
+
+Gate highlighting semantics
+
+- Attachment: applies to the next gate instruction in the file (skipping comments, blank lines, and TICK). No opaque IDs.
+- Optional filter: if `QUBITS=` is specified, the highlight applies only if the next gate’s targets include all listed qubits; otherwise the highlight is ignored with a diagnostic (HL002).
+- Missing anchor: if the next non-trivia line is not a gate, a diagnostic is emitted (HL001).
 
 4.9 Marks & Errors (paired with Crumble pragmas)
 ##! MARK STYLE=HOT TEXT="X-check A"
@@ -500,6 +507,9 @@ QU002 — QUBIT Q=<id> references a qubit not present in Stim (no gate/measure u
 PR001 — Paired ##! POLY|MARK|ERR has no following #!pragma and ensurePragmas is off.
 
 EMB01 — CONN SET … ROUTE=TORUS but no EMBEDDING TYPE=TORUS with LX,LY.
+
+HL001 — HIGHLIGHT GATE had no gate to attach to (next non-trivia line is not a gate).
+HL002 — HIGHLIGHT GATE with QUBITS filter didn’t match the next gate’s targets.
 
 Diagnostics are returned on the Overlay as:
 
