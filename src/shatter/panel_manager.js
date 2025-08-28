@@ -41,15 +41,14 @@ export class PanelManager {
 
     const body = document.createElement('div');
     body.className = 'panel-body';
-    const placeholder = document.createElement('div');
-    placeholder.style.color = '#6e7781';
-    placeholder.style.fontSize = '12px';
-    placeholder.textContent = 'Canvas placeholder';
-    body.appendChild(placeholder);
+    const canvas = document.createElement('canvas');
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    body.appendChild(canvas);
 
     panel.append(header, body);
     this.container.appendChild(panel);
-    return {panel, header, body, sel};
+    return {panel, header, body, canvas, sel};
   }
 }
 

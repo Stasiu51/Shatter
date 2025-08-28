@@ -1,6 +1,7 @@
 import {PanelManager} from './shatter/panel_manager.js';
 import {parseStim, stringifyStim, pickAndReadFile, downloadText} from './io/import_export.js';
 import {renderTimeline as renderTimelineCore, computeMaxScrollCSS} from './timeline/renderer.js';
+import {renderPanel as renderCrumblePanel} from './panels/crumble_panel_renderer.js';
 import {setupTimelineUI} from './timeline/controller.js';
 import {createStatusLogger} from './status/logger.js';
 import {setupNameEditor, sanitizeName} from './name/editor.js';
@@ -16,6 +17,7 @@ seg.addEventListener('click', (e) => {
   for (const b of seg.querySelectorAll('button')) b.classList.remove('active');
   btn.classList.add('active');
   mgr.setLayout(btn.dataset.layout);
+  renderAllPanels();
 });
 
 // Timeline sizing & collapse
@@ -157,4 +159,16 @@ setupLayerKeyboard({
   getLayer: () => currentLayer,
   setLayer,
   getMaxLayer: () => Math.max(0, (currentCircuit?.layers?.length || 1) - 1),
+});
+
+function renderAllPanels() {
+  if (!currentCircuit) return;
+  for (const p of mgr.panels) {
+    if (!p?.canvas) continue;
+    renderCrumblePanel({canvas: p.canvas, circuit: currentCircuit, currentLayer});
+  }
+}
+
+window.addEventListener('resize', () => {
+  renderAllPanels();
 });
