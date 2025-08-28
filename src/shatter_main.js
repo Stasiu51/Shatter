@@ -1,5 +1,6 @@
 import {PanelManager} from './shatter/panel_manager.js';
 import {parseStim, stringifyStim, pickAndReadFile, downloadText} from './io/import_export.js';
+import {parseOverlayFromStim} from './overlay.js';
 import {renderTimeline as renderTimelineCore, computeMaxScrollCSS} from './timeline/renderer.js';
 import {renderPanel as renderCrumblePanel} from './panels/crumble_panel_renderer.js';
 import {setupTimelineUI} from './timeline/controller.js';
@@ -102,10 +103,20 @@ btnImport?.addEventListener('click', async () => {
     if (picked.name) { const nn = sanitizeName(picked.name); nameCtl.setName(nn); currentName = nn; localStorage.setItem('circuitName', currentName); }
     pushStatus(`Imported "${currentName}" (${(picked.text||'').length} chars).`, 'info');
     if (warnings?.length) {
-      // Push each warning to the log, but let the latest one appear on the right.
       for (const w of warnings) pushStatus(w, 'warning');
-      // After pushing warnings, show an info message so the latest warning sits on the right side.
       pushStatus(`Import produced ${warnings.length} warning(s).`, 'info');
+    }
+    try {
+      const overlay = parseOverlayFromStim(picked.text || "");
+      if (overlay?.diagnostics?.length) {
+        for (const d of overlay.diagnostics) {
+          const sev = d.severity === 'error' ? 'error' : 'warning';
+          pushStatus(`[${d.code}] line ${d.line}: ${d.message}`, sev);
+        }
+        pushStatus(`Overlay produced ${overlay.diagnostics.length} issue(s).`, 'info');
+      }
+    } catch (e) {
+      pushStatus(`Overlay parse error: ${e?.message || e}`, 'error');
     }
   } catch (e) {
     // On error, there's no circuit to render. Leave previous view.

@@ -10,8 +10,8 @@
 
 const isBlank = (s) => !s || /^\s*$/.test(s);
 const isComment = (s) => /^\s*#(?!!pragma)/.test(s);
-const isPragma = (s) => /^\s*#!pragma/.test(s);
-const isTick = (s) => /^\s*TICK/.test(s);
+const isPragma = (s) => /^\s*#!pragma\b/.test(s);
+const isTick = (s) => /^\s*TICK\b/.test(s);
 const gateNameRe = /^[A-Z][A-Z0-9_]*(?::[A-Z]+)?(?:\([^)]*\))?/;
 
 function tokenize(line) {
@@ -34,7 +34,7 @@ function collectGateTargets(line) {
 }
 
 function isGateLine(line) {
-  if (isTick(line) || /^(\s*DETECTOR|\s*OBSERVABLE_INCLUDE|\s*REPEAT|\s*\})/.test(line)) return false;
+  if (isTick(line) || /^(\s*DETECTOR|\s*OBSERVABLE_INCLUDE|\s*REPEAT|\s*\})/.test(line)) return false;
   return gateNameRe.test(line);
 }
 
@@ -59,8 +59,7 @@ function nextNonTrivia(lines, start) {
  * @returns {Overlay}
  */
 export function parseOverlayFromStim(text) {
-  const lines = (text || '').split(/?
-/);
+  const lines = (text || '').split(/\r?\n/);
   const diagnostics = [];
 
   // Build a set of used qubits from QUBIT_COORDS and obvious gate/measurement lines.
@@ -73,7 +72,7 @@ export function parseOverlayFromStim(text) {
       continue;
     }
     if (isComment(s) || isBlank(s) || isPragma(s)) continue;
-    if (isGateLine(s) || /^M/.test(s)) {
+    if (isGateLine(s) || /^M/.test(s)) {
       const ids = collectGateTargets(s) || [];
       ids.forEach(v => usedQubits.add(v));
     }
@@ -85,10 +84,10 @@ export function parseOverlayFromStim(text) {
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
     const s = raw.trim();
-    if (!/^##!/.test(s)) continue;
+    if (!/^##!/.test(s)) continue;
 
     // EMBEDDING
-    if (/^##!\s+EMBEDDING/i.test(s)) {
+    if (/^##!\s+EMBEDDING/i.test(s)) {
       if (/TYPE=TORUS/i.test(s)) {
         hasTorusEmbedding = true;
         hasTorusLXLY = /LX=\d+\s+LY=\d+/i.test(s);
@@ -96,8 +95,8 @@ export function parseOverlayFromStim(text) {
     }
 
     // QUBIT directives.
-    if (/^##!\s+QUBIT/i.test(s)) {
-      const hasQ = /Q=/.test(s);
+    if (/^##!\s+QUBIT/i.test(s)) {
+      const hasQ = /Q=/.test(s);
       const nextIdx = nextNonTrivia(lines, i + 1);
       if (!hasQ) {
         // Must anchor to next instruction mentioning qubits.
@@ -111,7 +110,7 @@ export function parseOverlayFromStim(text) {
           }
         }
       } else {
-        const m = s.match(/Q=(\d+)/);
+        const m = s.match(/Q=(\d+)/);
         if (m) {
           const q = parseInt(m[1], 10);
           if (!usedQubits.has(q)) {
@@ -122,7 +121,7 @@ export function parseOverlayFromStim(text) {
     }
 
     // HIGHLIGHT GATE semantics.
-    if (/^##!\s+HIGHLIGHT\s+GATE/i.test(s)) {
+    if (/^##!\s+HIGHLIGHT\s+GATE/i.test(s)) {
       const nextIdx = nextNonTrivia(lines, i + 1);
       if (nextIdx === -1) {
         diagnostics.push({line: i + 1, code: 'HL001', severity: 'warning', message: 'HIGHLIGHT GATE not anchored (EOF).'});
@@ -132,7 +131,7 @@ export function parseOverlayFromStim(text) {
           diagnostics.push({line: i + 1, code: 'HL001', severity: 'warning', message: 'HIGHLIGHT GATE next non-trivia is not a gate.'});
         } else {
           const want = (() => {
-            const m = s.match(/QUBITS=([\d,]+)/i);
+            const m = s.match(/QUBITS=([\d,]+)/i);
             if (!m) return [];
             return m[1].split(',').map(v => parseInt(v.trim(), 10)).filter(v => v === v);
           })();
@@ -149,9 +148,9 @@ export function parseOverlayFromStim(text) {
     }
 
     // Pairing checks for immediate pragma lines.
-    if (/^##!\s+(POLY|MARK|ERR)/i.test(s)) {
+    if (/^##!\s+(POLY|MARK|ERR)/i.test(s)) {
       const next = lines[i + 1] ?? '';
-      if (!/^\s*#!pragma/.test(next)) {
+      if (!/^\s*#!pragma/.test(next)) {
         diagnostics.push({line: i + 1, code: 'PR001', severity: 'warning', message: 'Directive missing immediate #!pragma pairing.'});
       }
     }
@@ -161,7 +160,7 @@ export function parseOverlayFromStim(text) {
   if (!hasTorusEmbedding || !hasTorusLXLY) {
     for (let i = 0; i < lines.length; i++) {
       const s = lines[i];
-      if (/^##!\s+CONN\s+.*ROUTE=TORUS/i.test(s)) {
+      if (/^##!\s+CONN\s+.*ROUTE=TORUS/i.test(s)) {
         diagnostics.push({line: i + 1, code: 'EMB01', severity: 'warning', message: 'ROUTE=TORUS used but no EMBEDDING TYPE=TORUS LX,LY.'});
       }
     }
@@ -184,27 +183,26 @@ export function parseOverlayFromStim(text) {
 export function toStimCircuit(baseText, opts = {}) {
   const ensure = !!opts.ensurePragmas;
   if (!ensure) return baseText || '';
-  const lines = (baseText || '').split(/?
-/);
+  const lines = (baseText || '').split(/\r?\n/);
   const out = [];
   for (let i = 0; i < lines.length; i++) {
     const s = lines[i];
     out.push(s);
     const t = s.trim();
-    if (/^##!\s+POLY/i.test(t)) {
+    if (/^##!\s+POLY/i.test(t)) {
       const next = lines[i + 1] || '';
-      if (!/^\s*#!pragma\s+POLYGON/i.test(next)) {
+      if (!/^\s*#!pragma\s+POLYGON/i.test(next)) {
         // Insert a minimal fallback pragma with no vertices and gentle color.
         out.push('#!pragma POLYGON(0.8,0.9,1.0,0.25)');
       }
-    } else if (/^##!\s+MARK/i.test(t)) {
+    } else if (/^##!\s+MARK/i.test(t)) {
       const next = lines[i + 1] || '';
-      if (!/^\s*#!pragma\s+MARK/i.test(next)) {
+      if (!/^\s*#!pragma\s+MARK/i.test(next)) {
         out.push('#!pragma MARK');
       }
-    } else if (/^##!\s+ERR/i.test(t)) {
+    } else if (/^##!\s+ERR/i.test(t)) {
       const next = lines[i + 1] || '';
-      if (!/^\s*#!pragma\s+ERR/i.test(next)) {
+      if (!/^\s*#!pragma\s+ERR/i.test(next)) {
         out.push('#!pragma ERR');
       }
     }
