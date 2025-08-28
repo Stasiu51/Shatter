@@ -2,6 +2,7 @@
 // Uses the vendored Crumble Circuit for parsing/printing.
 
 import {Circuit} from '../../stim_crumble/circuit/circuit.js';
+import {toPragmaStim} from './pragma_export.js';
 
 export function parseStim(text) {
   // Parse via Crumble to validate and normalize, capturing warnings emitted via console.warn.
@@ -29,7 +30,7 @@ export function parseStim(text) {
 export function stringifyStim(circuit) {
   if (!circuit) return '';
   try {
-    return circuit.toStimCircuit();
+    return toPragmaStim(circuit);
   } catch {
     return '';
   }
