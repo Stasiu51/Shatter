@@ -86,6 +86,8 @@ btnImport?.addEventListener('click', async () => {
     const {circuit, text, warnings} = parseStim(picked.text);
     currentCircuit = circuit;
     currentLayer = 0;
+    // Rebuild panels to ensure fresh canvases (avoid stale placeholders).
+    mgr.build();
     timelineCtl.setScrollY(0);
     timelineCtl.render();
     renderAllPanels();
