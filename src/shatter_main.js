@@ -18,6 +18,7 @@ seg.addEventListener('click', (e) => {
   btn.classList.add('active');
   mgr.setLayout(btn.dataset.layout);
   renderAllPanels();
+  console.log('[main] layout changed to %s. panels=%s', btn.dataset.layout, mgr.panels.length);
 });
 
 // Timeline sizing & collapse
@@ -88,6 +89,7 @@ btnImport?.addEventListener('click', async () => {
     currentLayer = 0;
     // Rebuild panels to ensure fresh canvases (avoid stale placeholders).
     mgr.build();
+    console.log('[main] import: circuit layers=%s, panels=%s', currentCircuit.layers.length, mgr.panels.length);
     timelineCtl.setScrollY(0);
     timelineCtl.render();
     renderAllPanels();
@@ -167,10 +169,14 @@ setupLayerKeyboard({
 
 function renderAllPanels() {
   if (!currentCircuit) return;
+  console.log('[main] renderAllPanels start. panels=%s layer=%s', mgr.panels.length, currentLayer);
   for (const p of mgr.panels) {
     if (!p?.canvas) continue;
+    const r = p.canvas.getBoundingClientRect();
+    console.log('[main] panel canvas rect %sx%s', Math.round(r.width), Math.round(r.height));
     renderCrumblePanel({canvas: p.canvas, circuit: currentCircuit, currentLayer});
   }
+  console.log('[main] renderAllPanels done');
 }
 
 window.addEventListener('resize', () => {
