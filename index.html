@@ -72,7 +72,7 @@
       /* Timeline (global) */
       .timeline { width: var(--timeline-width); min-width: 0; border:none; border-radius:0; background:#fff; display:flex; flex-direction:column; transition: width 0.05s linear; will-change: width; overflow:hidden; }
       .timeline.resizing { transition: none !important; }
-      .timeline-header { padding:8px 10px; border-bottom:1px solid var(--border); color:#57606a; font-weight:600; height:47px; display:flex; align-items:center; justify-content:space-between; }
+      .timeline-header { padding:8px 10px; border-bottom:1px solid var(--border); color:#57606a; font-weight:600; height:47px; min-height:47px; max-height:47px; flex: 0 0 47px; display:flex; align-items:center; justify-content:space-between; }
       .timeline-left { display:flex; align-items:center; gap:8px; }
       .timeline-title { font-weight:600; color:#57606a; }
       .timeline-header .layer-info { margin-left: 0; font-weight:500; color:#57606a; }
