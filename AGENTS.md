@@ -42,6 +42,206 @@ Round-trip back to valid .stim, optionally inserting any missing paired Crumble 
 
 Validate common authoring mistakes and display concise diagnostics.
 
+Developer notes (current repo)
+
+- Repository layout:
+  - `stim_crumble/`: upstream Crumble snapshot (read-only).
+  - `core/`: exact vendored copy of Crumble used by the app/tests (read-only).
+  - `src/` + `index.html`: minimal demo UI (plain ESM).
+  - `core/test/`, `core/run_tests_headless.js`: test harness and specs.
+- Running tests:
+  - Headless: `node core/run_tests_headless.js` (skips browser-only tests).
+  - Browser: `python -m http.server --directory core` → open `/test/test.html`.
+- Marks: use typed markers (`MARKX/MARKY/MARKZ(index)`) for propagation; generic `MARK` is visual only.
+
+Design docs
+
+- `ui_design_doc.md`: product/UI description and screenshots (what we aim to replicate/extend).
+- `ui_implementation_doc.md`: one-to-one mapping from UI elements to Crumble source files/functions (how it works today), with panel draw flow details.
+
+Shatter Plan (Design & Implementation)
+
+Goals
+
+- Multi-panel views filtering “sheets” (Z-stacked visual layers) while reusing Crumble for parsing, editing, gates, and propagation.
+- Mouse-first editing with a small selection-mode indicator and an inspector; no new shortcuts needed initially.
+- Preserve Crumble’s circuit view; extend only the panel(s) and property editing.
+
+Core Reuse & Fork Strategy
+
+- Keep `stim_crumble/` pristine; use it for Circuit/Layer/Operation, gates, propagation, and editor state.
+- Fork panel renderer only (draw logic) with attribution to control draw order and filtering:
+  - Copy `stim_crumble/draw/main_draw.js` → `shatter/draw/panel_draw.js` (internal use).
+  - Optionally copy `stim_crumble/draw/timeline_viewer.js` later if we want sheet-filtered timelines.
+
+Rendering Order (per panel)
+
+- Our polygons (advanced, from overlay)
+- Our connections (with optional “stubs” if an endpoint is off-panel)
+- Squares (qubit boxes/grid)
+- Gates (filtered by sheet)
+- Pauli marks (propagated polygons/bars/ovals, filtered by visible qubits)
+- Detectors/observables
+
+Sheets & Panels
+
+- Each element (qubit, gate, polygon, connection) belongs to exactly one sheet; panels choose which sheets to display (checkbox UI per panel).
+- Up to four panels; fixed layouts: 1 (full), 2 side-by-side, 3 side-by-side, 4 quadrants.
+- All panels show synchronized views of the same circuit/selection; selection in one panel selects in all.
+
+Selection Model
+
+- Single-type selection at a time: gate | connection | qubit | polygon.
+- Hit-testing follows draw order ("whatever is on top"):
+  - No Alt: consider all four kinds; pick the topmost under cursor.
+  - Alt held: consider only qubit, connection, polygon (exclude gates); pick the topmost of those. This lets you reach items under a gate.
+- Selection chip near each panel shows current kind; single-select switches mode automatically; invalid multi-select (mixed kinds) flashes the chip red and ignores the incompatible items.
+
+Selection Indicator UI
+
+- A small inline widget near each panel shows four adjacent boxes (left→right):
+  - [Gate] [Qubit] [Connection] [Polygon]
+- The leftmost "Gate" box stands alone; the three boxes to its right are grouped by a continuous under‑brace style bracket labeled "Alt" centered beneath the group (see `debugging_pictures/1.png`). This indicates Alt enables selection among these three while excluding gates.
+- The active kind is highlighted; when multi-select attempts to mix kinds, the whole widget briefly flashes red.
+
+Inspector & Edits
+
+- Inspector edits update the source of truth immediately:
+  - Stim-backed (e.g., qubit coords) → commit via EditorState (toStimCircuit/fromStimCircuit) → re-render.
+  - Shatter-only visuals (polygons, connections, highlights, sheets, fallback colors) → update overlay model → re-render; Stim updated on export as `##!` lines.
+
+Polygons (supersede Crumble)
+
+- Do not draw Crumble `POLYGON` markers at runtime; draw Shatter polygons only.
+- Export: ensure each `##! POLY …` has a paired `#!pragma POLYGON(…)` with a fallback color so Crumble can render something outside Shatter.
+
+Crossings
+
+- Associate each crossing to its controlled gate via `layer.id_ops.get(q1)` at that layer.
+- Draw the crossing only on panels where that gate is visible (sheet-filtered) and place crossings after gates.
+
+Pauli Marks per Panel
+
+- Reuse `PropagatedPauliFrames` once per layer change (cache shared across panels).
+- Per panel: filter bases by visible qubits; shape rules:
+  - ≥3 visible → polygon; 2 → pointy oval; 1 → single-qubit bar/square; 0 → skip.
+- Errors: draw only for visible qubits in that panel.
+
+Connections
+
+- Draw under squares; if only one endpoint is visible, render a short “stub” toward the hidden endpoint (using qubit positions).
+
+Performance & Sync
+
+- One `EditorState` and overlay model shared; one propagation cache reused by all panels.
+- Re-render all panels on any selection/inspector change; handle HiDPI and resize per canvas.
+
+Export/Import Semantics
+
+- Stim remains the source of truth; overlay stored as `##!` blocks in export.
+- Always pair `##! POLY` with `#!pragma POLYGON` (fallback color) in export; no need to strip pragmas before parsing—Shatter simply does not call Crumble’s polygon drawer.
+
+Timeline
+
+- Single global timeline panel is docked to the right of all panels. It renders via Crumble's `draw/timeline_viewer.js` with high-DPI scaling. Timeline is resizable via a vertical drag handle and collapsible; width/collapsed state persist in localStorage. A persistent header button toggles show/hide.
+- Keep Crumble timeline as-is initially (unfiltered); consider fork only if we need sheet-filtered timelines later.
+
+Current UI Decisions (Repo State)
+
+- Layout: left multi-panel grid + single right-hand global timeline. Panels and timeline are independent; the timeline stays visible across layout changes.
+- Timeline controls: vertical resizer between panels and timeline; collapse/expand via a button in the timeline header and an always-present toggle in the top-right of the main header. Width and collapsed state persist across reloads.
+- Selection indicator: four-box widget [Gate] [Qubit] [Connection] [Polygon]. The right three are grouped by a curved under‑brace with the label "Alt" centered beneath the group; the brace width is tuned to the boxes (see debugging_pictures/1.png and follow-ups). Active kind is highlighted.
+- Visual style: large containers (panels, timeline) use square corners; small controls retain rounded corners.
+- Subbar toolbar: a full‑width toolbar below the global header includes an editable circuit name and tool buttons (Import/Export/etc.).
+- Editable circuit name: shows the imported filename (without .stim/.txt), can be clicked/edited, sanitized, and persisted; export uses `<name>.stim`.
+- Status bar: fixed bottom bar split into left/right halves. Left shows the most recent message (info/warning/error dot). Right shows the most recent warning/error unless the latest message is itself a warning/error (in which case it is blank). Clicking the bar downloads a single consolidated status log.
+- Warning capture: during parse, Crumble warnings emitted via `console.warn` are captured and surfaced in the status bar and log.
+- Timeline rendering: uses Crumble's timeline viewer with propagated marks and scrubber; renders after Import; re-renders on window resize and timeline width changes. Current layer defaults to 0 (Q/E layer stepping to be wired next).
+
+Testing
+
+- Keep Crumble tests intact (headless and browser); add overlay parse/save and smoke rendering tests for panels/sheets.
+
+Open Questions (defer)
+
+- Theme/appearance (fonts, colors), sheet-specific styles, and timeline filtering can be layered on later.
+
+Incremental Delivery Plan (Top‑Down)
+
+Milestone 0 — Baseline
+
+- Dev: Ensure `stim_crumble/` vendored; `core/` mirrors upstream; tests green (headless + browser page).
+- Manual: Open `core/test/test.html` and confirm “All tests passed”.
+
+Milestone 1 — Skeleton Layout (no logic)
+
+- Dev: Add PanelManager shell with fixed presets (1, 2, 3, 4 panels) and selection indicator widget (non‑functional). Canvases are blank.
+- Dev: Add a global Timeline container docked to the right of the panel area (single shared timeline across all panels). Include an empty timeline canvas/DOM shell now; actual rendering comes later.
+- Manual:
+  - Switch layouts; canvases resize cleanly (CSS + DPR).
+  - Selection indicator renders; switching layouts preserves its UI.
+  - Timeline column remains visible and sized correctly regardless of panel layout.
+- Unit: None (layout only).
+
+Milestone 2 — Crumble View (single panel)
+
+- Dev: Render Crumble timeline on the global right canvas using Crumble's timeline viewer; parse/import via `Circuit.fromStimCircuit` and show warnings. Panels remain placeholders for now.
+- Manual:
+  - Load sample Stim via Import; timeline renders with wires/gates/propagation; warnings appear in the status bar. Resize/collapse timeline; rendering stays crisp (HiDPI).
+  - Export shows Stim with pragmas (ERR/MARK/POLYGON) as per upstream; exported filename matches editable name.
+- Unit: Run core headless tests.
+
+Milestone 3 — Multi‑Panel Manager (Crumble only)
+
+- Dev: Add N panels (1–4) drawing the same Crumble state (no filtering yet); selection is shared (click in any panel highlights in all); timeline remains single.
+- Manual:
+  - Switch layouts; ensure redraw; selection/hover sync across panels; performance acceptable.
+- Unit: None (integration).
+
+Milestone 4 — Overlay Model + Inspector Shell
+
+- Dev: Implement in‑memory overlay model (sheets, polygons, connections, highlights) and a minimal Inspector (sheets per panel, per‑element sheet assignment). No custom drawing yet.
+- Manual:
+  - Toggle panel sheet checkboxes; model updates; selection chip shows kind; invalid multi‑select flashes red.
+- Unit: Overlay parse/save round‑trip (##! blocks) with snapshots.
+
+Milestone 5 — Forked Panel Draw (filters only)
+
+- Dev: Copy `draw/main_draw.js` → `shatter/draw/panel_draw.js`. Add isVisibleQ/op filters; remove Crumble polygon pass; keep connections/polygons disabled for now.
+- Manual:
+  - Assign sheets to qubits/gates; panels filter gates/marks by sheet; marks render per visible subset.
+- Unit: Small tests for filter helpers (visible qubits/ops) and mark shape selection (≥3/2/1/0).
+
+Milestone 6 — Underlays (Polygons, Connections)
+
+- Dev: Draw Shatter polygons (under squares) and connections (under squares) in the fork at the underlay stage; implement connection stubs.
+- Manual:
+  - Create polygons/connections via Inspector; verify draw order (under squares) and sheet filtering; stubs appear when endpoints are off‑panel.
+  - Export includes paired `##! POLY` + fallback `#!pragma POLYGON`.
+- Unit: Geometry helpers for stubs; overlay export consistency tests.
+
+Milestone 7 — Selection & Hit‑Testing (full)
+
+- Dev: Implement hit‑tests and selection mode (gate | qubit | connection | polygon); Alt excludes gates; selection chip updates; Inspector edits apply live (Stim or overlay).
+- Manual:
+  - Click/Shift‑click/Ctrl‑click per kind; Alt to reach items under gates; invalid mixed multi‑select flashes red.
+  - Inspector edits qubit coords (Stim), sheet assignments (overlay), colors/text (overlay).
+- Unit: Hit‑test unit tests for each kind; Stim write‑through smoke tests (qubit move).
+
+Milestone 8 — Crossings Tied to Gates
+
+- Dev: Associate crossings to gate ops and draw them only on panels where the gate is visible; place crossings after gates.
+- Manual:
+  - Verify crossings appear/disappear per panel based on gate visibility; confirm color matches basis.
+- Unit: Crossing→gate mapping tests on small circuits.
+
+Milestone 9 — Polish & QA
+
+- Dev: DPI scaling; minor styling; error states; performance pass (cache PropagatedPauliFrames once per tick).
+- Manual:
+  - Resize windows; fast layer scrubbing; large circuits still responsive; export/import unchanged Stim correctness.
+- Unit: Overlay parse/save edge cases; perf micro‑benchmarks if needed.
+
 3) Agent roles (for Codex)
 Parser Agent
 
@@ -98,6 +298,8 @@ App Agent
 Static single-page app (no build step): plain ESM modules, file picker, drag-and-drop, zoom/pan, time slider, diagnostics panel, “Save as .stim”.
 
 Run parsing and propagation on the main thread, mirroring Crumble’s approach.
+
+Note: The demo’s propagation printout formats layers explicitly instead of using Crumble’s `toString()` to avoid relying on internal stringifier details.
 
 QA Agent
 

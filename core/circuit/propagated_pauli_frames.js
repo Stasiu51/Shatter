@@ -55,6 +55,14 @@ class PropagatedPauliFrameLayer {
         for (let q of this.errors) {
             num_qubits = Math.max(num_qubits, q + 1);
         }
+        // NOTE:
+        // In Crumble, `crossings` is used for drawing and is an array of objects
+        // shaped like {q1: int, q2: int, color: string}. The destructuring
+        // below treats each entry as a 2‑element array [q1, q2], which will
+        // throw a TypeError (".for is not iterable") when fed objects.
+        // Our UI avoids relying on this stringifier and instead formats layers
+        // explicitly. If you hit this in debugging, inspect `this.crossings`
+        // directly instead of calling toString.
         for (let [q1, q2] of this.crossings) {
             num_qubits = Math.max(num_qubits, q1 + 1);
             num_qubits = Math.max(num_qubits, q2 + 1);

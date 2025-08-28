@@ -15,6 +15,27 @@ export function describeCircuit(circuit) {
  * @returns {string}
  */
 export function describePropagation(propagated) {
-  return String(propagated);
+  try {
+    if (!propagated || !propagated.id_layers) {
+      return String(propagated);
+    }
+    const keys = [...propagated.id_layers.keys()].sort((a, b) => a - b);
+    const lines = ['PropagatedPauliFrames {'];
+    for (const k of keys) {
+      const layer = propagated.id_layers.get(k);
+      const bases = {};
+      for (const [q, b] of layer.bases.entries()) bases[q] = b;
+      const errors = Array.from(layer.errors);
+      const crossings = Array.isArray(layer.crossings)
+        ? layer.crossings.map(c => ({ q1: c.q1, q2: c.q2, color: c.color }))
+        : [];
+      lines.push(
+        `  ${k}: { bases: ${JSON.stringify(bases)}, errors: ${JSON.stringify(errors)}, crossings: ${JSON.stringify(crossings)} }`
+      );
+    }
+    lines.push('}');
+    return lines.join('\n');
+  } catch (e) {
+    return 'describePropagation error: ' + e;
+  }
 }
-

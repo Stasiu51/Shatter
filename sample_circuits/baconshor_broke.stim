@@ -1,0 +1,135 @@
+QUBIT_COORDS(0, 0) 0
+QUBIT_COORDS(0, 1) 1
+QUBIT_COORDS(0, 2) 2
+QUBIT_COORDS(0, 3) 3
+QUBIT_COORDS(0, 4) 4
+QUBIT_COORDS(1, 0) 5
+QUBIT_COORDS(1, 1) 6
+QUBIT_COORDS(1, 2) 7
+QUBIT_COORDS(1, 3) 8
+QUBIT_COORDS(1, 4) 9
+QUBIT_COORDS(2, 0) 10
+QUBIT_COORDS(2, 1) 11
+QUBIT_COORDS(2, 2) 12
+QUBIT_COORDS(2, 3) 13
+QUBIT_COORDS(2, 4) 14
+QUBIT_COORDS(3, 0) 15
+QUBIT_COORDS(3, 1) 16
+QUBIT_COORDS(3, 2) 17
+QUBIT_COORDS(3, 3) 18
+QUBIT_COORDS(3, 4) 19
+QUBIT_COORDS(4, 0) 20
+QUBIT_COORDS(4, 1) 21
+QUBIT_COORDS(4, 2) 22
+QUBIT_COORDS(4, 3) 23
+QUBIT_COORDS(4, 4) 24
+asdfhjaksdfjhksad
+#!pragma POLYGON(0,0,1,0.25) 23 24
+#!pragma POLYGON(0,0,1,0.25) 18 19
+#!pragma POLYGON(0,0,1,0.25) 13 14
+#!pragma POLYGON(0,0,1,0.25) 8 9
+#!pragma POLYGON(0,0,1,0.25) 3 4
+#!pragma POLYGON(0,0,1,0.25) 22 23
+#!pragma POLYGON(0,0,1,0.25) 17 18
+#!pragma POLYGON(0,0,1,0.25) 12 13
+#!pragma POLYGON(0,0,1,0.25) 7 8
+#!pragma POLYGON(0,0,1,0.25) 2 3
+#!pragma POLYGON(0,0,1,0.25) 21 22
+#!pragma POLYGON(0,0,1,0.25) 16 17
+#!pragma POLYGON(0,0,1,0.25) 11 12
+#!pragma POLYGON(0,0,1,0.25) 6 7
+#!pragma POLYGON(0,0,1,0.25) 1 2
+#!pragma POLYGON(0,0,1,0.25) 20 21
+#!pragma POLYGON(0,0,1,0.25) 15 16
+#!pragma POLYGON(0,0,1,0.25) 10 11
+#!pragma POLYGON(0,0,1,0.25) 5 6
+#!pragma POLYGON(0,0,1,0.25) 0 1
+#!pragma POLYGON(1,0,0,0.25) 24 19
+#!pragma POLYGON(1,0,0,0.25) 19 14
+#!pragma POLYGON(1,0,0,0.25) 14 9
+#!pragma POLYGON(1,0,0,0.25) 9 4
+#!pragma POLYGON(1,0,0,0.25) 23 18
+#!pragma POLYGON(1,0,0,0.25) 18 13
+#!pragma POLYGON(1,0,0,0.25) 13 8
+#!pragma POLYGON(1,0,0,0.25) 8 3
+#!pragma POLYGON(1,0,0,0.25) 22 17
+#!pragma POLYGON(1,0,0,0.25) 17 12
+#!pragma POLYGON(1,0,0,0.25) 12 7
+#!pragma POLYGON(1,0,0,0.25) 7 2
+#!pragma POLYGON(1,0,0,0.25) 21 16
+#!pragma POLYGON(1,0,0,0.25) 16 11
+#!pragma POLYGON(1,0,0,0.25) 11 6
+#!pragma POLYGON(1,0,0,0.25) 6 1
+#!pragma POLYGON(1,0,0,0.25) 20 15
+#!pragma POLYGON(1,0,0,0.25) 15 10
+#!pragma POLYGON(1,0,0,0.25) 10 5
+#!pragma POLYGON(1,0,0,0.25) 5 0
+TICK
+R 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+#!pragma MARKZ(0) 1 2 6 7 11 12 16 17 21 22
+TICK
+TICK
+MZZ 0 1 5 6 10 11 15 16 20 21 2 3 7 8 12 13 17 18 22 23
+DETECTOR(0, 0, 0) rec[-10]
+DETECTOR(1, 0, 0) rec[-9]
+DETECTOR(2, 0, 0) rec[-8]
+DETECTOR(3, 0, 0) rec[-7]
+DETECTOR(4, 0, 0) rec[-6]
+DETECTOR(0, 2, 0) rec[-5]
+DETECTOR(1, 2, 0) rec[-4]
+DETECTOR(2, 2, 0) rec[-3]
+DETECTOR(3, 2, 0) rec[-2]
+DETECTOR(4, 2, 0) rec[-1]
+TICK
+MXX 0 5 1 6 2 7 3 8 4 9 10 15 11 16 12 17 13 18 14 19
+#!pragma MARKX(1) 10 11 12 13 14 15 16 17 18 19
+TICK
+MZZ 1 2 6 7 11 12 16 17 21 22 3 4 8 9 13 14 18 19 23 24
+#!pragma MARKZ(0) 1 2 6 7 11 12 16 17 21 22
+DETECTOR(4, 1, 1) rec[-6] rec[-7] rec[-8] rec[-9] rec[-10]
+DETECTOR(4, 3, 1) rec[-1] rec[-2] rec[-3] rec[-4] rec[-5]
+TICK
+MXX 5 10 6 11 7 12 8 13 9 14 15 20 16 21 17 22 18 23 19 24
+TICK
+TICK
+MZZ 0 1 5 6 10 11 15 16 20 21 2 3 7 8 12 13 17 18 22 23
+DETECTOR(4, 0, 2) rec[-6] rec[-7] rec[-8] rec[-9] rec[-10] rec[-46] rec[-47] rec[-48] rec[-49] rec[-50]
+DETECTOR(4, 2, 2) rec[-1] rec[-2] rec[-3] rec[-4] rec[-5] rec[-41] rec[-42] rec[-43] rec[-44] rec[-45]
+TICK
+MXX 0 5 1 6 2 7 3 8 4 9 10 15 11 16 12 17 13 18 14 19
+#!pragma MARKX(1) 10 11 12 13 14 15 16 17 18 19
+DETECTOR(0, 4, 3) rec[-6] rec[-7] rec[-8] rec[-9] rec[-10] rec[-46] rec[-47] rec[-48] rec[-49] rec[-50]
+DETECTOR(2, 4, 3) rec[-1] rec[-2] rec[-3] rec[-4] rec[-5] rec[-41] rec[-42] rec[-43] rec[-44] rec[-45]
+TICK
+MZZ 1 2 6 7 11 12 16 17 21 22 3 4 8 9 13 14 18 19 23 24
+DETECTOR(4, 1, 4) rec[-6] rec[-7] rec[-8] rec[-9] rec[-10] rec[-46] rec[-47] rec[-48] rec[-49] rec[-50]
+DETECTOR(4, 3, 4) rec[-1] rec[-2] rec[-3] rec[-4] rec[-5] rec[-41] rec[-42] rec[-43] rec[-44] rec[-45]
+TICK
+MXX 5 10 6 11 7 12 8 13 9 14 15 20 16 21 17 22 18 23 19 24
+DETECTOR(1, 4, 5) rec[-6] rec[-7] rec[-8] rec[-9] rec[-10] rec[-46] rec[-47] rec[-48] rec[-49] rec[-50]
+DETECTOR(3, 4, 5) rec[-1] rec[-2] rec[-3] rec[-4] rec[-5] rec[-41] rec[-42] rec[-43] rec[-44] rec[-45]
+TICK
+TICK
+MZZ 0 1 5 6 10 11 15 16 20 21 2 3 7 8 12 13 17 18 22 23
+DETECTOR(4, 0, 6) rec[-6] rec[-7] rec[-8] rec[-9] rec[-10] rec[-46] rec[-47] rec[-48] rec[-49] rec[-50]
+DETECTOR(4, 2, 6) rec[-1] rec[-2] rec[-3] rec[-4] rec[-5] rec[-41] rec[-42] rec[-43] rec[-44] rec[-45]
+TICK
+MXX 0 5 1 6 2 7 3 8 4 9 10 15 11 16 12 17 13 18 14 19
+DETECTOR(0, 4, 7) rec[-6] rec[-7] rec[-8] rec[-9] rec[-10] rec[-46] rec[-47] rec[-48] rec[-49] rec[-50]
+DETECTOR(2, 4, 7) rec[-1] rec[-2] rec[-3] rec[-4] rec[-5] rec[-41] rec[-42] rec[-43] rec[-44] rec[-45]
+TICK
+MZZ 1 2 6 7 11 12 16 17 21 22 3 4 8 9 13 14 18 19 23 24
+DETECTOR(4, 1, 8) rec[-6] rec[-7] rec[-8] rec[-9] rec[-10] rec[-46] rec[-47] rec[-48] rec[-49] rec[-50]
+DETECTOR(4, 3, 8) rec[-1] rec[-2] rec[-3] rec[-4] rec[-5] rec[-41] rec[-42] rec[-43] rec[-44] rec[-45]
+TICK
+MXX 5 10 6 11 7 12 8 13 9 14 15 20 16 21 17 22 18 23 19 24
+DETECTOR(1, 4, 9) rec[-6] rec[-7] rec[-8] rec[-9] rec[-10] rec[-46] rec[-47] rec[-48] rec[-49] rec[-50]
+DETECTOR(3, 4, 9) rec[-1] rec[-2] rec[-3] rec[-4] rec[-5] rec[-41] rec[-42] rec[-43] rec[-44] rec[-45]
+TICK
+TICK
+M 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+DETECTOR(4, 0, 10) rec[-4] rec[-5] rec[-9] rec[-10] rec[-14] rec[-15] rec[-19] rec[-20] rec[-24] rec[-25] rec[-61] rec[-62] rec[-63] rec[-64] rec[-65]
+DETECTOR(4, 1, 10) rec[-3] rec[-4] rec[-8] rec[-9] rec[-13] rec[-14] rec[-18] rec[-19] rec[-23] rec[-24] rec[-41] rec[-42] rec[-43] rec[-44] rec[-45]
+DETECTOR(4, 2, 10) rec[-2] rec[-3] rec[-7] rec[-8] rec[-12] rec[-13] rec[-17] rec[-18] rec[-22] rec[-23] rec[-56] rec[-57] rec[-58] rec[-59] rec[-60]
+DETECTOR(4, 3, 10) rec[-1] rec[-2] rec[-6] rec[-7] rec[-11] rec[-12] rec[-16] rec[-17] rec[-21] rec[-22] rec[-36] rec[-37] rec[-38] rec[-39] rec[-40]
+OBSERVABLE_INCLUDE(0) rec[-5] rec[-10] rec[-15] rec[-20] rec[-25]
