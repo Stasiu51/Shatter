@@ -88,6 +88,7 @@ btnImport?.addEventListener('click', async () => {
     currentLayer = 0;
     timelineCtl.setScrollY(0);
     timelineCtl.render();
+    renderAllPanels();
     updateLayerIndicator();
     if (picked.name) { const nn = sanitizeName(picked.name); nameCtl.setName(nn); currentName = nn; localStorage.setItem('circuitName', currentName); }
     pushStatus(`Imported "${currentName}" (${(picked.text||'').length} chars).`, 'info');
@@ -142,8 +143,9 @@ function setLayer(layer) {
   const clamped = Math.max(0, Math.min(maxLayer, layer|0));
   if (clamped === currentLayer) return;
   currentLayer = clamped;
-  if (!timeline.classList.contains('collapsed')) renderTimeline();
+  timelineCtl.render();
   updateLayerIndicator();
+  renderAllPanels();
 }
 
 // Layer keyboard handling
