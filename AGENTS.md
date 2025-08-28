@@ -506,9 +506,15 @@ Diagnostics are returned on the Overlay as:
 8) Minimal project structure
 / (static site; no server)
 ├─ src/
-│  ├─ overlay.js         # parser + Overlay types + diagnostics + pragma interop
-│  ├─ view.js            # SVG render + time slider + highlights
-│  └─ main.js            # UI wiring (file input, drag-drop, save-as)
+│  ├─ overlay.js           # parser + Overlay types + diagnostics + pragma interop
+│  ├─ view.js              # SVG render + time slider + highlights
+│  ├─ shatter_main.js      # app shell orchestrator (layout, IO, module wiring)
+│  ├─ timeline/
+│  │  ├─ renderer.js       # draws timeline; propagated frames; content/scroll maths
+│  │  └─ controller.js     # timeline UI (zoom, scroll, collapse, resizer)
+│  ├─ status/logger.js     # status bar + downloadable log
+│  ├─ name/editor.js       # editable circuit name (sanitize + persist)
+│  └─ layers/keyboard.js   # layer stepping keyboard handler (Q/E, arrows)
 ├─ index.html            # loads ESM modules directly
 ├─ samples/*.stim        # example circuits
 └─ package.json          # { "type": "module" } (optional)
