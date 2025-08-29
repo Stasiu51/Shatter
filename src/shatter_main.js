@@ -1,26 +1,25 @@
-import {PanelManager} from './shatter/panel_manager.js';
-import {parseStim, stringifyStim, pickAndReadFile, downloadText} from './io/import_export.js';
-import {parseOverlayFromStim} from './overlay.js';
-import {renderTimeline as renderTimelineCore, computeMaxScrollCSS} from './timeline/renderer.js';
-import {renderPanel as renderCrumblePanel} from './panels/crumble_panel_renderer.js';
-import {setupTimelineUI} from './timeline/controller.js';
-import {createStatusLogger} from './status/logger.js';
-import {setupNameEditor, sanitizeName} from './name/editor.js';
-import {setupLayerKeyboard} from './layers/keyboard.js';
-import {createSheetsDropdown} from './panels/sheets_dropdown.js';
+import { PanelManager } from './shatter/panel_manager.js';
+import { parseStim, stringifyStim, pickAndReadFile, downloadText } from './io/import_export.js';
+import { parseOverlayFromStim } from './overlay.js';
+import { renderTimeline as renderTimelineCore, computeMaxScrollCSS } from './timeline/renderer.js';
+import { renderPanel as renderCrumblePanel } from './panels/crumble_panel_renderer.js';
+import { setupTimelineUI } from './timeline/controller.js';
+import { createStatusLogger } from './status/logger.js';
+import { setupNameEditor, sanitizeName } from './name/editor.js';
+import { setupLayerKeyboard } from './layers/keyboard.js';
+import { createSheetsDropdown } from './panels/sheets_dropdown.js';
 
 const panelsEl = document.getElementById('panels');
 const mgr = new PanelManager(panelsEl);
 
 const seg = document.getElementById('layout-seg');
-seg.addEventListener('click', (e) => {
+seg?.addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-layout]');
   if (!btn) return;
   for (const b of seg.querySelectorAll('button')) b.classList.remove('active');
   btn.classList.add('active');
   mgr.setLayout(btn.dataset.layout);
   schedulePanelsRender();
-  // Rebuild per-panel sheets UI for new panel count
   ensurePanelSheets();
   renderPanelSheetsAll();
 });
@@ -48,38 +47,62 @@ const btnImport = document.getElementById('btn-import');
 const btnExport = document.getElementById('btn-export');
 
 const rootStyle = document.documentElement.style;
+
+/** Clamp number into [lo, hi]. */
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-// Current circuit (parsed)
-let currentCircuit = null;
-let currentLayer = 0;
-let currentName = localStorage.getItem('circuitName') || 'circuit';
-let panelZoom = parseFloat(localStorage.getItem('panelZoom') || '1');
-if (!(panelZoom > 0)) panelZoom = 1;
-const nameCtl = setupNameEditor(nameEl, currentName, {
-  onCommit: (n) => { currentName = n; localStorage.setItem('circuitName', currentName); }
-});
-
-// name editor handled by name/editor.js
-
-// Overlay state (Milestone 4)
-let overlayState = {
-  sheets: /** @type {Array<{name:string,z:number}>} */ ([]),
-  diagnostics: /** @type {Array<any>} */ ([]),
-  panelSheets: /** @type {Array<Set<string>>} */ ([]),
+/** LocalStorage keys. */
+const LS_KEYS = {
+  circuitName: 'circuitName',
+  panelZoom: 'panelZoom',
+  timelineScrollY: 'timelineScrollY',
 };
 
+/** Default overlay sheet when none are present. */
+const DEFAULT_SHEETS = [{ name: 'DEFAULT', z: 0 }];
+
+/** Current circuit (parsed) */
+let currentCircuit = null;
+let currentLayer = 0;
+
+let currentName = localStorage.getItem(LS_KEYS.circuitName) || 'circuit';
+let panelZoom = Number.parseFloat(localStorage.getItem(LS_KEYS.panelZoom) || '1');
+if (!Number.isFinite(panelZoom) || panelZoom <= 0) panelZoom = 1;
+
+const nameCtl = setupNameEditor(nameEl, currentName, {
+  onCommit: (n) => {
+    currentName = n;
+    localStorage.setItem(LS_KEYS.circuitName, n);
+  },
+});
+
+// Overlay state (Milestone 4)
+const overlayState = {
+  /** @type {Array<{name:string,z:number}>} */
+  sheets: [],
+  /** @type {Array<any>} */
+  diagnostics: [],
+  /** @type {Array<Set<string>>} */
+  panelSheets: [],
+};
+
+/** Return sheets or a default singleton. */
+const getSheetsSafe = () => (overlayState.sheets?.length ? overlayState.sheets : DEFAULT_SHEETS);
+
+/** Ensure per-panel sheet selections exist and match current layout count. */
 function ensurePanelSheets() {
-  const panelCount = mgr.layout|0;
-  const names = (overlayState.sheets.length ? overlayState.sheets : [{name:'DEFAULT', z:0}]).map(l => l.name);
+  const panelCount = mgr.layout | 0;
+  const names = getSheetsSafe().map((l) => l.name);
+
   while (overlayState.panelSheets.length < panelCount) {
     overlayState.panelSheets.push(new Set(names));
   }
-  if (overlayState.panelSheets.length > panelCount) overlayState.panelSheets.length = panelCount;
+  if (overlayState.panelSheets.length > panelCount) {
+    overlayState.panelSheets.length = panelCount;
+  }
 }
 
 // Initialize per-panel sheets UI immediately so the initial layout is correct
-// (use a DEFAULT layer until a circuit is loaded and layers are parsed).
 ensurePanelSheets();
 requestAnimationFrame(() => {
   renderPanelSheetsAll();
@@ -98,44 +121,64 @@ const timelineCtl = setupTimelineUI({
   rootStyle,
   getCircuit: () => currentCircuit,
   getCurrentLayer: () => currentLayer,
-  renderWithState: ({canvas, circuit, currentLayer, timelineZoom, timelineScrollY}) => {
+  renderWithState: ({ canvas, circuit, currentLayer: curLayer, timelineZoom, timelineScrollY }) => {
     if (!circuit) return;
     const rectCssH = canvas.getBoundingClientRect().height;
-    const maxScrollCss = computeMaxScrollCSS(circuit, rectCssH, timelineZoom, window.devicePixelRatio || 1);
+    const maxScrollCss = computeMaxScrollCSS(
+      circuit,
+      rectCssH,
+      timelineZoom,
+      window.devicePixelRatio || 1
+    );
     if (timelineScrollY > maxScrollCss) {
       timelineScrollY = maxScrollCss;
-      localStorage.setItem('timelineScrollY', String(timelineScrollY));
+      localStorage.setItem(LS_KEYS.timelineScrollY, String(timelineScrollY));
     }
-    renderTimelineCore({canvas, circuit, currentLayer, timelineZoom, timelineScrollY});
+    renderTimelineCore({ canvas, circuit, currentLayer: curLayer, timelineZoom, timelineScrollY });
     updateLayerIndicator();
   },
-  onResizing: () => { renderAllPanels(); },
-  onResized: () => { renderAllPanels(); },
+  onResizing: () => {
+    renderAllPanels();
+  },
+  onResized: () => {
+    renderAllPanels();
+  },
 });
 
-// Build inline per-panel sheet toggles inside each panel header
+/** Build inline per-panel sheet toggles inside each panel header. */
 function renderPanelSheetsAll() {
   if (!mgr?.panels?.length) return;
-  const sheets = overlayState.sheets?.length ? overlayState.sheets : [{name: 'DEFAULT', z: 0}];
+  const sheets = getSheetsSafe();
+
   for (let i = 0; i < mgr.panels.length; i++) {
     const p = mgr.panels[i];
     if (!p?.header) continue;
-    // Ensure dropdown once
+
     let dd = p.sheetsDropdown;
     if (!dd) {
       dd = createSheetsDropdown({
-        getSheets: () => (overlayState.sheets?.length ? overlayState.sheets : [{name: 'DEFAULT', z: 0}]),
-        getSelected: () => overlayState.panelSheets[i] || new Set(sheets.map(l => l.name)),
+        getSheets: getSheetsSafe,
+        getSelected: () => {
+          ensurePanelSheets();
+          if (!overlayState.panelSheets[i]) {
+            overlayState.panelSheets[i] = new Set(sheets.map((l) => l.name));
+          }
+          return overlayState.panelSheets[i];
+        },
         onChange: (newSet) => {
           ensurePanelSheets();
           overlayState.panelSheets[i] = newSet;
           schedulePanelsRender();
         },
       });
+
       // Anchor dropdown on the left side of header
-      if (p.headerLeft) p.headerLeft.appendChild(dd.el); else p.header.insertBefore(dd.el, p.header.firstChild);
-      // Ensure left-anchored styling
-      // try { dd.el.style.marginLeft = '0'; } catch {}
+      if (p.headerLeft) {
+        p.headerLeft.appendChild(dd.el);
+      } else {
+        p.header.insertBefore(dd.el, p.header.firstChild);
+      }
+      dd.el.style.marginLeft = '0';
       p.sheetsDropdown = dd;
     }
     dd.render();
@@ -144,30 +187,40 @@ function renderPanelSheetsAll() {
 
 // Import/Export handlers
 btnImport?.addEventListener('click', async () => {
-  const picked = await pickAndReadFile({accept: '.stim,.txt'});
+  const picked = await pickAndReadFile({ accept: '.stim,.txt' });
   if (!picked) return;
   try {
-    const {circuit, text, warnings} = parseStim(picked.text);
+    const { circuit, text, warnings } = parseStim(picked.text);
     currentCircuit = circuit;
     currentLayer = 0;
+
     // Rebuild panels to ensure fresh canvases (avoid stale placeholders).
     mgr.build();
     timelineCtl.setScrollY(0);
     timelineCtl.render();
     renderAllPanels();
-    updateLayerIndicator();
-    if (picked.name) { const nn = sanitizeName(picked.name); nameCtl.setName(nn); currentName = nn; localStorage.setItem('circuitName', currentName); }
-    pushStatus(`Imported "${currentName}" (${(picked.text||'').length} chars).`, 'info');
+
+    if (picked.name) {
+      const nn = sanitizeName(picked.name);
+      nameCtl.setName(nn);
+      currentName = nn;
+      localStorage.setItem(LS_KEYS.circuitName, currentName);
+    }
+
+    pushStatus(`Imported "${currentName}" (${(picked.text || '').length} chars).`, 'info');
+
     if (warnings?.length) {
       for (const w of warnings) pushStatus(w, 'warning');
       pushStatus(`Import produced ${warnings.length} warning(s).`, 'info');
     }
+
     try {
-      const overlay = parseOverlayFromStim(picked.text || "");
+      const overlay = parseOverlayFromStim(picked.text || '');
       overlayState.sheets = overlay.sheets || [];
       overlayState.diagnostics = overlay.diagnostics || [];
       ensurePanelSheets();
       renderPanelSheetsAll();
+
       if (overlayState.diagnostics?.length) {
         for (const d of overlayState.diagnostics) {
           const sev = d.severity === 'error' ? 'error' : 'warning';
@@ -192,7 +245,7 @@ btnExport?.addEventListener('click', () => {
 });
 
 // Status logger
-const {pushStatus} = createStatusLogger({
+const { pushStatus } = createStatusLogger({
   statusBarEl: statusEl,
   statusTextEl: statusText,
   statusDotEl: statusDot,
@@ -203,9 +256,7 @@ const {pushStatus} = createStatusLogger({
 });
 pushStatus('Ready.', 'info');
 
-// Timeline rendering is handled by timeline/controller + timeline/renderer
-
-// Layer stepping (Q/E), Shift for ±5
+/** Update timeline layer indicator text. */
 function updateLayerIndicator() {
   const el = document.getElementById('timeline-layer-info');
   if (!el) return;
@@ -220,9 +271,9 @@ function updateLayerIndicator() {
 function setLayer(layer) {
   if (!currentCircuit) return;
   const maxLayer = Math.max(0, currentCircuit.layers.length - 1);
-  const clamped = Math.max(0, Math.min(maxLayer, layer|0));
-  if (clamped === currentLayer) return;
-  currentLayer = clamped;
+  const next = clamp(Math.trunc(layer), 0, maxLayer);
+  if (next === currentLayer) return;
+  currentLayer = next;
   timelineCtl.render();
   updateLayerIndicator();
   schedulePanelsRender();
@@ -243,32 +294,33 @@ setupLayerKeyboard({
   getMaxLayer: () => Math.max(0, (currentCircuit?.layers?.length || 1) - 1),
 });
 
+/** Ensure a panel has a canvas element and return it. */
+function ensurePanelCanvas(p) {
+  if (p.canvas) return p.canvas;
+  const existing = p.body?.querySelector?.('canvas');
+  if (existing) return (p.canvas = existing);
+  if (p.body) {
+    const cv = document.createElement('canvas');
+    cv.style.width = '100%';
+    cv.style.height = '100%';
+    p.body.innerHTML = '';
+    p.body.appendChild(cv);
+    p.canvas = cv;
+    return cv;
+  }
+  return null;
+}
+
+/** Render all panels. */
 function renderAllPanels() {
   if (!currentCircuit) return;
-  console.log('[main] renderAllPanels start. panels=%s layer=%s', mgr.panels.length, currentLayer);
   for (const p of mgr.panels) {
-    if (!p.canvas) {
-      // Fallback: find or create a canvas inside the panel body.
-      const existing = p.body && p.body.querySelector && p.body.querySelector('canvas');
-      if (existing) {
-        p.canvas = existing;
-        console.log('[main] adopted existing canvas');
-      } else if (p.body) {
-        const cv = document.createElement('canvas');
-        cv.style.width = '100%';
-        cv.style.height = '100%';
-        p.body.innerHTML = '';
-        p.body.appendChild(cv);
-        p.canvas = cv;
-        console.log('[main] created missing canvas');
-      }
-    }
-    if (!p?.canvas) continue;
-    const r = p.canvas.getBoundingClientRect();
-    console.log('[main] panel canvas rect %sx%s', Math.round(r.width), Math.round(r.height));
-    renderCrumblePanel({canvas: p.canvas, circuit: currentCircuit, currentLayer, panelZoom});
+    const cv = ensurePanelCanvas(p);
+    if (!cv) continue;
+    // Measure for correctness; renderer may rely on CSS size for DPI/layout.
+    cv.getBoundingClientRect();
+    renderCrumblePanel({ canvas: cv, circuit: currentCircuit, currentLayer, panelZoom });
   }
-  console.log('[main] renderAllPanels done');
 }
 
 let panelsRenderScheduled = false;
@@ -286,9 +338,8 @@ window.addEventListener('resize', () => {
 });
 
 function setPanelZoom(z) {
-  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   panelZoom = clamp(z, 0.5, 3);
-  localStorage.setItem('panelZoom', String(panelZoom));
+  localStorage.setItem(LS_KEYS.panelZoom, String(panelZoom));
   schedulePanelsRender();
 }
 
