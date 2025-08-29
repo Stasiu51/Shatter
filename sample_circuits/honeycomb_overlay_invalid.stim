@@ -16,7 +16,7 @@ TICK  # next line is TICK (no qubits mentioned)
 ##! MARK STYLE=HOT TEXT="missing pragma"  # PR001 (no following pragma)
 
 ##! EMBEDDING TYPE=PLANE
-##! CONN SET EDGES=(0-1) SHEET=UPPER DROOP=0.1 COLOUR=#00AA88 TEXT="route-torus" ROUTE=TORUS  # EMB01
+##! CONN SET EDGES=(0-1) SHEET=UPPER DROOP=0.1 COLOUR=#00AA88 TEXT="conn-on-plane"
 
 # Paired pragma mismatch: POLY without pragma → expect insertion when ensurePragmas:true.
 ##! POLY SHEET=UPPER STYLE=CELL TEXT="missing-pragma"  # PR001 (POLY will need pragma on save)

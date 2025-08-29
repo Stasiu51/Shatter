@@ -10,6 +10,11 @@ Crumble source: https://github.com/quantumlib/Stim/tree/main/glue/crumble
 
 This project delivers a static, hostable website (no server) that opens plain or augmented .stim files, renders them, and simulates how Pauli “marks” propagate through the circuit—showing which detectors and observables fire and which errors appear.
 
+Terminology
+
+- Sheets: our overlay’s Z-stacked visual planes, declared with `##! SHEET ...` and referenced via `SHEET=...` in overlay directives.
+- Layers: Crumble’s time steps (k) used for simulation and timeline; this term refers only to time, not overlay planes.
+
 We extend .stim using comment-only directives (so files remain valid Stim), and we interoperate with Crumble by pairing our directives with Crumble’s #!pragma lines (e.g. #!pragma MARK(k) …, #!pragma ERR …, #!pragma POLYGON …). If a paired pragma is missing, we can synthesize a default one on save to preserve compatibility.
 
 Key ideas
@@ -377,12 +382,14 @@ Set/add
 
 Params (specified here, most are then applicable to other commands):
 EDGES: which qubits to pair up.
-LAYER: which layer to render on.
+SHEET: which sheet to render on.
 DROOP (optional, default=0): whether to render as a straight line or whether to droop (-ve value) or be suspended upwards (+ve value).
 DEFECTIVE (optional, default=false): a visual cue to show the connection as disfunctional
 TEXT (optional, default=""): an always-visible label
 MOUSEOVER (optional, default=""): a label visible on mouseover
 COLOUR (optional default=[some kinda grey]): obvious
+
+Routing: There is no `ROUTE=` parameter. All routing choices are implied by the global embedding (e.g., PLANE or TORUS). On a torus embedding, connections may render using the shortest torus path.
 
 Note that two qubits cannot be connected on more than one layer. The solution here will be to render multiple layers into the same frame.
 
@@ -506,7 +513,7 @@ QU002 — QUBIT Q=<id> references a qubit not present in Stim (no gate/measure u
 
 PR001 — Paired ##! POLY|MARK|ERR has no following #!pragma and ensurePragmas is off.
 
-EMB01 — CONN SET … ROUTE=TORUS but no EMBEDDING TYPE=TORUS with LX,LY.
+Removed: The `ROUTE=` parameter is no longer supported; routing follows the declared embedding. There is no EMB01.
 
 HL001 — HIGHLIGHT GATE had no gate to attach to (next non-trivia line is not a gate).
 HL002 — HIGHLIGHT GATE with QUBITS filter didn’t match the next gate’s targets.

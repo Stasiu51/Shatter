@@ -10,6 +10,7 @@ Conventions
 - Timeline = a single global right-hand “circuit through time” view shared by all panels.
 - “Markers” = typed user marks (MARKX/Y/Z), detectors, observables, and polygons (POLYGON).
 - Propagation = computed Pauli frames used for mark rendering (PropagatedPauliFrames).
+- Sheet = a Z-stacked visual plane used by our overlay (distinct from Crumble’s time layers). Overlay directives use `##! SHEET ...` and params like `SHEET=UPPER`.
 
 # Layout & Containers (skeleton)
 
@@ -26,7 +27,7 @@ Entry points and data flow
 - Snapshot: `draw/state_snapshot.js` class `StateSnapshot` holds:
   - `circuit: Circuit`, `curLayer: number`, `focusedSet: Map<string,[x,y]>`, `timelineSet`, mouse coordinates and drag box preview.
   - Constructed in `editor/editor_state.js` via `toSnapshot()`; drawing never mutates it.
-- Circuit model: `circuit/*` (Circuit/Layer/Operation) contain the gates and markers per layer.
+- Circuit model: `circuit/*` (Circuit/Layer/Operation) contain the gates and markers per time layer (timeslices).
 - Propagated frames per mark index:
   - In `draw/main_draw.js`, before drawing, compute `propagatedMarkerLayers: Map<int, PropagatedPauliFrames>`:
     - User marks (0..N-1): `PropagatedPauliFrames.fromCircuit(circuit, mi)` for each declared index (derived by scanning markers for max index).

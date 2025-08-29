@@ -54,7 +54,6 @@ function nextNonTrivia(lines, start) {
  * - HL002: HIGHLIGHT GATE QUBITS filter not subset of next gate's targets
  * - QU001: QUBIT without Q= not anchored to an instruction that mentions qubits
  * - QU002: QUBIT Q= references a qubit not present
- * - EMB01: ROUTE=TORUS used without EMBEDDING TYPE=TORUS LX/LY
  * - PR001: ##! POLY|MARK|ERR without immediate following #!pragma line (warning)
  * @param {string} text
  * @returns {Overlay}
@@ -98,7 +97,7 @@ export function parseOverlayFromStim(text) {
     }
 
     // LAYER declarations (directive name remains LAYER; concept is "sheet")
-    if (/^##!\s+(SHEET|LAYER)\b/i.test(s)) {
+    if (/^##!\s+SHEET\b/i.test(s)) {
       const nm = /\bNAME=([A-Za-z0-9_\-]+)/i.exec(s);
       const zm = /\bZ=(-?\d+)/i.exec(s);
       const name = nm ? nm[1] : `SHEET_${sheets.length}`;
@@ -171,15 +170,7 @@ export function parseOverlayFromStim(text) {
     }
   }
 
-  // EMB01: torus routing without torus embedding params.
-  if (!hasTorusEmbedding || !hasTorusLXLY) {
-    for (let i = 0; i < lines.length; i++) {
-      const s = lines[i];
-      if (/^##!\s+CONN\s+.*ROUTE=TORUS/i.test(s)) {
-        diagnostics.push({line: i + 1, code: 'EMB01', severity: 'warning', message: 'ROUTE=TORUS used but no EMBEDDING TYPE=TORUS LX,LY.'});
-      }
-    }
-  }
+  // No routing diagnostics: connections route according to the global embedding.
 
   return {
     diagnostics,

@@ -51,9 +51,8 @@ test("overlay.fixtures_invalid_contains_expected_bad_cases", () => {
   const nextLines = txt.substring(markIdx, markIdx + 200);
   const hasLineStartPragma = /(^|\n)#!pragma\s+MARK/m.test(nextLines);
   assertThat(hasLineStartPragma).isEqualTo(false);
-  // EMB01: ROUTE=TORUS without EMBEDDING torus params
+  // Embedding present
   assertThat(/##!\s+EMBEDDING\s+TYPE=PLANE/.test(txt)).isEqualTo(true);
-  assertThat(/ROUTE=TORUS/.test(txt)).isEqualTo(true);
   // HL001/HL002/QU002 present as comments/fixtures
   assertThat(/HIGHLIGHT\s+GATE\s+QUBITS=0,2/.test(txt)).isEqualTo(true);
   assertThat(/HIGHLIGHT\s+GATE\s+QUBITS=99/.test(txt)).isEqualTo(true);
