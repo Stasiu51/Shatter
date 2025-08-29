@@ -19,6 +19,9 @@ seg.addEventListener('click', (e) => {
   btn.classList.add('active');
   mgr.setLayout(btn.dataset.layout);
   schedulePanelsRender();
+  // Rebuild per-panel sheets UI for new panel count
+  ensurePanelSheets();
+  renderPanelSheetsAll();
 });
 
 // Timeline sizing & collapse
@@ -58,6 +61,22 @@ const nameCtl = setupNameEditor(nameEl, currentName, {
 
 // name editor handled by name/editor.js
 
+// Overlay state (Milestone 4)
+let overlayState = {
+  layers: /** @type {Array<{name:string,z:number}>} */ ([]),
+  diagnostics: /** @type {Array<any>} */ ([]),
+  panelSheets: /** @type {Array<Set<string>>} */ ([]),
+};
+
+function ensurePanelSheets() {
+  const panelCount = mgr.layout|0;
+  const names = (overlayState.layers.length ? overlayState.layers : [{name:'DEFAULT', z:0}]).map(l => l.name);
+  while (overlayState.panelSheets.length < panelCount) {
+    overlayState.panelSheets.push(new Set(names));
+  }
+  if (overlayState.panelSheets.length > panelCount) overlayState.panelSheets.length = panelCount;
+}
+
 // Timeline UI setup and rendering glue
 const timelineCtl = setupTimelineUI({
   timelineEl: timeline,
@@ -86,6 +105,57 @@ const timelineCtl = setupTimelineUI({
   onResized: () => { renderAllPanels(); },
 });
 
+// Build inline per-panel sheet toggles inside each panel header
+function renderPanelSheetsAll() {
+  if (!mgr?.panels?.length) return;
+  const layers = overlayState.layers?.length ? overlayState.layers : [{name: 'DEFAULT', z: 0}];
+  for (let i = 0; i < mgr.panels.length; i++) {
+    const p = mgr.panels[i];
+    if (!p?.header) continue;
+    // Ensure a right-side container once
+    let sheetsEl = p.sheetsEl;
+    if (!sheetsEl) {
+      sheetsEl = document.createElement('div');
+      sheetsEl.className = 'panel-sheets';
+      sheetsEl.style.display = 'flex';
+      sheetsEl.style.alignItems = 'center';
+      sheetsEl.style.gap = '6px';
+      sheetsEl.style.marginLeft = 'auto';
+      p.header.appendChild(sheetsEl);
+      p.sheetsEl = sheetsEl;
+    }
+    // Populate checkboxes
+    sheetsEl.innerHTML = '';
+    const label = document.createElement('span');
+    label.textContent = 'Sheets:';
+    label.style.color = '#57606a';
+    label.style.fontSize = '12px';
+    sheetsEl.appendChild(label);
+    const sel = overlayState.panelSheets[i] || new Set(layers.map(l => l.name));
+    for (const {name} of layers) {
+      const w = document.createElement('label');
+      w.style.display = 'inline-flex';
+      w.style.alignItems = 'center';
+      w.style.gap = '4px';
+      w.style.fontSize = '12px';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = sel.has(name);
+      cb.addEventListener('change', () => {
+        ensurePanelSheets();
+        const set = overlayState.panelSheets[i] || new Set();
+        if (cb.checked) set.add(name); else set.delete(name);
+        overlayState.panelSheets[i] = set;
+        schedulePanelsRender();
+      });
+      const span = document.createElement('span');
+      span.textContent = name;
+      w.append(cb, span);
+      sheetsEl.appendChild(w);
+    }
+  }
+}
+
 // Import/Export handlers
 btnImport?.addEventListener('click', async () => {
   const picked = await pickAndReadFile({accept: '.stim,.txt'});
@@ -108,12 +178,16 @@ btnImport?.addEventListener('click', async () => {
     }
     try {
       const overlay = parseOverlayFromStim(picked.text || "");
-      if (overlay?.diagnostics?.length) {
-        for (const d of overlay.diagnostics) {
+      overlayState.layers = overlay.layers || [];
+      overlayState.diagnostics = overlay.diagnostics || [];
+      ensurePanelSheets();
+      renderPanelSheetsAll();
+      if (overlayState.diagnostics?.length) {
+        for (const d of overlayState.diagnostics) {
           const sev = d.severity === 'error' ? 'error' : 'warning';
           pushStatus(`[${d.code}] line ${d.line}: ${d.message}`, sev);
         }
-        pushStatus(`Overlay produced ${overlay.diagnostics.length} issue(s).`, 'info');
+        pushStatus(`Overlay produced ${overlayState.diagnostics.length} issue(s).`, 'info');
       }
     } catch (e) {
       pushStatus(`Overlay parse error: ${e?.message || e}`, 'error');

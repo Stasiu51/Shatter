@@ -5,6 +5,7 @@
  *  diagnostics: Array<{line:number, code:string, severity:'warning'|'error', message:string}>,
  *  hasTorusEmbedding: boolean,
  *  usedQubits: Set<number>,
+ *  layers: Array<{name:string, z:number}>,
  * }} Overlay
  */
 
@@ -81,6 +82,8 @@ export function parseOverlayFromStim(text) {
   // Scan directives and produce diagnostics.
   let hasTorusEmbedding = false;
   let hasTorusLXLY = false;
+  /** @type {Array<{name:string, z:number}>} */
+  const layers = [];
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
     const s = raw.trim();
@@ -92,6 +95,15 @@ export function parseOverlayFromStim(text) {
         hasTorusEmbedding = true;
         hasTorusLXLY = /LX=\d+\s+LY=\d+/i.test(s);
       }
+    }
+
+    // LAYER declarations (gather names and z for inspector sheets)
+    if (/^##!\s+LAYER\b/i.test(s)) {
+      const nm = /\bNAME=([A-Za-z0-9_\-]+)/i.exec(s);
+      const zm = /\bZ=(-?\d+)/i.exec(s);
+      const name = nm ? nm[1] : `LAYER_${layers.length}`;
+      const z = zm ? parseInt(zm[1], 10) : 0;
+      layers.push({name, z: Number.isFinite(z) ? z : 0});
     }
 
     // QUBIT directives.
@@ -173,6 +185,7 @@ export function parseOverlayFromStim(text) {
     diagnostics,
     hasTorusEmbedding: !!hasTorusEmbedding,
     usedQubits,
+    layers: layers.sort((a, b) => a.z - b.z),
   };
 }
 
