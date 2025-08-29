@@ -328,7 +328,7 @@ Keywords are UPPERCASE (Stim style). Attachment rule: a directive applies to the
 
 VALUE: comma list and a..b ranges. (Sets are not allowed inside edge lists.)
 
-4.2 Layers
+4.2 Sheets (directive name remains LAYER for compatibility)
 ##! LAYER NAME=UPPER Z=1
 ##! LAYER NAME=LOWER Z=0
 

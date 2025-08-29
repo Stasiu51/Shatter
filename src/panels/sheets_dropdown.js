@@ -9,10 +9,11 @@
  *   headerEl.appendChild(dd.el);
  *   dd.render();
  */
-export function createSheetsDropdown({ getLayers, getSelected, onChange }) {
+export function createSheetsDropdown({ getSheets, getSelected, onChange }) {
   const root = document.createElement('div');
   root.className = 'sheets-dd';
   root.style.position = 'relative';
+  root.style.right = '0px';
 
   const button = document.createElement('button');
   button.type = 'button';
@@ -51,12 +52,15 @@ export function createSheetsDropdown({ getLayers, getSelected, onChange }) {
   root.appendChild(button);
 
   const menu = document.createElement('div');
-  menu.className = 'sheets-dd-menu';
+  console.log("hello");
+  menu.className = 'sheets-dd-menuoop';
   menu.style.position = 'absolute';
   menu.style.top = 'calc(100% + 4px)';
-  menu.style.right = '0';
-  menu.style.minWidth = '220px';
-  menu.style.maxWidth = '320px';
+  menu.style.left = '0px'
+  // Default anchor: align to left edge of the button
+  menu.style.left = '0';
+  menu.style.minWidth = '200px';
+  menu.style.maxWidth = '280px';
   menu.style.maxHeight = '240px';
   menu.style.overflow = 'auto';
   menu.style.border = '1px solid var(--border)';
@@ -77,12 +81,34 @@ export function createSheetsDropdown({ getLayers, getSelected, onChange }) {
   }
 
   function closeMenu() { menu.style.display = 'none'; document.removeEventListener('click', onDocClick, true); }
-  function openMenu() { menu.style.display = 'block'; setTimeout(() => document.addEventListener('click', onDocClick, true), 0); }
+  function openMenu() {
+    menu.style.display = 'block';
+    // Position within viewport: flip to right-align if overflowing right
+    try {
+      const btnRect = button.getBoundingClientRect();
+      // Temporarily set left-anchored for measurement
+      menu.style.left = '0';
+      menu.style.right = '';
+      const menuRect = menu.getBoundingClientRect();
+      const viewportW = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+      const margin = 8;
+      const overflowRight = btnRect.left + menuRect.width + margin > viewportW;
+      if (overflowRight) {
+        // Align menu's right edge to the button's right edge
+        menu.style.left = '';
+        menu.style.right = '0';
+      }
+      // Constrain width to viewport
+      const maxW = Math.min(280, Math.max(180, viewportW - 2 * margin));
+      menu.style.maxWidth = maxW + 'px';
+    } catch {}
+    setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
+  }
   function toggleMenu() { if (menu.style.display === 'none') openMenu(); else closeMenu(); }
   function onDocClick(e) { if (!root.contains(e.target)) closeMenu(); }
 
   function renderMenu() {
-    const layers = (getLayers() || []).map(l => l.name);
+    const layers = (getSheets() || []).map(l => l.name);
     const sel = new Set(getSelected() || []);
     menu.innerHTML = '';
 
@@ -145,7 +171,7 @@ export function createSheetsDropdown({ getLayers, getSelected, onChange }) {
   }
 
   function renderButton() {
-    const names = (getLayers() || []).map(l => l.name);
+    const names = (getSheets() || []).map(l => l.name);
     const sel = new Set(getSelected() || []);
     text.textContent = formatSelected(names, sel);
   }

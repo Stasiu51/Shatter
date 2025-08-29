@@ -64,14 +64,14 @@ const nameCtl = setupNameEditor(nameEl, currentName, {
 
 // Overlay state (Milestone 4)
 let overlayState = {
-  layers: /** @type {Array<{name:string,z:number}>} */ ([]),
+  sheets: /** @type {Array<{name:string,z:number}>} */ ([]),
   diagnostics: /** @type {Array<any>} */ ([]),
   panelSheets: /** @type {Array<Set<string>>} */ ([]),
 };
 
 function ensurePanelSheets() {
   const panelCount = mgr.layout|0;
-  const names = (overlayState.layers.length ? overlayState.layers : [{name:'DEFAULT', z:0}]).map(l => l.name);
+  const names = (overlayState.sheets.length ? overlayState.sheets : [{name:'DEFAULT', z:0}]).map(l => l.name);
   while (overlayState.panelSheets.length < panelCount) {
     overlayState.panelSheets.push(new Set(names));
   }
@@ -116,7 +116,7 @@ const timelineCtl = setupTimelineUI({
 // Build inline per-panel sheet toggles inside each panel header
 function renderPanelSheetsAll() {
   if (!mgr?.panels?.length) return;
-  const layers = overlayState.layers?.length ? overlayState.layers : [{name: 'DEFAULT', z: 0}];
+  const sheets = overlayState.sheets?.length ? overlayState.sheets : [{name: 'DEFAULT', z: 0}];
   for (let i = 0; i < mgr.panels.length; i++) {
     const p = mgr.panels[i];
     if (!p?.header) continue;
@@ -132,8 +132,8 @@ function renderPanelSheetsAll() {
     let dd = p.sheetsDropdown;
     if (!dd) {
       dd = createSheetsDropdown({
-        getLayers: () => (overlayState.layers?.length ? overlayState.layers : [{name: 'DEFAULT', z: 0}]),
-        getSelected: () => overlayState.panelSheets[i] || new Set(layers.map(l => l.name)),
+        getSheets: () => (overlayState.sheets?.length ? overlayState.sheets : [{name: 'DEFAULT', z: 0}]),
+        getSelected: () => overlayState.panelSheets[i] || new Set(sheets.map(l => l.name)),
         onChange: (newSet) => {
           ensurePanelSheets();
           overlayState.panelSheets[i] = newSet;
@@ -172,7 +172,7 @@ btnImport?.addEventListener('click', async () => {
     }
     try {
       const overlay = parseOverlayFromStim(picked.text || "");
-      overlayState.layers = overlay.layers || [];
+      overlayState.sheets = overlay.sheets || [];
       overlayState.diagnostics = overlay.diagnostics || [];
       ensurePanelSheets();
       renderPanelSheetsAll();
