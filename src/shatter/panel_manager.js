@@ -32,12 +32,21 @@ export class PanelManager {
     const header = document.createElement('div');
     header.className = 'panel-header';
 
-    const title = document.createElement('div');
-    title.className = 'panel-title';
-    title.textContent = `Panel ${index+1}`;
+    // Left and right containers for header content
+    const headerLeft = document.createElement('div');
+    headerLeft.style.display = 'flex';
+    headerLeft.style.alignItems = 'center';
+    headerLeft.style.gap = '8px';
+    headerLeft.style.flex = '1';
+
+    const headerRight = document.createElement('div');
+    headerRight.style.display = 'flex';
+    headerRight.style.alignItems = 'center';
+    headerRight.style.gap = '8px';
 
     const sel = createSelectionWidget();
-    header.append(title, sel);
+    headerRight.append(sel);
+    header.append(headerLeft, headerRight);
 
     const body = document.createElement('div');
     body.className = 'panel-body';
@@ -48,7 +57,6 @@ export class PanelManager {
 
     panel.append(header, body);
     this.container.appendChild(panel);
-    return {panel, header, body, canvas, sel};
+    return {panel, header, headerLeft, headerRight, body, canvas, sel};
   }
 }
-

@@ -7,6 +7,7 @@ import {setupTimelineUI} from './timeline/controller.js';
 import {createStatusLogger} from './status/logger.js';
 import {setupNameEditor, sanitizeName} from './name/editor.js';
 import {setupLayerKeyboard} from './layers/keyboard.js';
+import {createSheetsDropdown} from './panels/sheets_dropdown.js';
 
 const panelsEl = document.getElementById('panels');
 const mgr = new PanelManager(panelsEl);
@@ -77,6 +78,13 @@ function ensurePanelSheets() {
   if (overlayState.panelSheets.length > panelCount) overlayState.panelSheets.length = panelCount;
 }
 
+// Initialize per-panel sheets UI immediately so the initial layout is correct
+// (use a DEFAULT layer until a circuit is loaded and layers are parsed).
+ensurePanelSheets();
+requestAnimationFrame(() => {
+  renderPanelSheetsAll();
+});
+
 // Timeline UI setup and rendering glue
 const timelineCtl = setupTimelineUI({
   timelineEl: timeline,
@@ -112,47 +120,33 @@ function renderPanelSheetsAll() {
   for (let i = 0; i < mgr.panels.length; i++) {
     const p = mgr.panels[i];
     if (!p?.header) continue;
-    // Ensure a right-side container once
-    let sheetsEl = p.sheetsEl;
-    if (!sheetsEl) {
-      sheetsEl = document.createElement('div');
-      sheetsEl.className = 'panel-sheets';
-      sheetsEl.style.display = 'flex';
-      sheetsEl.style.alignItems = 'center';
-      sheetsEl.style.gap = '6px';
-      sheetsEl.style.marginLeft = 'auto';
-      p.header.appendChild(sheetsEl);
-      p.sheetsEl = sheetsEl;
+    // Clean up any legacy sheet controls appended directly to header
+    for (const old of Array.from(p.header.querySelectorAll('.panel-sheets, .sheets-dd'))) {
+      old.remove();
     }
-    // Populate checkboxes
-    sheetsEl.innerHTML = '';
-    const label = document.createElement('span');
-    label.textContent = 'Sheets:';
-    label.style.color = '#57606a';
-    label.style.fontSize = '12px';
-    sheetsEl.appendChild(label);
-    const sel = overlayState.panelSheets[i] || new Set(layers.map(l => l.name));
-    for (const {name} of layers) {
-      const w = document.createElement('label');
-      w.style.display = 'inline-flex';
-      w.style.alignItems = 'center';
-      w.style.gap = '4px';
-      w.style.fontSize = '12px';
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = sel.has(name);
-      cb.addEventListener('change', () => {
-        ensurePanelSheets();
-        const set = overlayState.panelSheets[i] || new Set();
-        if (cb.checked) set.add(name); else set.delete(name);
-        overlayState.panelSheets[i] = set;
-        schedulePanelsRender();
+    // Remove any legacy title left around by older builds
+    for (const t of Array.from(p.header.querySelectorAll('.panel-title'))) {
+      t.remove();
+    }
+    // Ensure dropdown once
+    let dd = p.sheetsDropdown;
+    if (!dd) {
+      dd = createSheetsDropdown({
+        getLayers: () => (overlayState.layers?.length ? overlayState.layers : [{name: 'DEFAULT', z: 0}]),
+        getSelected: () => overlayState.panelSheets[i] || new Set(layers.map(l => l.name)),
+        onChange: (newSet) => {
+          ensurePanelSheets();
+          overlayState.panelSheets[i] = newSet;
+          schedulePanelsRender();
+        },
       });
-      const span = document.createElement('span');
-      span.textContent = name;
-      w.append(cb, span);
-      sheetsEl.appendChild(w);
+      // Anchor dropdown on the left side of header
+      if (p.headerLeft) p.headerLeft.appendChild(dd.el); else p.header.insertBefore(dd.el, p.header.firstChild);
+      // Ensure left-anchored styling
+      try { dd.el.style.marginLeft = '0'; } catch {}
+      p.sheetsDropdown = dd;
     }
+    dd.render();
   }
 }
 
