@@ -7,19 +7,19 @@ QUBIT_COORDS(0, 0) 0
 QUBIT_COORDS(1, 0) 1
 QUBIT_COORDS(2, 0) 2
 
-##! QUBIT X=100 Y=100 LAYER=UPPER COLOUR=#123456 TEXT="no-anchor"  # QU001
+##! QUBIT X=100 Y=100 SHEET=UPPER COLOUR=#123456 TEXT="no-anchor"  # QU001
 TICK  # next line is TICK (no qubits mentioned)
 
 # QU002: referenced qubit doesn't exist in the circuit.
-##! QUBIT Q=99 X=200 Y=200 LAYER=LOWER COLOUR=#654321 TEXT="bad-qubit"
+##! QUBIT Q=99 X=200 Y=200 SHEET=LOWER COLOUR=#654321 TEXT="bad-qubit"
 
 ##! MARK STYLE=HOT TEXT="missing pragma"  # PR001 (no following pragma)
 
 ##! EMBEDDING TYPE=PLANE
-##! CONN SET EDGES=(0-1) LAYER=UPPER DROOP=0.1 COLOUR=#00AA88 TEXT="route-torus" ROUTE=TORUS  # EMB01
+##! CONN SET EDGES=(0-1) SHEET=UPPER DROOP=0.1 COLOUR=#00AA88 TEXT="route-torus" ROUTE=TORUS  # EMB01
 
 # Paired pragma mismatch: POLY without pragma → expect insertion when ensurePragmas:true.
-##! POLY LAYER=UPPER STYLE=CELL TEXT="missing-pragma"  # PR001 (POLY will need pragma on save)
+##! POLY SHEET=UPPER STYLE=CELL TEXT="missing-pragma"  # PR001 (POLY will need pragma on save)
 
 # Bad set syntax (parse error to be reported succinctly).
 ##! SET NAME=@bad VALUE=2..1   # parse error: reversed range

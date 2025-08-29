@@ -98,7 +98,7 @@ export function parseOverlayFromStim(text) {
     }
 
     // LAYER declarations (directive name remains LAYER; concept is "sheet")
-    if (/^##!\s+LAYER\b/i.test(s)) {
+    if (/^##!\s+(SHEET|LAYER)\b/i.test(s)) {
       const nm = /\bNAME=([A-Za-z0-9_\-]+)/i.exec(s);
       const zm = /\bZ=(-?\d+)/i.exec(s);
       const name = nm ? nm[1] : `SHEET_${sheets.length}`;

@@ -329,8 +329,8 @@ Keywords are UPPERCASE (Stim style). Attachment rule: a directive applies to the
 VALUE: comma list and a..b ranges. (Sets are not allowed inside edge lists.)
 
 4.2 Sheets (directive name remains LAYER for compatibility)
-##! LAYER NAME=UPPER Z=1
-##! LAYER NAME=LOWER Z=0
+##! SHEET NAME=UPPER Z=1
+##! SHEET NAME=LOWER Z=0
 
 
 Declare before use. Z controls draw order.
@@ -343,7 +343,7 @@ Declare before use. Z controls draw order.
 Global (not per layer). Supports PLANE | TORUS | CYLINDER | MOBIUS (today: params for TORUS).
 
 4.4 Qubit properties
-##! QUBIT Q=17 X=3.2 Y=1.0 LAYER=UPPER COLOUR=#3366FF DEFECTIVE=false TEXT="D17" MOUSEOVER="T1=22µs"
+##! QUBIT Q=17 X=3.2 Y=1.0 SHEET=UPPER COLOUR=#3366FF DEFECTIVE=false TEXT="D17" MOUSEOVER="T1=22µs"
 
 
 If Q omitted: apply to the qubits mentioned by the next Stim instruction (must exist) — otherwise error QU001.
@@ -351,10 +351,10 @@ If Q omitted: apply to the qubits mentioned by the next Stim instruction (must e
 If Q given: each id must appear in Stim (via a gate/measure or QUBIT_COORDS) — otherwise error QU002.
 
 4.5 Bulk layout
-##! LAYOUT Q=@data LAYER=UPPER MAP=HEX SPACING=1.2 ORIGIN=(0,0)
-##! LAYOUT Q=0..15 LAYER=LOWER MAP=GRID DX=1.0 DY=0.9 ORIGIN=(0,0)
-##! LAYOUT Q=@ring LAYER=UPPER MAP=CIRCLE RADIUS=6.0 ORIGIN=(5,5)
-##! LAYOUT Q=0..7  LAYER=UPPER MAP=LINE START=(0,0) END=(7,0)
+##! LAYOUT Q=@data SHEET=UPPER MAP=HEX SPACING=1.2 ORIGIN=(0,0)
+##! LAYOUT Q=0..15 SHEET=LOWER MAP=GRID DX=1.0 DY=0.9 ORIGIN=(0,0)
+##! LAYOUT Q=@ring SHEET=UPPER MAP=CIRCLE RADIUS=6.0 ORIGIN=(5,5)
+##! LAYOUT Q=0..7  SHEET=UPPER MAP=LINE START=(0,0) END=(7,0)
 
 
 MAP params:
@@ -373,7 +373,7 @@ Later QUBIT can override individuals.
 
 Set/add
 
-##! CONN SET EDGES=(8-9, 10-11) LAYER=UPPER DROOP=0.15 COLOUR=#00AA88 DEFECTIVE=false TEXT="chain"
+##! CONN SET EDGES=(8-9, 10-11) SHEET=UPPER DROOP=0.15 COLOUR=#00AA88 DEFECTIVE=false TEXT="chain"
 
 Params (specified here, most are then applicable to other commands):
 EDGES: which qubits to pair up.
@@ -388,7 +388,7 @@ Note that two qubits cannot be connected on more than one layer. The solution he
 
 Remove
 
-##! CONN REMOVE EDGES=(8-9) LAYER=UPPER
+##! CONN REMOVE EDGES=(8-9) SHEET=UPPER
 
 (don't need any style params for this, obviously)
 
@@ -401,7 +401,7 @@ Styles
 
 Instances (prefer paired form for Crumble interop)
 
-##! POLY LAYER=UPPER STYLE=A TEXT="cell A"
+##! POLY SHEET=UPPER STYLE=A TEXT="cell A"
 #!pragma POLYGON(0,0.5,1,0.2) 0 1 5 4
 
 The pragma lists qubit ids used as polygon vertices. If absent, toStimCircuit(...,{ensurePragmas:true}) will insert a default #!pragma POLYGON(...) with a gentle color and no qubits.
@@ -580,16 +580,16 @@ QUBIT_COORDS(2, 0) 5
 QUBIT_COORDS(2, 1) 6
 QUBIT_COORDS(2, 2) 7
 
-##! LAYER NAME=UPPER Z=1
+##! SHEET NAME=UPPER Z=1
 ##! EMBEDDING TYPE=TORUS LX=12 LY=12
 
-##! LAYOUT Q=@data LAYER=UPPER MAP=HEX SPACING=80 ORIGIN=(100,100)
-##! QUBIT Q=2 X=260 Y=140 LAYER=UPPER COLOUR=#3366FF TEXT="q2"
+##! LAYOUT Q=@data SHEET=UPPER MAP=HEX SPACING=80 ORIGIN=(100,100)
+##! QUBIT Q=2 X=260 Y=140 SHEET=UPPER COLOUR=#3366FF TEXT="q2"
 
-##! CONN SET EDGES=(0-1, 1-2, [0,0]-[1,3]) LAYER=UPPER ROUTE=AUTO STYLE=DROOP DROOP=0.15 COLOUR=#00AA88
+##! CONN SET EDGES=(0-1, 1-2, [0,0]-[1,3]) SHEET=UPPER ROUTE=AUTO STYLE=DROOP DROOP=0.15 COLOUR=#00AA88
 
 ##! POLY STYLE NAME=CELL COLOUR=#88C0D0
-##! POLY LAYER=UPPER STYLE=CELL TEXT="tile"
+##! POLY SHEET=UPPER STYLE=CELL TEXT="tile"
 #!pragma POLYGON(0,0.5,1,0.2) 0 1 2
 
 ##! MARK STYLE=HOT TEXT="X-check A"

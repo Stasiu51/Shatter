@@ -10,10 +10,10 @@
 ##! SET NAME=@hex VALUE=0..5
 ##! SET NAME=@edge VALUE=0..3
 
-# -- Layers -------------------------------------------------------------------
-##! LAYER NAME=UPPER Z=2
-##! LAYER NAME=MIDDLE Z=1
-##! LAYER NAME=LOWER Z=0
+# -- Sheets -------------------------------------------------------------------
+##! SHEET NAME=UPPER Z=2
+##! SHEET NAME=MIDDLE Z=1
+##! SHEET NAME=LOWER Z=0
 
 # -- Embedding ----------------------------------------------------------------
 ##! EMBEDDING TYPE=TORUS LX=12 LY=12
@@ -30,25 +30,25 @@ QUBIT_COORDS(1, 2) 7
 QUBIT_COORDS(2, 2) 8
 
 # -- Bulk layout ---------------------------------------------------------------
-##! LAYOUT Q=@hex LAYER=UPPER MAP=HEX SPACING=80 ORIGIN=(100,100)
-##! LAYOUT Q=0..8 LAYER=LOWER MAP=GRID DX=80 DY=80 ORIGIN=(100,100)
-##! LAYOUT Q=0..2 LAYER=MIDDLE MAP=LINE START=(100,260) END=(260,260)
+##! LAYOUT Q=@hex SHEET=UPPER MAP=HEX SPACING=80 ORIGIN=(100,100)
+##! LAYOUT Q=0..8 SHEET=LOWER MAP=GRID DX=80 DY=80 ORIGIN=(100,100)
+##! LAYOUT Q=0..2 SHEET=MIDDLE MAP=LINE START=(100,260) END=(260,260)
 
 # -- Per-qubit overrides ------------------------------------------------------
-##! QUBIT Q=2 X=260 Y=140 LAYER=UPPER COLOUR=#3366FF TEXT="q2" MOUSEOVER="T1=22µs"
-##! QUBIT Q=4 X=180 Y=180 LAYER=MIDDLE COLOUR=#AA6633 TEXT="q4"
+##! QUBIT Q=2 X=260 Y=140 SHEET=UPPER COLOUR=#3366FF TEXT="q2" MOUSEOVER="T1=22µs"
+##! QUBIT Q=4 X=180 Y=180 SHEET=MIDDLE COLOUR=#AA6633 TEXT="q4"
 
 # -- Connections ---------------------------------------------------------------
-##! CONN SET EDGES=(0-1, 1-2) LAYER=UPPER DROOP=0.15 COLOUR=#00AA88 TEXT="chain-0-2"
-##! CONN SET EDGES=(3-4, 4-5) LAYER=MIDDLE DROOP=0.00 COLOUR=#888888 TEXT="chain-3-5"
-##! CONN REMOVE EDGES=(3-4) LAYER=MIDDLE
+##! CONN SET EDGES=(0-1, 1-2) SHEET=UPPER DROOP=0.15 COLOUR=#00AA88 TEXT="chain-0-2"
+##! CONN SET EDGES=(3-4, 4-5) SHEET=MIDDLE DROOP=0.00 COLOUR=#888888 TEXT="chain-3-5"
+##! CONN REMOVE EDGES=(3-4) SHEET=MIDDLE
 
 # -- Polygon styles and instances --------------------------------------------
 ##! POLY STYLE NAME=CELL COLOUR=#88C0D0
 ##! POLY STYLE NAME=FAULT COLOUR=#FFCCCC
-##! POLY LAYER=UPPER STYLE=CELL TEXT="tile-A"  
+##! POLY SHEET=UPPER STYLE=CELL TEXT="tile-A"  
 #!pragma POLYGON(0,0.5,1,0.2) 0 1 4 3
-##! POLY LAYER=LOWER STYLE=FAULT TEXT="tile-B"
+##! POLY SHEET=LOWER STYLE=FAULT TEXT="tile-B"
 #!pragma POLYGON(1,0.2,0,0.3) 5 4 7 8
 
 # -- Highlights ---------------------------------------------------------------
