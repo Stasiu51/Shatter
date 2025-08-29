@@ -1,0 +1,19 @@
+###############################################################################
+# Overlay with highlight attachment/filters errors and qubit anchor errors.
+###############################################################################
+
+##! SHEET NAME=ONE Z=0
+QUBIT_COORDS(0, 0) 0
+QUBIT_COORDS(1, 0) 1
+
+##! QUBIT X=100 Y=100 SHEET=ONE TEXT="no-anchor"  # QU001
+TICK
+
+##! HIGHLIGHT GATE QUBITS=0,2 STYLE=ACTIVE TEXT="mismatch"  # HL002 (2 not in next gate)
+CX 0 1
+
+##! HIGHLIGHT GATE QUBITS=99 STYLE=ACTIVE TEXT="missing-qubit"  # QU002 unknown qubit
+##! HIGHLIGHT GATE STYLE=ACTIVE TEXT="no gate here"  # HL001 (next non-trivia is TICK)
+TICK
+M 0 1
+

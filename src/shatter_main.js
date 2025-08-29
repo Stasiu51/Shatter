@@ -120,14 +120,6 @@ function renderPanelSheetsAll() {
   for (let i = 0; i < mgr.panels.length; i++) {
     const p = mgr.panels[i];
     if (!p?.header) continue;
-    // Clean up any legacy sheet controls appended directly to header
-    for (const old of Array.from(p.header.querySelectorAll('.panel-sheets, .sheets-dd'))) {
-      old.remove();
-    }
-    // Remove any legacy title left around by older builds
-    for (const t of Array.from(p.header.querySelectorAll('.panel-title'))) {
-      t.remove();
-    }
     // Ensure dropdown once
     let dd = p.sheetsDropdown;
     if (!dd) {
@@ -143,7 +135,7 @@ function renderPanelSheetsAll() {
       // Anchor dropdown on the left side of header
       if (p.headerLeft) p.headerLeft.appendChild(dd.el); else p.header.insertBefore(dd.el, p.header.firstChild);
       // Ensure left-anchored styling
-      try { dd.el.style.marginLeft = '0'; } catch {}
+      // try { dd.el.style.marginLeft = '0'; } catch {}
       p.sheetsDropdown = dd;
     }
     dd.render();

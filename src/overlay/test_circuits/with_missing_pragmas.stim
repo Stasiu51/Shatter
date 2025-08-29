@@ -1,0 +1,15 @@
+###############################################################################
+# Overlays missing paired pragmas for POLY/MARK/ERR to trigger PR001 warnings.
+###############################################################################
+
+##! SHEET NAME=TOP Z=1
+QUBIT_COORDS(0, 0) 0
+QUBIT_COORDS(1, 0) 1
+
+##! POLY SHEET=TOP STYLE=CELL TEXT="no-pragma"
+##! MARK STYLE=HOT TEXT="no-pragma"
+##! ERR STYLE=BAD
+
+TICK
+CX 0 1
+
