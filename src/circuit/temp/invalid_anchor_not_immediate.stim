@@ -1,0 +1,5 @@
+# Anchored overlay must attach to NEXT crumble instruction; free-form in between cancels it.
+
+##! HIGHLIGHT GATE COLOR="magenta"  # anchored, waiting…
+##! CONN SET EDGES=(0-1)            # barrier → highlight is cancelled (optionally diag ANN001)
+H 0                                  # this gate should NOT be highlighted (by prior line)

@@ -34,6 +34,7 @@ export function setupTimelineUI({
   }
   resizerEl.style.display = timelineEl.classList.contains('collapsed') ? 'none' : '';
   if (toggleGlobalEl) toggleGlobalEl.textContent = timelineEl.classList.contains('collapsed') ? 'Show timeline' : 'Hide timeline';
+  if (toggleEl) toggleEl.textContent = timelineEl.classList.contains('collapsed') ? 'Show' : 'Hide';
 
   function render() {
     if (timelineEl.classList.contains('collapsed')) return;
@@ -51,6 +52,7 @@ export function setupTimelineUI({
     localStorage.setItem('timelineCollapsed', collapsed ? '1' : '0');
     resizerEl.style.display = collapsed ? 'none' : '';
     if (toggleGlobalEl) toggleGlobalEl.textContent = collapsed ? 'Show timeline' : 'Hide timeline';
+    if (toggleEl) toggleEl.textContent = collapsed ? 'Show' : 'Hide';
   }
 
   // Resizer
@@ -127,4 +129,3 @@ export function setupTimelineUI({
     setCollapsed: setTimelineCollapsed,
   };
 }
-

@@ -1,0 +1,2 @@
+# Bad crumble syntax → PAR003 (or your generic parse error)
+H( 0         # unbalanced paren, missing ) and/or targets format wrong

@@ -1,0 +1,11 @@
+# Repeat with anchored and free-form annotations
+
+REPEAT 2 {
+  ##! HIGHLIGHT GATE COLOR="cyan" # attaches to NEXT gate inside the block per iteration
+  H 0
+
+  ##! CONN SET EDGES=(0-1) SHEET="DEFAULT"  # free-form inside repeat → annotation for current layer
+
+  ##! POLY SHEET="DEFAULT"
+  #! pragma POLYGON (0,0), (0.5,0), (0.5,0.5), (0,0.5)   # immediate body line
+}

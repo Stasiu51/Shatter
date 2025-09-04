@@ -1,0 +1,9 @@
+# Expect POLY001: header must be immediately followed by body
+
+##! POLY SHEET="DEFAULT"  # <-- missing immediate body line → POLY001
+H 0                       # barrier line that triggers the error
+
+# Another variant with blank line barrier
+##! POLY
+                           # blank line → POLY001
+TICK

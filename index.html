@@ -1,156 +1,579 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Shatter – Skeleton (Milestone 1)</title>
-    <style>
-      :root {
-        --border:#d0d7de;
-        --text:#24292f;
-        --bg:#ffffff;
-        --muted:#f6f8fa;
-        --accent:#0969da;
-        --danger:#d1242f;
-        --timeline-width: 360px;
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shatter – Skeleton (Milestone 1)</title>
+  <style>
+    :root {
+      --border: #d0d7de;
+      --text: #24292f;
+      --bg: #ffffff;
+      --muted: #f6f8fa;
+      --accent: #0969da;
+      --danger: #d1242f;
+      --timeline-width: 360px;
+      --editor-width: 360px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      margin: 0;
+      color: var(--text);
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    header {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 10;
+    }
+
+    h1 {
+      font-size: 16px;
+      margin: 0 12px 0 0;
+      font-weight: 600;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+
+    .spacer {
+      flex: 1;
+    }
+
+    .btn {
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .seg {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .seg button {
+      padding: 6px 10px;
+      border: 0;
+      background: #fff;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .seg button+button {
+      border-left: 1px solid var(--border);
+    }
+
+    .seg button.active {
+      background: var(--muted);
+      font-weight: 600;
+    }
+
+    .subbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+
+    .subbar .label {
+      color: #57606a;
+    }
+
+    .subbar .name {
+      padding: 4px 8px;
+      border: 1px dashed transparent;
+      border-radius: 4px;
+      cursor: text;
+      max-width: 40vw;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .subbar .name:hover {
+      border-color: var(--border);
+    }
+
+    .subbar .name.editing {
+      background: var(--muted);
+      border-color: var(--border);
+      outline: none;
+    }
+
+    main {
+      padding: 0px 0 0 0px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .workspace {
+      display: flex;
+      gap: 0;
+      height: 100%;
+    }
+
+    .panels-wrap {
+      flex: 1;
+      min-width: 300px;
+      margin-right: 0;
+    }
+
+    #panels {
+      display: grid;
+      gap: 0;
+      height: 100%;
+    }
+
+    .layout-1 {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr;
+    }
+
+    .layout-2 {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr;
+    }
+
+    .layout-3 {
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 1fr;
+    }
+
+    .layout-4 {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+    }
+
+    .panel {
+      border: none;
+      border-radius: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 160px;
+      background: #fff;
+    }
+
+    /* Panel separators (only inner dividing lines) */
+    #panels.layout-2 .panel:nth-child(2) {
+      border-left: 1px solid var(--border);
+    }
+
+    #panels.layout-3 .panel:nth-child(2),
+    #panels.layout-3 .panel:nth-child(3) {
+      border-left: 1px solid var(--border);
+    }
+
+    #panels.layout-4 .panel:nth-child(2),
+    #panels.layout-4 .panel:nth-child(4) {
+      border-left: 1px solid var(--border);
+    }
+
+    #panels.layout-4 .panel:nth-child(3),
+    #panels.layout-4 .panel:nth-child(4) {
+      border-top: 1px solid var(--border);
+    }
+
+    .panel-header {
+      display: flex;
+      height: 47px;
+      min-height: 47px;
+      max-height: 47px;
+      flex: 0 0 47px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      overflow: visible;
+      position: relative;
+      z-index: 1;
+    }
+
+    .panel-header> :first-child {
+      margin-right: auto;
+    }
+
+    .panel-title {
+      font-weight: 600;
+      color: #57606a;
+    }
+
+    .panel-body {
+      flex: 1;
+      position: relative;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .panel-body canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Selection widget */
+    .sel-widget {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      padding-top: 14px;
+    }
+
+    .sel-row {
+      display: flex;
+      gap: 6px;
+      align-items: flex-start;
+    }
+
+    .sel-box {
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: #fff;
+      position: relative;
+    }
+
+    .sel-box.gate {
+      border-color: #111;
+    }
+
+    .sel-box.qubit {
+      border-color: #0a7;
+    }
+
+    .sel-box.conn {
+      border-color: #a50;
+    }
+
+    .sel-box.poly {
+      border-color: #06c;
+    }
+
+    .sel-box.active {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    .sel-group {
+      position: relative;
+      display: flex;
+      gap: 6px;
+      padding-bottom: 32px;
+    }
+
+    .sel-alt {
+      font-size: 10px;
+      color: #6e7781;
+      position: absolute;
+      left: 0;
+      right: 0;
+      text-align: center;
+      top: 28px;
+    }
+
+    .sel-brace {
+      position: absolute;
+      left: 2px;
+      right: 10px;
+      bottom: 18px;
+      height: 12px;
+    }
+
+    .sel-brace path {
+      stroke: #6e7781;
+      stroke-width: 1;
+      fill: none;
+    }
+
+    .flash {
+      animation: flash 0.5s linear 1;
+    }
+
+    @keyframes flash {
+      from {
+        box-shadow: 0 0 0 0 var(--danger);
       }
-      * { box-sizing: border-box; }
-      html, body { height: 100%; }
-      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; color: var(--text); background: var(--bg); display:flex; flex-direction:column; min-height:100vh; }
-      header { display:flex; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border); position: sticky; top:0; background:var(--bg); z-index: 10; }
-      h1 { font-size:16px; margin:0 12px 0 0; font-weight:600; }
-      .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; flex: 1; }
-      .spacer { flex: 1; }
-      .btn { padding:6px 10px; border:1px solid var(--border); border-radius:6px; background:#fff; cursor:pointer; font: inherit; }
-      .seg { display:inline-flex; border:1px solid var(--border); border-radius:6px; overflow:hidden; }
-      .seg button { padding:6px 10px; border:0; background:#fff; cursor:pointer; font: inherit; }
-      .seg button + button { border-left:1px solid var(--border); }
-      .seg button.active { background: var(--muted); font-weight:600; }
-      .subbar { display:flex; gap:12px; align-items:center; padding:8px 16px; border-bottom:1px solid var(--border); background:var(--bg); }
-      .subbar .label { color:#57606a; }
-      .subbar .name { padding:4px 8px; border:1px dashed transparent; border-radius:4px; cursor:text; max-width: 40vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-      .subbar .name:hover { border-color: var(--border); }
-      .subbar .name.editing { background: var(--muted); border-color: var(--border); outline: none; }
-      main { padding:0px 0 0 0px; flex:1; min-height:0; }
-      .workspace { display:flex; gap:0; height:100%; }
-      .panels-wrap { flex:1; min-width: 300px; margin-right:0; }
-      #panels { display:grid; gap:0; height:100%; }
-      .layout-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
-      .layout-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
-      .layout-3 { grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr; }
-      .layout-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
-      .panel { border:none; border-radius:0; overflow:hidden; display:flex; flex-direction:column; min-height: 160px; background:#fff; }
-      /* Panel separators (only inner dividing lines) */
-      #panels.layout-2 .panel:nth-child(2) { border-left: 1px solid var(--border); }
-      #panels.layout-3 .panel:nth-child(2),
-      #panels.layout-3 .panel:nth-child(3) { border-left: 1px solid var(--border); }
-      #panels.layout-4 .panel:nth-child(2),
-      #panels.layout-4 .panel:nth-child(4) { border-left: 1px solid var(--border); }
-      #panels.layout-4 .panel:nth-child(3),
-      #panels.layout-4 .panel:nth-child(4) { border-top: 1px solid var(--border); }
-      .panel-header { display:flex; height: 47px; min-height:47px; max-height:47px; flex: 0 0 47px; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; border-bottom:1px solid var(--border); overflow:visible; position:relative; z-index: 1; }
-      .panel-header > :first-child { margin-right: auto; }
-      .panel-title { font-weight:600; color:#57606a; }
-      .panel-body { flex:1; position:relative; background: #fff; display:flex; align-items:center; justify-content:center; }
-      .panel-body canvas { width:100%; height:100%; display:block; }
 
-      /* Selection widget */
-      .sel-widget { display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding-top: 14px; }
-      .sel-row { display:flex; gap:6px; align-items:flex-start; }
-      .sel-box { width:16px; height:16px; border:1px solid var(--border); border-radius:3px; background:#fff; position:relative; }
-      .sel-box.gate { border-color:#111; }
-      .sel-box.qubit { border-color:#0a7; }
-      .sel-box.conn { border-color:#a50; }
-      .sel-box.poly { border-color:#06c; }
-      .sel-box.active { outline:2px solid var(--accent); outline-offset:1px; }
-      .sel-group { position:relative; display:flex; gap:6px; padding-bottom:32px; }
-      .sel-alt { font-size:10px; color:#6e7781; position:absolute; left:0; right:0; text-align:center; top: 28px; }
-      .sel-brace { position:absolute; left: 2px; right: 10px; bottom: 18px; height: 12px; }
-      .sel-brace path { stroke:#6e7781; stroke-width:1; fill:none; }
-      .flash { animation: flash 0.5s linear 1; }
-      @keyframes flash { from { box-shadow: 0 0 0 0 var(--danger);} 50% { box-shadow: 0 0 0 4px rgba(209,36,47,0.25);} to { box-shadow: 0 0 0 0 var(--danger);} }
+      50% {
+        box-shadow: 0 0 0 4px rgba(209, 36, 47, 0.25);
+      }
 
-      /* Timeline (global) */
-      .timeline { width: var(--timeline-width); min-width: 0; border:none; border-radius:0; background:#fff; display:flex; flex-direction:column; transition: width 0.05s linear; will-change: width; overflow:hidden; }
-      .timeline.resizing { transition: none !important; }
-      .timeline-header { padding:8px 10px; border-bottom:1px solid var(--border); color:#57606a; font-weight:600; height:47px; min-height:47px; max-height:47px; flex: 0 0 47px; display:flex; align-items:center; justify-content:space-between; }
-      .timeline-left { display:flex; align-items:center; gap:8px; }
-      .timeline-title { font-weight:600; color:#57606a; }
-      .timeline-header .layer-info { margin-left: 0; font-weight:500; color:#57606a; }
-      .timeline-body { flex:1; display:flex; align-items:stretch; justify-content:stretch; color:#6e7781; font-size:12px; }
-      #timeline-canvas { width:100%; height:100%; display:block; }
-      .timeline.collapsed { width: 0 !important; border:none; }
-      .timeline-header .right { float:right; display:flex; gap:6px; }
+      to {
+        box-shadow: 0 0 0 0 var(--danger);
+      }
+    }
 
-      .timeline-resizer { width: 6px; cursor: col-resize; position: relative; }
-      .timeline-resizer::after { content:""; position:absolute; top:0; bottom:0; left:2px; width:2px; background: var(--border); border-radius:2px; opacity:0.8; }
-    </style>
-  </head>
-  <body>
-    <header>
-      <h1>Shatter</h1>
-      <div class="toolbar">
-        <span>Layout:</span>
-        <div class="seg" id="layout-seg">
-          <button data-layout="1" class="active">1</button>
-          <button data-layout="2">2</button>
-          <button data-layout="3">3</button>
-          <button data-layout="4">4</button>
-        </div>
-        <div class="seg" id="panels-zoom-seg" style="margin-left:8px;">
-          <button id="panels-zoom-out" title="Zoom out" style="padding:2px 6px;">−</button>
-          <button id="panels-zoom-reset" title="Reset zoom" style="padding:2px 6px;">Reset</button>
-          <button id="panels-zoom-in" title="Zoom in" style="padding:2px 6px;">+</button>
-        </div>
-        <div class="spacer"></div>
-        <button id="timeline-toggle-global" class="btn">Hide timeline</button>
+    /* Timeline (global) */
+    .timeline {
+      width: var(--timeline-width);
+      min-width: 0;
+      border: none;
+      border-radius: 0;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .timeline-header {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      color: #57606a;
+      font-weight: 600;
+      height: 47px;
+      min-height: 47px;
+      max-height: 47px;
+      flex: 0 0 47px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .timeline-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .timeline-title {
+      font-weight: 600;
+      color: #57606a;
+    }
+
+    .timeline-header .layer-info {
+      margin-left: 0;
+      font-weight: 500;
+      color: #57606a;
+    }
+
+    .timeline-body {
+      flex: 1;
+      display: flex;
+      align-items: stretch;
+      justify-content: stretch;
+      color: #6e7781;
+      font-size: 12px;
+    }
+
+    #timeline-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .timeline.collapsed {
+      width: 0 !important;
+      border: none;
+    }
+
+    .timeline-header .right {
+      float: right;
+      display: flex;
+      gap: 6px;
+    }
+
+    .timeline-resizer {
+      width: 6px;
+      cursor: col-resize;
+      position: relative;
+    }
+
+    .timeline-resizer::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 2px;
+      width: 2px;
+      background: var(--border);
+      border-radius: 2px;
+      opacity: 0.8;
+    }
+
+    /* Editor (right) */
+    .editor {
+      width: var(--editor-width);
+      min-width: 0;
+      border: none;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+    }
+    .editor.resizing { cursor: col-resize; }
+    .editor-header {
+      display: flex;
+      height: 47px;
+      min-height: 47px;
+      max-height: 47px;
+      flex: 0 0 47px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .editor-title { font-weight: 600; color: #57606a; }
+    .editor-body {
+      flex: 1;
+      display: flex;
+      align-items: stretch;
+      justify-content: stretch;
+    }
+    #editor-text {
+      width: 100%;
+      height: 100%;
+      resize: none;
+      border: 0;
+      outline: none;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      padding: 8px;
+      color: var(--text);
+    }
+    .editor.collapsed { width: 0 !important; border: none; }
+    .editor-resizer {
+      width: 6px;
+      cursor: col-resize;
+      position: relative;
+    }
+    .editor-resizer::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 2px;
+      width: 2px;
+      background: var(--border);
+      border-radius: 2px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Shatter</h1>
+    <div class="toolbar">
+      <span>Layout:</span>
+      <div class="seg" id="layout-seg">
+        <button data-layout="1" class="active">1</button>
+        <button data-layout="2">2</button>
+        <button data-layout="3">3</button>
+        <button data-layout="4">4</button>
       </div>
-    </header>
-    <div class="subbar">
-      <span class="label">Name:</span>
-      <span id="circuit-name" class="name" title="Click to edit">circuit</span>
-      <span class="label" style="margin-left:12px;">Tools:</span>
-      <button class="btn" id="btn-import">Import</button>
-      <button class="btn" id="btn-export">Export</button>
-      <button class="btn" id="btn-run-tests">Run tests</button>
-      <button class="btn" id="btn-help">Help</button>
+      <div class="seg" id="panels-zoom-seg" style="margin-left:8px;">
+        <button id="panels-zoom-out" title="Zoom out" style="padding:2px 6px;">−</button>
+        <button id="panels-zoom-reset" title="Reset zoom" style="padding:2px 6px;">Reset</button>
+        <button id="panels-zoom-in" title="Zoom in" style="padding:2px 6px;">+</button>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn" id="editor-toggle">Show editor</button>
+      <button id="timeline-toggle-global" class="btn">Hide timeline</button>
     </div>
-    <main>
-      <div class="workspace">
-        <div class="panels-wrap">
-          <div id="panels" class="layout-1"></div>
-        </div>
-        <div class="timeline-resizer" id="timeline-resizer" title="Drag to resize timeline"></div>
-        <div class="timeline" id="timeline">
-          <div class="timeline-header">
-            <div class="timeline-left">
-              <div class="timeline-title">Timeline</div>
-              <span id="timeline-layer-info" class="layer-info"></span>
-            </div>
-            <span class="right">
-              <div class="seg" id="timeline-zoom-seg">
-                <button id="timeline-zoom-out" title="Zoom out">−</button>
-                <button id="timeline-zoom-reset" title="Reset zoom">Reset</button>
-                <button id="timeline-zoom-in" title="Zoom in">+</button>
-              </div>
-              <button id="timeline-toggle" title="Collapse/expand" class="btn" style="padding:2px 6px;">⟷</button>
-            </span>
+  </header>
+  <div class="subbar">
+    <span class="label">Name:</span>
+    <span id="circuit-name" class="name" title="Click to edit">circuit</span>
+    <span class="label" style="margin-left:12px;">Tools:</span>
+    <button class="btn" id="btn-import" style="background-color:#28a745; color:white;">Import</button>
+    <button class="btn" id="btn-export">Export</button>
+    <button class="btn" id="btn-run-tests">Run tests</button>
+    <button class="btn" id="btn-help">Help</button>
+  </div>
+  <main>
+    <div class="workspace">
+      <div class="panels-wrap">
+        <div id="panels" class="layout-1"></div>
+      </div>
+      <div class="timeline-resizer" id="timeline-resizer" title="Drag to resize timeline"></div>
+      <div class="timeline" id="timeline">
+        <div class="timeline-header">
+          <div class="timeline-left">
+            <div class="timeline-title">Timeline</div>
+            <span id="timeline-layer-info" class="layer-info"></span>
           </div>
-          <div class="timeline-body"><canvas id="timeline-canvas"></canvas></div>
+          <span class="right">
+            <div class="seg" id="timeline-zoom-seg">
+              <button id="timeline-zoom-out" title="Zoom out">−</button>
+              <button id="timeline-zoom-reset" title="Reset zoom">Reset</button>
+              <button id="timeline-zoom-in" title="Zoom in">+</button>
+            </div>
+            <button id="timeline-toggle" title="Collapse/expand" class="btn" style="padding:2px 6px;">Hide</button>
+          </span>
+        </div>
+        <div class="timeline-body"><canvas id="timeline-canvas"></canvas></div>
+
+      </div>
+      <div class="editor-resizer" id="editor-resizer" title="Drag to resize editor"></div>
+      <div class="editor" id="editor">
+
+        <div class="editor-header">
+          <div class="editor-title">Editor</div>
+          <div class="right">
+            <button class="btn" id="editor-reload" title="Reload editor text" style="padding:2px 6px;">Up to date</button>
+            <button class="btn" id="editor-collapse-btn" title="Collapse editor" style="padding:2px 6px;">Hide</button>
+          </div>
+        </div>
+        <div class="editor-body">
+          <textarea id="editor-text" spellcheck="false" placeholder="Type here..."></textarea>
         </div>
       </div>
-    </main>
-    <footer id="statusbar" title="Click to download status log"
-      style="position:fixed; left:0; right:0; bottom:0; height:32px; border-top:1px solid var(--border); background:#f8fafc; display:flex; align-items:center; padding:0 12px; cursor:pointer; font-size:12px; color:#57606a; gap:12px;">
-      <div id="status-left" style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
-        <span id="status-dot" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#8b949e;"></span>
-        <span id="status-text" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Ready.</span>
-      </div>
-      <div id="status-right" style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; justify-content:flex-end; opacity:0.9;">
-        <span id="status-dot-right" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#8b949e;"></span>
-        <span id="status-text-right" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
-      </div>
-    </footer>
-    <script type="module" src="./src/shatter_main.js"></script>
-  </body>
-  </html>
+    </div>
+  </main>
+  <footer id="statusbar" title="Click to download status log"
+    style="position:fixed; left:0; right:0; bottom:0; height:32px; border-top:1px solid var(--border); background:#f8fafc; display:flex; align-items:center; padding:0 12px; cursor:pointer; font-size:12px; color:#57606a; gap:12px;">
+    <div id="status-left" style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
+      <span id="status-dot"
+        style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#8b949e;"></span>
+      <span id="status-text" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Ready.</span>
+    </div>
+    <div id="status-right"
+      style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; justify-content:flex-end; opacity:0.9;">
+      <span id="status-dot-right"
+        style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#8b949e;"></span>
+      <span id="status-text-right" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
+    </div>
+  </footer>
+  <script type="module" src="./src/shatter_main.js"></script>
+</body>
+
+</html>

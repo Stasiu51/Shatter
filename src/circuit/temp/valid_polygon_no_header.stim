@@ -1,0 +1,3 @@
+# Polygon without header is valid; synthesize default POLY header
+
+#! pragma POLYGON (10,10), (11,10), (11,11), (10,11)

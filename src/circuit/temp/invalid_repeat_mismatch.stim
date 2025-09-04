@@ -1,0 +1,8 @@
+# Unmatched close
+}
+H 0
+
+# Unclosed repeat
+REPEAT 3 {
+  H 1
+# EOF here should produce REP002

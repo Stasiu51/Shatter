@@ -1,0 +1,15 @@
+QUBIT_COORDS(0,0) 0
+QUBIT_COORDS(1,0) 1
+H 0
+CX 0 1
+
+##! CONN SET SHEET="DEFAULT" EDGES=(0-1)
+
+DETECTOR rec[-1], rec[-2]
+OBSERVABLE_INCLUDE(0) rec[-1]
+
+# SHIFT examples if supported in your crumble grammar:
+# SHIFT_COORDS(0.5, 0.5)
+# SHIFT_DETECTOR_COORDS(1, 0)
+
+TICK

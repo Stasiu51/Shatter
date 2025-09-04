@@ -1,0 +1,80 @@
+# Honeycomb integration test — pretty + comprehensive, all valid
+
+# --- BASE SHEET ---------------------------------------------
+
+##! SHEET NAME="LOWER"
+
+# --- QUBIT LAYOUT (hex-y grid) ----------------------------------------------
+QUBIT_COORDS(0.0, 0.0) 0
+QUBIT_COORDS(1.0, 0.5) 1
+QUBIT_COORDS(2.0, 0.0) 2
+QUBIT_COORDS(3.0, 0.5) 3
+
+QUBIT_COORDS(0.5, 1.0) 4
+QUBIT_COORDS(1.5, 1.5) 5
+QUBIT_COORDS(2.5, 1.0) 6
+QUBIT_COORDS(3.5, 1.5) 7
+
+QUBIT_COORDS(0.0, 2.0) 8
+QUBIT_COORDS(1.0, 2.5) 9
+QUBIT_COORDS(2.0, 2.0) 10
+QUBIT_COORDS(3.0, 2.5) 11
+
+# ---  CONNECTIONS ------------------------------------------------
+
+##! CONN SET SHEET="DEFAULT" EDGES=( 0-1, 1-2, 2-3, 4-5, 5-6, 6-7, 8-9, 9-10, 10-11, 0-4, 1-5, 2-6, 3-7, 4-8, 5-9, 6-10, 7-11)
+
+# --- LAYER 0: initialize & highlight a gate ---------------------------------
+H 0
+H 1
+H 2
+H 3
+H 4
+H 5
+H 6
+H 7
+H 8
+H 9
+H 10
+H 11
+
+##! HIGHLIGHT GATE COLOR="gold"  # anchored: attaches to next crumble instruction
+CX 0 1                           # <-- highlighted
+
+# A decorative hex polygon around the central cell (explicit header + body)
+##! POLY SHEET="DEFAULT" STROKE="orange" FILL="none"
+#!pragma POLYGON(0,0,1,0.5) 9 10 11
+
+# Another hex, showing body-only: header will be synthesized with defaults
+#!pragma POLYGON(0,0,1,0.5) 1 4 7 10
+
+#!pragma MARKX(0) 5          # crumble instruction (renders as an operation, not an annotation)
+
+TICK               # ---- new layer ----
+
+# --- LAYER 1: entangling edges + highlight another gate ---------------------
+##! HIGHLIGHT GATE COLOR="cyan"
+CX 2 3
+
+CX 4 5
+CX 6 7
+CX 8 9
+CX 10 11
+
+# gentle outline polygon for the lower-left face
+##! POLY SHEET="DEFAULT" STROKE="deepskyblue" FILL="none"
+#!pragma POLYGON(0,1,0,0.5) 0 2 4 6 8
+
+TICK               # ---- new layer ----
+
+# --- LAYER 2: a few more gates + marks --------------------------------------
+##! HIGHLIGHT GATE COLOR="lime"
+H 6
+
+CX 1 5
+CX 5 9
+CX 9 10
+#!pragma MARKZ(0) 10
+
+# Subtle hex near the right edge (body-only polygon)
+#!pragma POLYGON(0,1,0,0.5) 1 3 5 7
