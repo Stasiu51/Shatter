@@ -44,8 +44,20 @@ export class PanelManager {
     headerRight.style.alignItems = 'center';
     headerRight.style.gap = '8px';
 
-    const sel = createSelectionWidget();
-    headerRight.append(sel);
+    // Only show the selection widget on the rightmost/top-right panel:
+    // layout 1 → index 0; layout 2 → index 1; layout 3 → index 2; layout 4 → index 1 (top-right)
+    let selIndex;
+    if (this.layout === 1) selIndex = 0;
+    else if (this.layout === 2) selIndex = 1;
+    else if (this.layout === 3) selIndex = 2;
+    else if (this.layout === 4) selIndex = 1;
+    else selIndex = Math.max(0, this.layout - 1);
+
+    let sel = undefined;
+    if (index === selIndex) {
+      sel = createSelectionWidget();
+      headerRight.append(sel);
+    }
     header.append(headerLeft, headerRight);
 
     const body = document.createElement('div');

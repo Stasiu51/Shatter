@@ -78,7 +78,7 @@ export class AnnotatedCircuit {
     /**
      * @param {string} name 
      */
-    function getSheet(name) {
+    function getSheet(name, lineNo) {
       if (!circuit.sheets.has(name)) {
         diag(lineNo, 'SHEET003', 'error', `No such sheet ${name}.`);
       }
@@ -119,7 +119,7 @@ export class AnnotatedCircuit {
       }
 
       if (kind === 'CONN' || kind === 'CONN_SET' || (kind === 'CONN' && (rest[0] || '').toUpperCase() === 'SET')) {
-        const sheet = getSheet(getStr(KVs, 'SHEET', undefined));
+        const sheet = getSheet(getStr(KVs, 'SHEET', undefined), lineNo);
         const droop = getNum(KVs, 'DROOP', undefined);
         const edgesStr = KVs.get('EDGES');
         /** @type {Array<[number,number]>} */
@@ -155,7 +155,7 @@ export class AnnotatedCircuit {
 
       if (kind === 'POLY' || kind === 'POLYGON' || kind === 'POLYHDR') {
         // Header; must be followed by a body line.
-        const sheet = getSheet(getStr(KVs, 'SHEET', undefined));
+        const sheet = getSheet(getStr(KVs, 'SHEET', undefined), lineNo);
         const stroke = getStr(KVs, 'STROKE', undefined);
         const fill = getStr(KVs, 'FILL', undefined);
         pendingPolyHdr = { line: lineNo, header: { sheet, stroke, fill } };

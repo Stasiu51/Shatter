@@ -4,7 +4,7 @@ import { AnnotatedCircuit } from './circuit/annotated_circuit.js';
 import {StateSnapshot} from './draw/state_snapshot.js';
 import { renderTimeline as renderTimelineCore, computeMaxScrollCSS } from './timeline/renderer.js';
 // import { renderPanel as renderCrumblePanel } from './panels/crumble_panel_renderer.js';
-import {drawPanel} from './draw/main_draw.js'
+import { drawPanel } from './draw/main_draw.js'
 import { setupTimelineUI } from './timeline/controller.js';
 import { createStatusLogger } from './status/logger.js';
 import { setupNameEditor, sanitizeName } from './name/editor.js';
@@ -91,13 +91,20 @@ pushStatus('Ready.', 'info');
  * - editorState: manages interactive edits that produce new text; we subscribe and reparse.
  */
 let currentText = '';
-let annotated = null;
+let circuit = null;
 let currentLayer = 0;
 let editorState = null;
 let editorDirty = false; // editor textarea differs from currentText
+let lastDiagnosticsCount = 0; // count from the most recent parse/load
+
+/** Clear the right-hand status (recent warning/error) indicator. */
+function clearStatusRight() {
+  if (statusTextRight) statusTextRight.textContent = '';
+  if (statusDotRight) statusDotRight.style.background = '#8b949e'; // info grey, matches logger
+}
 
 let currentName = localStorage.getItem(LS_KEYS.circuitName) || 'circuit';
-let panelZoom = Number.parseFloat(localStorage.getItem(LS_KEYS.panelZoom) || '1');
+let panelZoom = Number.parseFloat(localStorage.getItem(LS_KEYS.panelZoom) || '2');
 if (!Number.isFinite(panelZoom) || panelZoom <= 0) panelZoom = 1;
 
 const nameCtl = setupNameEditor(nameEl, currentName, {
@@ -134,7 +141,7 @@ const timelineCtl = setupTimelineUI({
   zoomOutBtn,
   zoomResetBtn,
   rootStyle,
-  getCircuit: () => annotated,
+  getCircuit: () => circuit,
   getCurrentLayer: () => currentLayer,
   renderWithState: ({ canvas, circuit, currentLayer: curLayer, timelineZoom, timelineScrollY }) => {
     // Note: 'circuit' here is actually our AnnotatedCircuit. It currently lacks
@@ -224,14 +231,19 @@ function loadStimText(stimText) {
   try {
     currentText = String(stimText || '');
     const parsed = AnnotatedCircuit.parse(currentText);
-    annotated = parsed?.annotatedCircuit || null;
+    circuit = parsed?.circuit || null;
     currentText = parsed?.text ?? currentText; // normalized text from parser
     currentLayer = 0;
 
     // Push diagnostics (common for import/reload)
     const diagnostics = parsed?.diagnostics || [];
+    lastDiagnosticsCount = diagnostics.length;
     for (const d of diagnostics) {
       pushStatus(`[${d.code}] line ${d.line}: ${d.message}`, d.severity);
+    }
+    if (lastDiagnosticsCount === 0) {
+      // No issues from this action: clear stale right-hand warning/error indicator.
+      clearStatusRight();
     }
 
     // Reflect text into editor and clear dirty state
@@ -244,10 +256,8 @@ function loadStimText(stimText) {
     ensureEditorState();
     editorState.rev.clear(currentText);
 
-    // Render timeline/panels
+    // Reset timeline scroll; rendering will occur via snapshot subscription.
     timelineCtl.setScrollY(0);
-    timelineCtl.render();
-    renderAllPanels();
     return true;
   } catch (e) {
     pushStatus(`Parse error: ${e?.message || e}`, 'error');
@@ -269,6 +279,9 @@ btnImport?.addEventListener('click', async () => {
     localStorage.setItem(LS_KEYS.circuitName, currentName);
   }
   pushStatus(`Imported "${currentName}" (${(currentText || '').length} chars).`, 'info');
+  if (lastDiagnosticsCount === 0) {
+    clearStatusRight();
+  }
 });
 
 btnExport?.addEventListener('click', () => {
@@ -283,17 +296,17 @@ btnExport?.addEventListener('click', () => {
 function updateLayerIndicator() {
   const el = document.getElementById('timeline-layer-info');
   if (!el) return;
-  if (!annotated) {
+  if (!circuit) {
     el.textContent = '';
     return;
   }
-  const last = Math.max(0, annotated.layers.length - 1);
+  const last = Math.max(0, circuit.layers.length - 1);
   el.textContent = `Layer ${currentLayer}/${last}. Use Q/E to move.`;
 }
 
 function setLayer(layer) {
-  if (!annotated) return;
-  const maxLayer = Math.max(0, annotated.layers.length - 1);
+  if (!circuit) return;
+  const maxLayer = Math.max(0, circuit.layers.length - 1);
   const next = clamp(Math.trunc(layer), 0, maxLayer);
   if (next === currentLayer) return;
   currentLayer = next;
@@ -317,18 +330,38 @@ setupLayerKeyboard({
   },
   getLayer: () => currentLayer,
   setLayer,
-  getMaxLayer: () => Math.max(0, (annotated?.layers?.length || 1) - 1),
+  getMaxLayer: () => Math.max(0, (circuit?.layers?.length || 1) - 1),
 });
 
 /** Render all panels. */
 function renderAllPanels() {
-  if (!annotated) return;
-  for (const p of mgr.panels) {
-    const cv = p.canvas;
-    // Measure for correctness; renderer may rely on CSS size for DPI/layout.
-    // cv.getBoundingClientRect();
-    // renderCrumblePanel({ canvas: cv, circuit: currentCircuit, currentLayer, panelZoom });
+  if (!circuit) return;
+  const snap = editorState ? editorState.obs_val_draw_state.get() : null;
+  if (!snap) return;
 
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  for (const p of mgr.panels) {
+    const canvas = p.canvas;
+    if (!canvas) continue;
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(1, Math.floor(rect.width * dpr));
+    const h = Math.max(1, Math.floor(rect.height * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Apply panel zoom uniformly; origin at top-left.
+    if (panelZoom && panelZoom !== 1) {
+      ctx.save();
+      ctx.scale(panelZoom, panelZoom);
+      drawPanel(ctx, snap, null);
+      ctx.restore();
+    } else {
+      drawPanel(ctx, snap, null);
+    }
   }
 }
 
@@ -336,6 +369,7 @@ let panelsRenderScheduled = false;
 function schedulePanelsRender() {
   if (panelsRenderScheduled) return;
   panelsRenderScheduled = true;
+
   requestAnimationFrame(() => {
     panelsRenderScheduled = false;
     renderAllPanels();
@@ -354,7 +388,7 @@ function setPanelZoom(z) {
 
 panelsZoomInBtn?.addEventListener('click', () => setPanelZoom(panelZoom * 1.25));
 panelsZoomOutBtn?.addEventListener('click', () => setPanelZoom(panelZoom / 1.25));
-panelsZoomResetBtn?.addEventListener('click', () => setPanelZoom(1));
+panelsZoomResetBtn?.addEventListener('click', () => setPanelZoom(2));
 
 // ---------------------------
 // Editor dataflow (text ↔ editor ↔ annotated ↔ timeline/panels)
@@ -390,26 +424,30 @@ function ensureEditorState() {
   editorState = new EditorState(canvas);
   // Subscribe to revision changes: when a commit occurs, adopt the new text.
   editorState.rev.changes().subscribe((maybeText) => {
-    if (typeof maybeText !== 'string') {
-      // Preview: we can still trigger panels redraw for live previews if desired.
-      schedulePanelsRender();
-      return;
-    }
-    // Commit: this is the new source of truth.
-    currentText = maybeText;
-    try {
-      const parsed = AnnotatedCircuit.parse(currentText);
-      annotated = parsed?.annotatedCircuit || null;
-      currentText = parsed?.text ?? currentText;
-      if (editorTextareaEl) {
-        editorTextareaEl.value = currentText;
-        setEditorDirty(false);
+    // Update source text and keep parsed circuit in sync when provided.
+    if (typeof maybeText === 'string') {
+      currentText = maybeText;
+      try {
+        const parsed = AnnotatedCircuit.parse(currentText);
+        circuit = parsed?.circuit || null;
+        currentText = parsed?.text ?? currentText;
+        if (editorTextareaEl) {
+          editorTextareaEl.value = currentText;
+          setEditorDirty(false);
+        }
+      } catch (e) {
+        pushStatus(`Parse error: ${e?.message || e}`, 'error');
       }
-    } catch (e) {
-      pushStatus(`Parse error: ${e?.message || e}`, 'error');
     }
-    timelineCtl.render();
-    renderAllPanels();
+    // Trigger a fresh snapshot; downstream subscriptions will render.
+    editorState.obs_val_draw_state.set(editorState.toSnapshot(undefined));
+  });
+  // Draw panels on snapshot changes, mirroring stim_crumble's render loop.
+  editorState.obs_val_draw_state.observable().subscribe(ds => {
+    requestAnimationFrame(() => {
+      renderAllPanels(ds);
+      timelineCtl.render();
+    });
   });
   return editorState;
 }

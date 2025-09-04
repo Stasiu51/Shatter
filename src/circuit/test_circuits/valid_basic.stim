@@ -10,7 +10,7 @@ TICK
 ##! HIGHLIGHT GATE COLOR="yellow"  # anchored: must attach to NEXT crumble instruction (a gate here)
 H 2                                 # <-- highlight attaches to THIS op (opIndex = layer0 length before push)
 
-##! CONN SET SHEET="DEFAULT" EDGES=(0-1, 1-2)
+##! CONN SET SHEET="DEFULT" EDGES=(0-1, 1-2)
 
 ##! POLY SHEET="BACKGROUND" STROKE="black" FILL="none"  # header
 #!pragma POLYGON(1,0,0,1) 1 2 3          # body: must be immediate next line

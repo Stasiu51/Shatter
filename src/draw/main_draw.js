@@ -1,6 +1,5 @@
 import {pitch, rad, OFFSET_X, OFFSET_Y} from "./config.js"
 import {marker_placement} from "../gates/gateset_markers.js";
-import {drawTimeline} from "./timeline_viewer.js";
 import {PropagatedPauliFrames} from "../circuit/propagated_pauli_frames.js";
 import {stroke_connector_to} from "../gates/gate_draw_util.js"
 import {beginPathPolygon} from './draw_util.js';
@@ -198,10 +197,10 @@ function defensiveDraw(ctx, body) {
  * @param {!Map<!Sheet, bool>} sheetsToDraw
  */
 function drawPanel(ctx, snap, sheetsToDraw) {
-    let annotatedCircuit = snap.circuit;
+    let circuit = snap.circuit;
 
     let numPropagatedLayers = 0;
-    for (let layer of annotatedCircuit.layers) {
+    for (let layer of circuit.layers) {
         for (let op of layer.markers) {
             let gate = op.gate;
             if (gate.name === "MARKX" || gate.name === "MARKY" || gate.name === "MARKZ") {
@@ -212,15 +211,15 @@ function drawPanel(ctx, snap, sheetsToDraw) {
 
     let c2dCoordTransform = (x, y) => [x*pitch - OFFSET_X, y*pitch - OFFSET_Y];
     let qubitDrawCoords = q => {
-        let x = annotatedCircuit.qubitCoordData[2 * q];
-        let y = annotatedCircuit.qubitCoordData[2 * q + 1];
+        let x = circuit.qubitCoordData[2 * q];
+        let y = circuit.qubitCoordData[2 * q + 1];
         return c2dCoordTransform(x, y);
     };
     let propagatedMarkerLayers = /** @type {!Map<!int, !PropagatedPauliFrames>} */ new Map();
     for (let mi = 0; mi < numPropagatedLayers; mi++) {
-        propagatedMarkerLayers.set(mi, PropagatedPauliFrames.fromCircuit(annotatedCircuit, mi));
+        propagatedMarkerLayers.set(mi, PropagatedPauliFrames.fromCircuit(circuit, mi));
     }
-    let {dets: dets, obs: obs} = annotatedCircuit.collectDetectorsAndObservables(false);
+    let {dets: dets, obs: obs} = circuit.collectDetectorsAndObservables(false);
     let batch_input = [];
     for (let mi = 0; mi < dets.length; mi++) {
         batch_input.push(dets[mi].mids);
@@ -228,7 +227,7 @@ function drawPanel(ctx, snap, sheetsToDraw) {
     for (let mi of obs.keys()) {
         batch_input.push(obs.get(mi));
     }
-    let batch_output = PropagatedPauliFrames.batchFromMeasurements(annotatedCircuit, batch_input);
+    let batch_output = PropagatedPauliFrames.batchFromMeasurements(circuit, batch_input);
     let batch_index = 0;
     for (let mi = 0; mi < dets.length; mi++) {
         propagatedMarkerLayers.set(~mi, batch_output[batch_index++]);
@@ -238,16 +237,16 @@ function drawPanel(ctx, snap, sheetsToDraw) {
     }
 
     let operatedOnQubits = new Set();
-    for (let layer of annotatedCircuit.layers) {
+    for (let layer of circuit.layers) {
         for (let t of layer.id_ops.keys()) {
             operatedOnQubits.add(t);
         }
     }
     let usedQubitCoordSet = new Set();
     let operatedOnQubitSet = new Set();
-    for (let q of annotatedCircuit.allQubits()) {
-        let qx = annotatedCircuit.qubitCoordData[q * 2];
-        let qy = annotatedCircuit.qubitCoordData[q * 2 + 1];
+    for (let q of circuit.allQubits()) {
+        let qx = circuit.qubitCoordData[q * 2];
+        let qy = circuit.qubitCoordData[q * 2 + 1];
         usedQubitCoordSet.add(`${qx},${qy}`);
         if (operatedOnQubits.has(q)) {
             operatedOnQubitSet.add(`${qx},${qy}`);
@@ -262,14 +261,14 @@ function drawPanel(ctx, snap, sheetsToDraw) {
         // Draw the background polygons.
         let lastPolygonLayer = snap.curLayer;
         for (let r = 0; r <= snap.curLayer; r++) {
-            for (let op of annotatedCircuit.layers[r].markers) {
+            for (let op of circuit.layers[r].markers) {
                 if (op.gate.name === 'POLYGON') {
                     lastPolygonLayer = r;
                     break;
                 }
             }
         }
-        let polygonMarkers = [...annotatedCircuit.layers[lastPolygonLayer].markers];
+        let polygonMarkers = [...circuit.layers[lastPolygonLayer].markers];
         polygonMarkers.sort((a, b) => b.id_targets.length - a.id_targets.length);
         for (let op of polygonMarkers) {
             if (op.gate.name === 'POLYGON') {
@@ -325,7 +324,7 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             drawCrossMarkers(ctx, snap, qubitDrawCoords, p, mi);
         }
 
-        for (let op of annotatedCircuit.layers[snap.curLayer].iter_gates_and_markers()) {
+        for (let op of circuit.layers[snap.curLayer].iter_gates_and_markers()) {
             if (op.gate.name !== 'POLYGON') {
                 op.id_draw(qubitDrawCoords, ctx);
             }
@@ -385,107 +384,6 @@ function drawPanel(ctx, snap, sheetsToDraw) {
         });
     });
 
-    drawTimeline(ctx, snap, propagatedMarkerLayers, qubitDrawCoords, annotatedCircuit.layers.length);
-
-    // Draw scrubber.
-    ctx.save();
-    try {
-        ctx.strokeStyle = 'black';
-        ctx.translate(Math.floor(ctx.canvas.width / 2), 0);
-        for (let k = 0; k < annotatedCircuit.layers.length; k++) {
-            let hasPolygons = false;
-            let hasXMarker = false;
-            let hasYMarker = false;
-            let hasZMarker = false;
-            let hasResetOperations = annotatedCircuit.layers[k].hasResetOperations();
-            let hasMeasurements = annotatedCircuit.layers[k].hasMeasurementOperations();
-            let hasTwoQubitGate = false;
-            let hasMultiQubitGate = false;
-            let hasSingleQubitClifford = annotatedCircuit.layers[k].hasSingleQubitCliffords();
-            for (let op of annotatedCircuit.layers[k].markers) {
-                hasPolygons |= op.gate.name === "POLYGON";
-                hasXMarker |= op.gate.name === "MARKX";
-                hasYMarker |= op.gate.name === "MARKY";
-                hasZMarker |= op.gate.name === "MARKZ";
-            }
-            for (let op of annotatedCircuit.layers[k].id_ops.values()) {
-                hasTwoQubitGate |= op.id_targets.length === 2;
-                hasMultiQubitGate |= op.id_targets.length > 2;
-            }
-            ctx.fillStyle = 'white';
-            ctx.fillRect(k * 8, 0, 8, 20);
-            if (hasSingleQubitClifford) {
-                ctx.fillStyle = '#FF0';
-                ctx.fillRect(k * 8, 0, 8, 20);
-            } else if (hasPolygons) {
-                ctx.fillStyle = '#FBB';
-                ctx.fillRect(k * 8, 0, 8, 7);
-                ctx.fillStyle = '#BFB';
-                ctx.fillRect(k * 8, 7, 8, 7);
-                ctx.fillStyle = '#BBF';
-                ctx.fillRect(k * 8, 14, 8, 6);
-            }
-            if (hasMeasurements) {
-                ctx.fillStyle = '#DDD';
-                ctx.fillRect(k * 8, 0, 8, 20);
-            } else if (hasResetOperations) {
-                ctx.fillStyle = '#DDD';
-                ctx.fillRect(k * 8, 0, 4, 20);
-            }
-            if (hasXMarker) {
-                ctx.fillStyle = 'red';
-                ctx.fillRect(k * 8 + 3, 14, 3, 3);
-            }
-            if (hasYMarker) {
-                ctx.fillStyle = 'green';
-                ctx.fillRect(k * 8 + 3, 9, 3, 3);
-            }
-            if (hasZMarker) {
-                ctx.fillStyle = 'blue';
-                ctx.fillRect(k * 8 + 3, 3, 3, 3);
-            }
-            if (hasMultiQubitGate) {
-                ctx.strokeStyle = 'black';
-                ctx.beginPath();
-                let x = k * 8 + 0.5;
-                for (let dx of [3, 5]) {
-                    ctx.moveTo(x + dx, 6);
-                    ctx.lineTo(x + dx, 15);
-                }
-                ctx.stroke();
-            }
-            if (hasTwoQubitGate) {
-                ctx.strokeStyle = 'black';
-                ctx.beginPath();
-                ctx.moveTo(k * 8 + 0.5 + 4, 6);
-                ctx.lineTo(k * 8 + 0.5 + 4, 15);
-                ctx.stroke();
-            }
-        }
-        ctx.fillStyle = 'black';
-        ctx.beginPath();
-        ctx.moveTo(snap.curLayer * 8 + 0.5 + 4, 16);
-        ctx.lineTo(snap.curLayer * 8 + 0.5 - 2, 28);
-        ctx.lineTo(snap.curLayer * 8 + 0.5 + 10, 28);
-        ctx.closePath();
-        ctx.fill();
-
-        for (let k = 0; k < annotatedCircuit.layers.length; k++) {
-            let has_errors = ![...propagatedMarkerLayers.values()].every(p => p.atLayer(k).errors.size === 0);
-            let hasOps = annotatedCircuit.layers[k].id_ops.size > 0 || annotatedCircuit.layers[k].markers.length > 0;
-            if (has_errors) {
-                ctx.strokeStyle = 'magenta';
-                ctx.lineWidth = 4;
-                ctx.strokeRect(k*8 + 0.5 - 1, 0.5 - 1, 7 + 2, 20 + 2);
-                ctx.lineWidth = 1;
-            } else {
-                ctx.strokeStyle = '#000';
-                ctx.strokeRect(k*8 + 0.5, 0.5, 8, 20);
-            }
-        }
-    } finally {
-        ctx.restore();
-    }
+    // Timeline rendering and scrubber have been removed from this panel draw.
 }
-
 export {xyToPos, drawPanel, setDefensiveDrawEnabled, OFFSET_X, OFFSET_Y}

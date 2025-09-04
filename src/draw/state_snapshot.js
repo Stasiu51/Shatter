@@ -8,8 +8,8 @@ import {AnnotatedLayer} from "../circuit/annotated_layer.js";
  */
 class StateSnapshot {
     /**
-     * @param {!AnnotatedCircuit} annotatedCircuit
-     * @param {!int} curAnnotatedLayer
+     * @param {!AnnotatedCircuit} circuit
+     * @param {!int} curLayer
      * @param {!Map<!string, ![!number, !number]>} focusedSet
      * @param {!Map<!string, ![!number, !number]>} timelineSet
      * @param {!number} curMouseX
@@ -18,9 +18,9 @@ class StateSnapshot {
      * @param {!number} mouseDownY
      * @param {!Array<![!number, !number]>} boxHighlightPreview
      */
-    constructor(annotatedCircuit, curAnnotatedLayer, focusedSet, timelineSet, curMouseX, curMouseY, mouseDownX, mouseDownY, boxHighlightPreview) {
-        this.annotatedCircuit = annotatedCircuit.copy();
-        this.curAnnotatedLayer = curAnnotatedLayer;
+    constructor(circuit, curLayer, focusedSet, timelineSet, curMouseX, curMouseY, mouseDownX, mouseDownY, boxHighlightPreview) {
+        this.circuit = circuit.copy();
+        this.curLayer = curLayer;
         this.focusedSet = new Map(focusedSet.entries());
         this.timelineSet = new Map(timelineSet.entries());
         this.curMouseX = curMouseX;
@@ -29,8 +29,8 @@ class StateSnapshot {
         this.mouseDownY = mouseDownY;
         this.boxHighlightPreview = [...boxHighlightPreview];
 
-        while (this.annotatedCircuit.layers.length <= this.curAnnotatedLayer) {
-            this.annotatedCircuit.layers.push(new AnnotatedLayer());
+        while (this.circuit.layers.length <= this.curLayer) {
+            this.circuit.layers.push(new AnnotatedLayer());
         }
     }
 
@@ -38,7 +38,7 @@ class StateSnapshot {
      * @returns {!Set<!int>}
      */
     id_usedQubits() {
-        return this.annotatedCircuit.allQubits();
+        return this.circuit.allQubits();
     }
 
     /**
@@ -48,7 +48,7 @@ class StateSnapshot {
         let used = this.id_usedQubits();
         let qubits = [];
         if (this.timelineSet.size > 0) {
-            let c2q = this.annotatedCircuit.coordToQubitMap();
+            let c2q = this.circuit.coordToQubitMap();
             for (let key of this.timelineSet.keys()) {
                 let q = c2q.get(key);
                 if (q !== undefined) {

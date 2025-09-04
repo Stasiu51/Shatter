@@ -7,7 +7,7 @@
 // - Your runner collects tests registered via `test(...)` from core/test/test_util.js.
 
 import { test } from "../../core/test/test_util.js";
-import { parseAnnotated } from "./annotated_circuit.js";
+import { AnnotatedCircuit } from "./annotated_circuit.js";
 
 import fs from "node:fs";
 import path from "node:path";
@@ -43,7 +43,7 @@ for (const expectedName of expectedFiles) {
 for (const c of cases) {
   test(`parse ${c.name}.stim matches ${c.name}.expected.js`, () => {
     const stimText = fs.readFileSync(c.stimPath, "utf8");
-    const actual = parseAnnotated(stimText);
+    const actual = AnnotatedCircuit.fromStimCircuit(stimText);
     assert.deepStrictEqual(
       actual,
       c.expected,
