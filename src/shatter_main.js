@@ -105,7 +105,6 @@ function clearStatusRight() {
 
 let currentName = localStorage.getItem(LS_KEYS.circuitName) || 'circuit';
 let panelZoom = Number.parseFloat(localStorage.getItem(LS_KEYS.panelZoom) || '2');
-if (!Number.isFinite(panelZoom) || panelZoom <= 0) panelZoom = 1;
 
 const nameCtl = setupNameEditor(nameEl, currentName, {
   onCommit: (n) => {

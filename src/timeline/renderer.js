@@ -1,7 +1,8 @@
-import {StateSnapshot} from '../../stim_crumble/draw/state_snapshot.js';
-import {drawTimeline} from '../../stim_crumble/draw/timeline_viewer.js';
-import {pitch, OFFSET_X, OFFSET_Y} from '../../stim_crumble/draw/config.js';
-import {PropagatedPauliFrames} from '../../stim_crumble/circuit/propagated_pauli_frames.js';
+import {StateSnapshot} from '../draw/state_snapshot.js';
+import {drawTimelineOnly} from '../draw/timeline_only.js';
+import {pitch, OFFSET_X, OFFSET_Y} from '../draw/config.js';
+import {drawScrubber} from '../draw/scrubber.js';
+import {PropagatedPauliFrames} from '../circuit/propagated_pauli_frames.js';
 
 export const TIMELINE_PITCH = 32; // keep in sync with Crumble
 
@@ -96,22 +97,24 @@ export function renderTimeline({canvas, circuit, currentLayer, timelineZoom, tim
     return c2d(x, y);
   };
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const off = document.createElement('canvas');
-  off.width = Math.max(2, Math.ceil((w * 2) / timelineZoom));
-  const minOffH = Math.max(2, Math.ceil(h / timelineZoom));
-  off.height = Math.max(minOffH, computeContentOffHeight(circuit, minOffH));
-  const offCtx = off.getContext('2d');
-  offCtx.setTransform(1, 0, 0, 1, 0, 0);
-  offCtx.clearRect(0, 0, off.width, off.height);
-
   const leftPadOnscreen = Math.round(12 * (window.devicePixelRatio || 1));
-  const leftPadOffscreen = Math.max(0, Math.round(leftPadOnscreen / timelineZoom));
+  const contentWidth = Math.max(1, Math.floor((w - leftPadOnscreen) / Math.max(0.1, timelineZoom)));
   const scrollDev = Math.round((timelineScrollY || 0) * (window.devicePixelRatio || 1));
-  const scrollOff = Math.round(scrollDev / timelineZoom);
-  offCtx.translate(leftPadOffscreen, -scrollOff);
-  drawTimeline(offCtx, snap, propagated, qubitDrawCoords, circuit.layers.length);
+  const scrollOffContent = Math.round(scrollDev / Math.max(0.1, timelineZoom));
 
-  ctx.drawImage(off, off.width / 2, 0, off.width / 2, off.height, 0, 0, canvas.width, canvas.height);
+  // Draw scrubber at the top. It internally translates by canvas.width/2 due to
+  // originating from the combined (left+right) canvas logic. Counter that here
+  // so it aligns to x=0 in our timeline-only canvas.
+  ctx.save();
+  ctx.translate(-Math.floor(ctx.canvas.width / 2), 0);
+  drawScrubber(ctx, snap, propagated, circuit);
+  ctx.restore();
+
+  // Draw the timeline content directly with zoom and vertical scroll.
+  ctx.save();
+  ctx.translate(leftPadOnscreen, 0);
+  ctx.scale(timelineZoom, timelineZoom);
+  ctx.translate(0, -scrollOffContent);
+  drawTimelineOnly(ctx, snap, propagated, qubitDrawCoords, circuit.layers.length, { viewportContentWidth: contentWidth });
+  ctx.restore();
 }
-
