@@ -219,40 +219,28 @@ function renderPanelSheetsOptions() {
   }
 }
 
-// Import/Export handlers
-btnImport?.addEventListener('click', async () => {
-  const picked = await pickAndReadFile({ accept: '.stim,.txt' });
-  if (!picked) return;
+// Apply stim text into app state (parse, diagnostics, editor, editorState, renders)
+function loadStimText(stimText) {
   try {
-    // Store and parse text → annotated circuit
-    currentText = picked.text || '';
+    currentText = String(stimText || '');
     const parsed = AnnotatedCircuit.parse(currentText);
     annotated = parsed?.annotatedCircuit || null;
     currentText = parsed?.text ?? currentText; // normalized text from parser
     currentLayer = 0;
 
-    // Update name
-    if (picked.name) {
-      const nn = sanitizeName(picked.name);
-      nameCtl.setName(nn);
-      currentName = nn;
-      localStorage.setItem(LS_KEYS.circuitName, currentName);
-    }
-
-    // Push diagnostics
+    // Push diagnostics (common for import/reload)
     const diagnostics = parsed?.diagnostics || [];
     for (const d of diagnostics) {
       pushStatus(`[${d.code}] line ${d.line}: ${d.message}`, d.severity);
     }
-    pushStatus(`Imported "${currentName}" (${(currentText || '').length} chars).`, 'info');
 
-    // Reflect text into editor
+    // Reflect text into editor and clear dirty state
     if (editorTextareaEl) {
       editorTextareaEl.value = currentText;
       setEditorDirty(false);
     }
 
-    // Init or update EditorState (source of interactive edits ⇒ text)
+    // Init or update EditorState (source of interactive edits ⇒ text). Start fresh baseline.
     ensureEditorState();
     editorState.rev.clear(currentText);
 
@@ -260,10 +248,27 @@ btnImport?.addEventListener('click', async () => {
     timelineCtl.setScrollY(0);
     timelineCtl.render();
     renderAllPanels();
+    return true;
   } catch (e) {
-    throw(e);
-    pushStatus(`Parse error while importing: ${e?.message || e}`, 'error');
+    pushStatus(`Parse error: ${e?.message || e}`, 'error');
+    return false;
   }
+}
+
+// Import/Export handlers
+btnImport?.addEventListener('click', async () => {
+  const picked = await pickAndReadFile({ accept: '.stim,.txt' });
+  if (!picked) return;
+  const ok = loadStimText(picked.text || '');
+  if (!ok) return;
+  // Update name after successful parse
+  if (picked.name) {
+    const nn = sanitizeName(picked.name);
+    nameCtl.setName(nn);
+    currentName = nn;
+    localStorage.setItem(LS_KEYS.circuitName, currentName);
+  }
+  pushStatus(`Imported "${currentName}" (${(currentText || '').length} chars).`, 'info');
 });
 
 btnExport?.addEventListener('click', () => {
@@ -375,27 +380,7 @@ editorReloadBtn?.addEventListener('click', () => {
   if (!editorTextareaEl) return;
   const newText = editorTextareaEl.value ?? '';
   if (newText === (currentText || '')) return;
-  // Update source of truth and re-parse.
-  currentText = newText;
-  try {
-    const parsed = AnnotatedCircuit.parse(currentText);
-    annotated = parsed?.annotatedCircuit || null;
-    currentText = parsed?.text ?? currentText;
-    setEditorDirty(false);
-    // Keep editor in sync with normalized text.
-    if (editorTextareaEl && editorTextareaEl.value !== currentText) {
-      editorTextareaEl.value = currentText;
-    }
-  } catch (e) {
-    pushStatus(`Parse error: ${e?.message || e}`, 'error');
-  }
-  // Reflect into editorState history
-  ensureEditorState();
-  editorState.rev.commit(currentText);
-  // Re-render
-  timelineCtl.setScrollY(0);
-  timelineCtl.render();
-  renderAllPanels();
+  loadStimText(newText);
 });
 
 function ensureEditorState() {

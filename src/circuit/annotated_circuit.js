@@ -399,7 +399,7 @@ export class AnnotatedCircuit {
         processLine(lines[i], i);
       }
     } catch (e) {
-      throw e;
+      // throw e;
       if (e !== PARSE_ERROR) {
         // real unexpected error — rethrow so we can see the stack
         throw e;
