@@ -80,6 +80,28 @@ export function drawTimelineOnly(ctx, snap, propagatedMarkerLayers, timesliceQub
   // Clear full canvas (caller sets transforms).
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
+  // Diagnostic: draw an inset bounding box in device space to verify canvas bounds.
+  try {
+    ctx.save();
+    // Draw in device coordinates (ignore any transform applied by caller).
+    const m = typeof ctx.getTransform === 'function' ? ctx.getTransform() : null;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.strokeStyle = '#FF8800';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(6, 6, Math.max(0, ctx.canvas.width - 12), Math.max(0, ctx.canvas.height - 12));
+    ctx.setLineDash([]);
+    // Restore previous transform if available; else rely on save/restore.
+    if (m && typeof ctx.setTransform === 'function') {
+      ctx.setTransform(m);
+      ctx.restore();
+    } else {
+      ctx.restore();
+    }
+  } catch (_) {
+    // Non-fatal; leave diagnostics best-effort.
+  }
+
   // Pauli propagation overlays per time step.
   const hitCounts = new Map();
   for (let [mi, p] of propagatedMarkerLayers.entries()) {
@@ -171,4 +193,3 @@ export function drawTimelineOnly(ctx, snap, propagatedMarkerLayers, timesliceQub
     }
   }
 }
-

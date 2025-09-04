@@ -111,10 +111,11 @@ export function renderTimeline({canvas, circuit, currentLayer, timelineZoom, tim
   ctx.restore();
 
   // Draw the timeline content directly with zoom and vertical scroll.
+  // Apply scale first, then translate in content units so device-space padding
+  // remains constant regardless of zoom.
   ctx.save();
-  ctx.translate(leftPadOnscreen, 0);
-  ctx.scale(timelineZoom, timelineZoom);
-  ctx.translate(0, -scrollOffContent);
+  ctx.scale(Math.max(0.1, timelineZoom), Math.max(0.1, timelineZoom));
+  ctx.translate(leftPadOnscreen / Math.max(0.1, timelineZoom), -scrollOffContent);
   drawTimelineOnly(ctx, snap, propagated, qubitDrawCoords, circuit.layers.length, { viewportContentWidth: contentWidth });
   ctx.restore();
 }
