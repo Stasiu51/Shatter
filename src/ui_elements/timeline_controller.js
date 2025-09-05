@@ -1,4 +1,4 @@
-import {computeMaxScrollCSS} from './renderer.js';
+import {computeMaxScrollCSS} from './timeline_renderer.js';
 
 export function setupTimelineUI({
   timelineEl,

@@ -98,24 +98,15 @@ export function renderTimeline({canvas, circuit, currentLayer, timelineZoom, tim
   };
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const leftPadOnscreen = Math.round(12 * (window.devicePixelRatio || 1));
-  const contentWidth = Math.max(1, Math.floor((w - leftPadOnscreen) / Math.max(0.1, timelineZoom)));
   const scrollDev = Math.round((timelineScrollY || 0) * (window.devicePixelRatio || 1));
   const scrollOffContent = Math.round(scrollDev / Math.max(0.1, timelineZoom));
 
-  // Draw scrubber at the top. It internally translates by canvas.width/2 due to
-  // originating from the combined (left+right) canvas logic. Counter that here
-  // so it aligns to x=0 in our timeline-only canvas.
   ctx.save();
-  ctx.translate(-Math.floor(ctx.canvas.width / 2), 0);
-  drawScrubber(ctx, snap, propagated, circuit);
   ctx.restore();
 
-  // Draw the timeline content directly with zoom and vertical scroll.
-  // Apply scale first, then translate in content units so device-space padding
-  // remains constant regardless of zoom.
   ctx.save();
   ctx.scale(Math.max(0.1, timelineZoom), Math.max(0.1, timelineZoom));
-  ctx.translate(leftPadOnscreen / Math.max(0.1, timelineZoom), -scrollOffContent);
-  drawTimelineOnly(ctx, snap, propagated, qubitDrawCoords, circuit.layers.length, { viewportContentWidth: contentWidth });
+  drawTimelineOnly(ctx, snap, propagated, qubitDrawCoords, circuit.layers.length, timelineZoom);
+  drawScrubber(ctx, snap, propagated, circuit);
   ctx.restore();
 }

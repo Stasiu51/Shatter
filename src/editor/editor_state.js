@@ -4,7 +4,7 @@ import {AnnotatedLayer as Layer, minXY} from "../circuit/annotated_layer.js";
 import {Revision} from "../base/revision.js";
 import {ObservableValue} from "../base/obs.js";
 import {pitch, rad} from "../draw/config.js";
-import {xyToPos} from "../draw/main_draw.js";
+import {xyToPos} from "../draw/draw_panel.js";
 import {StateSnapshot} from "../draw/state_snapshot.js";
 import {Operation} from "../circuit/operation.js";
 import {GATE_MAP} from "../gates/gateset.js";

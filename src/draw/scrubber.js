@@ -2,6 +2,8 @@
 // Perfect copy of logic; only deviation is packaging into a function and
 // accepting circuit/propagatedMarkerLayers as parameters.
 
+import { TIMELINE_OFFSET_X } from './config.js';
+
 /**
  * Draws the top scrubber strip that summarizes per-layer content and highlights
  * the current layer.
@@ -15,7 +17,7 @@ export function drawScrubber(ctx, snap, propagatedMarkerLayers, circuit) {
   ctx.save();
   try {
     ctx.strokeStyle = 'black';
-    ctx.translate(Math.floor(ctx.canvas.width / 2), 0);
+    ctx.translate(TIMELINE_OFFSET_X, 0);
     for (let k = 0; k < circuit.layers.length; k++) {
       let hasPolygons = false;
       let hasXMarker = false;

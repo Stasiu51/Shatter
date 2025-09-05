@@ -1,16 +1,14 @@
-import { PanelManager } from './shatter/panel_manager.js';
+import { PanelManager } from './ui_elements/panel_manager.js';
 import { parseStim, stringifyStim, pickAndReadFile, downloadText } from './io/import_export.js';
 import { AnnotatedCircuit } from './circuit/annotated_circuit.js';
-import {StateSnapshot} from './draw/state_snapshot.js';
-import { renderTimeline as renderTimelineCore, computeMaxScrollCSS } from './timeline/renderer.js';
-// import { renderPanel as renderCrumblePanel } from './panels/crumble_panel_renderer.js';
-import { drawPanel } from './draw/main_draw.js'
-import { setupTimelineUI } from './timeline/controller.js';
-import { createStatusLogger } from './status/logger.js';
-import { setupNameEditor, sanitizeName } from './name/editor.js';
+import { renderTimeline as renderTimelineCore, computeMaxScrollCSS } from './ui_elements/timeline_renderer.js';
+import { drawPanel } from './draw/draw_panel.js'
+import { setupTimelineUI } from './ui_elements/timeline_controller.js';
+import { createStatusLogger } from './ui_elements/status_logger.js';
+import { setupNameEditor, sanitizeName } from './ui_elements/name_editor.js';
 import { setupLayerKeyboard } from './layers/keyboard.js';
-import { createSheetsDropdown } from './panels/sheets_dropdown.js';
-import { setupTextEditorUI } from './text_editor/controller.js';
+import { createSheetsDropdown } from './ui_elements/sheets_dropdown.js';
+import { setupTextEditorUI } from './ui_elements/text_editor_controller.js';
 import { EditorState } from './editor/editor_state.js';
 
 const panelsEl = document.getElementById('panels');
@@ -230,7 +228,7 @@ function loadStimText(stimText) {
   try {
     currentText = String(stimText || '');
     const parsed = AnnotatedCircuit.parse(currentText);
-    circuit = parsed?.circuit || null;
+    annotated = parsed?.circuit || null;
     currentText = parsed?.text ?? currentText; // normalized text from parser
     currentLayer = 0;
 
@@ -428,7 +426,7 @@ function ensureEditorState() {
       currentText = maybeText;
       try {
         const parsed = AnnotatedCircuit.parse(currentText);
-        circuit = parsed?.circuit || null;
+        annotated = parsed?.circuit || null;
         currentText = parsed?.text ?? currentText;
         if (editorTextareaEl) {
           editorTextareaEl.value = currentText;

@@ -1,4 +1,4 @@
-import {rad} from "./config.js";
+import {rad, TIMELINE_OFFSET_X} from "./config.js";
 import {stroke_connector_to} from "../gates/gate_draw_util.js";
 import {marker_placement} from '../gates/gateset_markers.js';
 
@@ -16,10 +16,10 @@ import {marker_placement} from '../gates/gateset_markers.js';
  * @param {!Map<!number, !import('../circuit/propagated_pauli_frames.js').PropagatedPauliFrames>} propagatedMarkerLayers
  * @param {!function(!number): ![!number, !number]} timesliceQubitCoordsFunc  // Only used for labeling (coord lookup)
  * @param {!number} numLayers
- * @param {{ viewportContentWidth: number }} opts
  */
-export function drawTimelineOnly(ctx, snap, propagatedMarkerLayers, timesliceQubitCoordsFunc, numLayers, opts = {}) {
-  const viewportContentWidth = Math.max(1, Math.floor(opts.viewportContentWidth || ctx.canvas.width));
+export function drawTimelineOnly(ctx, snap, propagatedMarkerLayers, timesliceQubitCoordsFunc, numLayers, zoom) {
+
+  const viewportContentWidth = Math.max(1,  ctx.canvas.width/zoom);
 
   // Sort lines by (y,x) from current timeslice layout.
   let qubits = snap.timelineQubits();
@@ -55,7 +55,7 @@ export function drawTimelineOnly(ctx, snap, propagatedMarkerLayers, timesliceQub
 
   // Horizontal slotting and visible time window around curLayer.
   const x_pitch = 32 + Math.ceil(rad * max_run * 0.25);
-  const num_cols_half = Math.floor(viewportContentWidth / (2 * x_pitch));
+  const num_cols_half = Math.floor(viewportContentWidth / (2* x_pitch));
   const min_t_free = snap.curLayer - num_cols_half + 1;
   const min_t_clamp = Math.max(0, Math.min(min_t_free, numLayers - num_cols_half * 2 + 1));
   const max_t = Math.min(min_t_clamp + num_cols_half * 2 + 2, numLayers);
@@ -63,7 +63,7 @@ export function drawTimelineOnly(ctx, snap, propagatedMarkerLayers, timesliceQub
   const t2t = (t) => {
     let dt = t - snap.curLayer;
     dt -= min_t_clamp - min_t_free;
-    return dt * x_pitch;
+    return (dt+ num_cols_half) * x_pitch + TIMELINE_OFFSET_X;
   };
 
   const coordTransform_t = ([x, y, t]) => {
@@ -81,26 +81,26 @@ export function drawTimelineOnly(ctx, snap, propagatedMarkerLayers, timesliceQub
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
   // Diagnostic: draw an inset bounding box in device space to verify canvas bounds.
-  try {
-    ctx.save();
-    // Draw in device coordinates (ignore any transform applied by caller).
-    const m = typeof ctx.getTransform === 'function' ? ctx.getTransform() : null;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.strokeStyle = '#FF8800';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 4]);
-    ctx.strokeRect(6, 6, Math.max(0, ctx.canvas.width - 12), Math.max(0, ctx.canvas.height - 12));
-    ctx.setLineDash([]);
-    // Restore previous transform if available; else rely on save/restore.
-    if (m && typeof ctx.setTransform === 'function') {
-      ctx.setTransform(m);
-      ctx.restore();
-    } else {
-      ctx.restore();
-    }
-  } catch (_) {
-    // Non-fatal; leave diagnostics best-effort.
-  }
+  // try {
+  //   ctx.save();
+  //   // Draw in device coordinates (ignore any transform applied by caller).
+  //   const m = typeof ctx.getTransform === 'function' ? ctx.getTransform() : null;
+  //   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  //   ctx.strokeStyle = '#FF8800';
+  //   ctx.lineWidth = 2;
+  //   ctx.setLineDash([6, 4]);
+  //   ctx.strokeRect(6, 6, Math.max(0, ctx.canvas.width - 12), Math.max(0, ctx.canvas.height - 12));
+  //   ctx.setLineDash([]);
+  //   // Restore previous transform if available; else rely on save/restore.
+  //   if (m && typeof ctx.setTransform === 'function') {
+  //     ctx.setTransform(m);
+  //     ctx.restore();
+  //   } else {
+  //     ctx.restore();
+  //   }
+  // } catch (_) {
+  //   // Non-fatal; leave diagnostics best-effort.
+  // }
 
   // Pauli propagation overlays per time step.
   const hitCounts = new Map();
@@ -120,7 +120,7 @@ export function drawTimelineOnly(ctx, snap, propagatedMarkerLayers, timesliceQub
           wy = 5;
           dy = (mi === 0) ? 10 : (mi === 1) ? 5 : (mi === 2) ? 0 : -5;
         } else {
-          dx -= x_pitch / 2;
+          dx -= x_pitch;
         }
         const [x, y] = qubitTimeCoords(q, t);
         if (x === undefined || y === undefined) continue;
@@ -131,7 +131,7 @@ export function drawTimelineOnly(ctx, snap, propagatedMarkerLayers, timesliceQub
       // Errors.
       for (let q of p0.errors) {
         let { dx, dy, wx, wy } = marker_placement(mi, q, hitCount);
-        dx -= x_pitch / 2;
+        dx -= x_pitch;
         const [x, y] = qubitTimeCoords(q, t - 0.5);
         if (x === undefined || y === undefined) continue;
         ctx.strokeStyle = 'magenta';
@@ -158,7 +158,7 @@ export function drawTimelineOnly(ctx, snap, propagatedMarkerLayers, timesliceQub
   ctx.save();
   ctx.globalAlpha *= 0.5;
   ctx.fillStyle = 'black';
-  ctx.fillRect(t2t(snap.curLayer) - x_pitch / 2, 0, x_pitch, ctx.canvas.height);
+  ctx.fillRect(t2t(snap.curLayer) - x_pitch/2, 0, x_pitch, ctx.canvas.height);
   ctx.restore();
 
   // Wire lines.

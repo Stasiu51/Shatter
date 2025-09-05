@@ -4,8 +4,29 @@
 import { GATE_MAP, GATE_ALIAS_MAP } from '../gates/gateset.js';
 import { Operation } from './operation.js';
 import { AnnotatedLayer } from './annotated_layer.js';
-import { Circuit } from '../../core/circuit/circuit.js'
 import { Sheet } from './sheet.js'
+
+/**
+ * Per-qubit metadata for overlays and rendering.
+ * - stimX/stimY: coordinates from Stim (QUBIT_COORDS or assigned default [x,0]).
+ * - panelX/panelY: panel-space coordinates (defaults to stim coords; can be overridden by overlay QUBIT directive).
+ * - sheet: name of the sheet this qubit belongs to (defaults to 'DEFAULT').
+ * - text: permanent label to render near the qubit (optional).
+ * - mouseover: tooltip text when hovering the qubit (optional).
+ */
+export class Qubit {
+  /** @param {number} id @param {number} stimX @param {number} stimY */
+  constructor(id, stimX, stimY) {
+    this.id = id;
+    this.stimX = stimX;
+    this.stimY = stimY;
+    this.panelX = stimX;
+    this.panelY = stimY;
+    this.sheet = 'DEFAULT';
+    this.text = '';
+    this.mouseover = '';
+  }
+}
 /**
  * @typedef {{operations: any[], annotations: any[]}} AnnotatedLayer
  * @typedef {{layers: AnnotatedLayer[], qubit_coords?: Map<number,[number,number]>}} AnnotatedCircuitT
@@ -31,6 +52,8 @@ export class AnnotatedCircuit {
     this.qubitCoordData = []
     /** @type {Map<string, Sheet>} */
     this.sheets = new Map([["DEFAULT", new Sheet("DEFAULT")]]);
+    /** @type {Map<number, Qubit>} */
+    this.qubits = new Map();
   }
 
   /** @param {string} text */
@@ -437,6 +460,15 @@ export class AnnotatedCircuit {
       }
       circuit.qubitCoordData[2 * id] = circuit.qubit_coords.get(id)[0];
       circuit.qubitCoordData[2 * id + 1] = circuit.qubit_coords.get(id)[1];
+      // Initialize qubit metadata (defaults).
+      const [sx, sy] = circuit.qubit_coords.get(id);
+      const q = new Qubit(id, sx, sy);
+      q.panelX = sx;
+      q.panelY = sy;
+      q.sheet = 'DEFAULT';
+      q.text = '';
+      q.mouseover = '';
+      circuit.qubits.set(id, q);
     }
 
     for (let { lineNo, line } of insertList) {

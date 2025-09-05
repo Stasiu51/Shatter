@@ -1,4 +1,4 @@
-import {createSelectionWidget} from './selection_widget.js';
+import {createSelectionWidget} from './panel_selection_widget.js';
 
 export class PanelManager {
   constructor(container) {
