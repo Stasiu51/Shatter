@@ -70,6 +70,22 @@ class AnnotatedLayer {
         let result = new AnnotatedLayer();
         result.id_ops = new Map(this.id_ops);
         result.markers = [...this.markers];
+        // Preserve annotations when copying layers (important for POLY/POLYGON etc.).
+        // Perform a shallow clone of annotation objects; deep-clone array fields like targets.
+        result.annotations = (this.annotations || []).map(a => {
+            try {
+                if (a && typeof a === 'object') {
+                    if (a.kind === 'Polygon') {
+                        return {
+                            ...a,
+                            targets: Array.isArray(a.targets) ? [...a.targets] : a.targets,
+                        };
+                    }
+                    return { ...a };
+                }
+            } catch (_) {}
+            return a;
+        });
         return result;
     }
 
