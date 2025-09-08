@@ -53,6 +53,7 @@ export function setupTimelineUI({
     resizerEl.style.display = collapsed ? 'none' : '';
     if (toggleGlobalEl) toggleGlobalEl.textContent = collapsed ? 'Show timeline' : 'Hide timeline';
     if (toggleEl) toggleEl.textContent = collapsed ? 'Show' : 'Hide';
+    onResized();
   }
 
   // Resizer

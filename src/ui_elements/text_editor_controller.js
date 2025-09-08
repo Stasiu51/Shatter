@@ -31,6 +31,7 @@ export function setupTextEditorUI({
     toggleEls: [toggleGlobalEl, toggleLocalEl],
     onCollapsedChanged: (c) => {
       updateToggleText(c);
+      onResized();
     },
     onResizing,
     onResized,

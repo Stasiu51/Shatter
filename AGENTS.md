@@ -351,9 +351,7 @@ Global (not per layer). Supports PLANE | TORUS | CYLINDER | MOBIUS (today: param
 ##! QUBIT Q=17 X=3.2 Y=1.0 SHEET=UPPER COLOUR=#3366FF DEFECTIVE=false TEXT="D17" MOUSEOVER="T1=22µs"
 
 
-If Q omitted: apply to the qubits mentioned by the next Stim instruction (must exist) — otherwise error QU001.
-
-If Q given: each id must appear in Stim (via a gate/measure or QUBIT_COORDS) — otherwise error QU002.
+Each id must appear in Stim (via a gate/measure or QUBIT_COORDS) — otherwise error QU002.
 
 4.5 Bulk layout
 ##! LAYOUT Q=@data SHEET=UPPER MAP=HEX SPACING=1.2 ORIGIN=(0,0)

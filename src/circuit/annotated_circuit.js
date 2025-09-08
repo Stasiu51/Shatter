@@ -25,6 +25,8 @@ export class Qubit {
     this.sheet = 'DEFAULT';
     this.text = '';
     this.mouseover = '';
+    this.colour = undefined;
+    this.defective = false;
   }
 }
 /**
@@ -40,6 +42,138 @@ export const example = {
   severity: "error",
   message: "Example error diagnostic for typedef",
 };
+
+/**
+ * @param {!string} targetText
+ * @returns {!Array.<!string>}
+ */
+function processTargetsTextIntoTargets(targetText) {
+  let targets = [];
+  let flush = () => {
+    if (curTarget !== '') {
+      targets.push(curTarget)
+      curTarget = '';
+    }
+  }
+  let curTarget = '';
+  for (let c of targetText) {
+    if (c === ' ') {
+      flush();
+    } else if (c === '*') {
+      flush();
+      targets.push('*');
+    } else {
+      curTarget += c;
+    }
+  }
+  flush();
+
+  return targets;
+}
+
+/**
+ * @param {!Array.<!string>} targets
+ * @returns {!Array.<!Array.<!string>>}
+ */
+function splitUncombinedTargets(targets) {
+  let result = [];
+  let start = 0;
+  while (start < targets.length) {
+    let end = start + 1;
+    while (end < targets.length && targets[end] === '*') {
+      end += 2;
+    }
+    if (end > targets.length) {
+      throw Error(`Dangling combiner in ${targets}.`);
+    }
+    let term = [];
+    for (let k = start; k < end; k += 2) {
+      if (targets[k] === '*') {
+        if (k === 0) {
+          throw Error(`Leading combiner in ${targets}.`);
+        }
+        throw Error(`Adjacent combiners in ${targets}.`);
+      }
+      term.push(targets[k]);
+    }
+    result.push(term);
+    start = end;
+  }
+  return result;
+}
+
+/**
+ * @param {!string} tag
+ * @param {!Float32Array} args
+ * @param {!Array.<!string>} combinedTargets
+ * @param {!boolean} convertIntoOtherGates
+ * @returns {!Operation}
+ */
+function simplifiedMPP(tag, args, combinedTargets, convertIntoOtherGates) {
+  let bases = '';
+  let qubits = [];
+  for (let t of combinedTargets) {
+    if (t[0] === '!') {
+      t = t.substring(1);
+    }
+    if (t[0] === 'X' || t[0] === 'Y' || t[0] === 'Z') {
+      bases += t[0];
+      let v = parseInt(t.substring(1));
+      if (v !== v) {
+        throw Error(`Non-Pauli target given to MPP: ${combinedTargets}`);
+      }
+      qubits.push(v);
+    } else {
+      throw Error(`Non-Pauli target given to MPP: ${combinedTargets}`);
+    }
+  }
+
+  let gate = undefined;
+  if (convertIntoOtherGates) {
+    gate = GATE_MAP.get('M' + bases);
+  }
+  if (gate === undefined) {
+    gate = GATE_MAP.get('MPP:' + bases);
+  }
+  if (gate === undefined) {
+    gate = make_mpp_gate(bases);
+  }
+  return new Operation(gate, tag, args, new Uint32Array(qubits));
+}
+
+/**
+ * @param {!string} tag
+ * @param {!Float32Array} args
+ * @param {!boolean} dag
+ * @param {!Array.<!string>} combinedTargets
+ * @returns {!Operation}
+ */
+function simplifiedSPP(tag, args, dag, combinedTargets) {
+  let bases = '';
+  let qubits = [];
+  for (let t of combinedTargets) {
+    if (t[0] === '!') {
+      t = t.substring(1);
+    }
+    if (t[0] === 'X' || t[0] === 'Y' || t[0] === 'Z') {
+      bases += t[0];
+      let v = parseInt(t.substring(1));
+      if (v !== v) {
+        throw Error(`Non-Pauli target given to SPP: ${combinedTargets}`);
+      }
+      qubits.push(v);
+    } else {
+      throw Error(`Non-Pauli target given to SPP: ${combinedTargets}`);
+    }
+  }
+
+  let gate = GATE_MAP.get((dag ? 'SPP_DAG:' : 'SPP:') + bases);
+  if (gate === undefined) {
+    gate = make_spp_gate(bases, dag);
+  }
+  return new Operation(gate, tag, args, new Uint32Array(qubits));
+}
+
 
 export class AnnotatedCircuit {
 
@@ -60,6 +194,9 @@ export class AnnotatedCircuit {
   static parse(text) {
 
     const circuit = new AnnotatedCircuit();
+
+    let measurement_locs = [];
+    let num_detectors = 0;
 
     const diagnostics = /** @type {Diagnostic[]} */([]);
     let currentLayer = circuit.layers[0];
@@ -118,7 +255,9 @@ export class AnnotatedCircuit {
       return s.startsWith('#');                   // actual comments only
     }
 
-    /** @param {string} line */
+    /** @param {string} line 
+     * @return {callback} attachment
+    */
     function parseAnnotationDirective(line, lineNo) {
       // Strip leading ##!
       const body = line.replace(/^\s*##!\s*/, '').trim();
@@ -140,7 +279,58 @@ export class AnnotatedCircuit {
         circuit.sheets.set(name, sheet);
         return;
       }
+      if (kind === 'QUBIT') {
+        const qStr = getStr(KVs, 'Q', undefined);
+        const px = getNum(KVs, 'X', undefined);
+        const py = getNum(KVs, 'Y', undefined);
+        const sheetName = getStr(KVs, 'SHEET', undefined);
+        const text = getStr(KVs, 'TEXT', undefined);
+        const mouseover = getStr(KVs, 'MOUSEOVER', undefined);
+        const colour = getStr(KVs, 'COLOUR', undefined);
+        const defectiveStr = getStr(KVs, 'DEFECTIVE', undefined);
+        const parseBool = (s) => s === undefined ? undefined : /^(1|true|yes)$/i.test(String(s));
 
+        const applyProps = (qid) => {
+          if (qid === undefined || qid !== qid) return;
+          let q = circuit.qubits.get(qid);
+          if (!q) {
+            const sx = circuit.qubit_coords.has(qid) ? circuit.qubit_coords.get(qid)[0] : 0;
+            const sy = circuit.qubit_coords.has(qid) ? circuit.qubit_coords.get(qid)[1] : 0;
+            q = new Qubit(qid, sx, sy);
+          }
+          if (px !== undefined) q.panelX = px;
+          if (py !== undefined) q.panelY = py;
+          if (sheetName !== undefined) q.sheet = sheetName;
+          if (text !== undefined) q.text = text;
+          if (mouseover !== undefined) q.mouseover = mouseover;
+          if (colour !== undefined) q.colour = colour;
+          const d = parseBool(defectiveStr);
+          if (d !== undefined) q.defective = d;
+          circuit.qubits.set(qid, q);
+        };
+
+        if (qStr && qStr.trim().length) {
+          // Exactly one qubit id expected.
+          const id = parseInt(qStr.trim());
+          applyProps(id);
+          return;
+        } else {
+          // Defer to the very next crumble command; the callback validates kind.
+          pendingAnchor = (cmdName, args, targets) => {
+            if (String(cmdName || '').toUpperCase() !== 'QUBIT_COORDS') {
+              diag(lineNo, 'QU001', 'error', 'QUBIT without Q= must attach to next QUBIT_COORDS.');
+              return;
+            }
+            // Expect exactly one target qubit id.
+            if (!Array.isArray(targets) || targets.length !== 1) {
+              diag(lineNo, 'QU001', 'error', 'QUBIT anchor expected exactly one QUBIT_COORDS target.');
+              return;
+            }
+            applyProps(parseInt(targets[0]));
+          };
+          return;
+        }
+      }
       if (kind === 'CONN' || kind === 'CONN_SET' || (kind === 'CONN' && (rest[0] || '').toUpperCase() === 'SET')) {
         const sheet = getSheet(getStr(KVs, 'SHEET', undefined), lineNo);
         const droop = getNum(KVs, 'DROOP', undefined);
@@ -189,152 +379,360 @@ export class AnnotatedCircuit {
       diag(lineNo, 'ANNOTATION001', 'error', `Unknown annotation command ${body}`);
     }
 
-    function startNewLayer() {
-      currentLayer = new AnnotatedLayer();
-      circuit.layers.push(currentLayer);
-    }
 
-    /** Parse a crumble instruction line into an Operation or a side-effect (coords), or TICK. */
-    function parseCrumble(line, lineNo) {
-      const s = line.replace(/\s+#.*$/, '').trim(); // strip trailing # comment
-      if (s.length === 0) return;
 
-      if (/^TICK\b/.test(s)) {
-        // Before switching layers, anchored polygon header missing body error.
-        if (pendingPolyHdr) {
-          diag(pendingPolyHdr.line, 'POLY001', 'error', '##! POLY must be immediately followed by "#! pragma POLYGON".');
-          pendingPolyHdr = null;
-        }
-        // Attach any pending anchored ann to *this* (but TICK isn't a gate, so skip)
-        pendingAnchor = null;
-        startNewLayer();
-        return;
-      }
-
-      // POLYGON(r,g,b,a) t1 t2 ...
-      const re = /^\s*POLYGON\(([^)]+)\)\s*(.*)$/;
-      const m = line.match(re);
-      if (m) {
-        const color = m[1].split(/\s*,\s*/).map(Number);   // [r,g,b,a]
-        if (color.length === 4) {
-          const targets = m[2].trim() ? m[2].trim().split(/\s+/).map(Number) : [];
-          if (targets.length !== 0) {
-            let { h, hdrLineNo, bdyLineNo } = [null, null, null];
-            if (!pendingPolyHdr) {
-              h = { sheet: 'DEFAULT', stroke: 'none', fill: String(color) }
-              hdrLineNo = lineNo + insertList.length;
-              insertList.push({ lineNo: lineNo, line: `##! POLY sheet=${h.sheet} stroke=${h.stroke} fill=(${h.fill})` });
-              bdyLineNo = lineNo + insertList.length;
-            }
-            else {
-              h = pendingPolyHdr.header;
-              hdrLineNo = pendingPolyHdr.line + insertList.length;
-              bdyLineNo = lineNo + insertList.length;
-            }
-            currentLayer.annotations.push({ kind: 'Polygon', headerLine: hdrLineNo, bodyLine: bdyLineNo, sheet: h.sheet, stroke: h.stroke, fill: h.fill, targets });
-            pendingPolyHdr = null;
-          }
-          return
-        }
-        diag(lineNo, 'POLY002', 'error', 'Invalid POLYGON body.');
-      }
-
-      // The instruction isn't a polygon body
-      if (pendingPolyHdr) {
-        diag(pendingPolyHdr.line, 'POLY001', 'error', '##! POLY must be immediately followed by "#! pragma POLYGON".');
-      }
-
-      // QUBIT_COORDS(x,y) q
-      const mQC = s.match(/^QUBIT_COORDS\s*\(\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*,\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*\)\s+(-?\d+)\s*$/i);
-      if (mQC) {
-        const x = parseFloat(mQC[1]);
-        const y = parseFloat(mQC[2]);
-        const q = parseInt(mQC[3]);
-        if ([...circuit.qubit_coords.values()].includes([x, y])) {
-          diag(lineNo, 'COORD001', 'error', `Attempted to reuse coordinates ${[x, y]}`)
-        }
-        circuit.qubit_coords.set(q, [x, y]);
-        // QUBIT_COORDS does not create an Operation.
-        // Pending anchor is cleared by a crumble instruction line that is not a gate? The rule says it must attach to next crumble instruction; coords shouldn't count.
-        // Treat coords as a barrier (safer).
-        pendingAnchor = null;
-        return;
-      }
-
-      // Generic gate line: NAME(args?) targets...
-      const gateMatch = s.match(/^([A-Za-z_][A-Za-z0-9_]*)(?:\s*\(([^)]*)\))?\s*(.*)$/);
-      if (!gateMatch) {
-        // Unknown crumble syntax.
-        diag(lineNo, 'PAR003', 'error', 'Unrecognized instruction.');
-        pendingAnchor = null;
-        return;
-      }
-      let name = gateMatch[1].toUpperCase();
-      if (GATE_ALIAS_MAP.has(name)) {
-        name = GATE_ALIAS_MAP.get(name);
-      }
-      const argsStr = (gateMatch[2] || '').trim();
-      const targetsStr = (gateMatch[3] || '').trim();
-
-      const gate = GATE_MAP.get(name);
-      if (!gate) {
-        diag(lineNo, 'PAR004', 'error', `Unknown gate: ${name}`);
-        pendingAnchor = null;
-      }
-
-      // Parse args as comma-separated floats.
+    let parseCrumbleLine = (line, lineNo) => {
       let args = [];
-      if (argsStr.length) {
-        for (const part of argsStr.split(',')) {
-          const t = part.trim();
-          if (t.length === 0) continue;
-          const v = Number(t);
-          if (!Number.isFinite(v)) {
-            diag(lineNo, 'PAR005', 'error', `Bad gate argument: ${t}`);
-            return;
-          }
-          args.push(v);
-        }
-      }
-      // Parse targets as space/comma separated integers. (No rec[...] or ^ yet.)
       let targets = [];
-      if (targetsStr.length) {
-        for (const part of targetsStr.split(/[,\s]+/)) {
-          const t = part.trim();
-          if (!t) continue;
-          if (!/^-?\d+$/.test(t)) {
-            diag(lineNo, 'PAR006', 'error', `Bad target: ${t}`);
-            return;
-          }
-          targets.push(parseInt(t));
+      let tag = '';
+      let name = '';
+      let firstSpace = line.indexOf(' ');
+      let firstParens = line.indexOf('(');
+      let tagStart = line.indexOf('[');
+      let tagEnd = line.indexOf(']');
+      if (tagStart !== -1 && firstSpace !== -1 && firstSpace < tagStart) {
+        tagStart = -1;
+      }
+      if (tagStart !== -1 && firstParens !== -1 && firstParens < tagStart) {
+        tagStart = -1;
+      }
+      if (tagStart !== -1 && tagEnd > tagStart) {
+        tag = line.substring(tagStart + 1, tagEnd).replaceAll('\\C', ']').replaceAll('\\r', '\r').replaceAll('\\n', '\n').replaceAll('\\B', '\\');
+        line = line.substring(0, tagStart) + ' ' + line.substring(tagEnd + 1)
+      }
+      if (line.indexOf(')') !== -1) {
+        let [ab, c] = line.split(')');
+        let [a, b] = ab.split('(');
+        name = a.trim();
+        args = b.split(',').map(e => e.trim()).map(parseFloat);
+        targets = processTargetsTextIntoTargets(c);
+      } else {
+        let ab = line.split(' ').map(e => e.trim()).filter(e => e !== '');
+        if (ab.length === 0) {
+          return;
+        }
+        let [a, ...b] = ab;
+        name = a.trim();
+        args = [];
+        targets = b.flatMap(processTargetsTextIntoTargets);
+      }
+      // Before processing this instruction, if there's a simple function anchor pending, fire it now.
+      if (typeof pendingAnchor === 'function') {
+        try {
+          pendingAnchor(name, args, targets);
+        } finally {
+          pendingAnchor = null;
         }
       }
 
-      // Attach anchored annotation now (expects a gate).
-      if (pendingAnchor) {
-        if (pendingAnchor.anchorKind === 'GATE') {
-          // okay; we'll add annotation with opIndex = cur.operations.length (before push)
-          const opIndex = currentLayer.id_ops.length;
-          currentLayer.annotations.push(pendingAnchor.build(opIndex, circuit.layers.length - 1));
+      let reverse_pairs = false;
+      if (name === '') {
+        return;
+      }
+      if (args.length > 0 && ['M', 'MX', 'MY', 'MZ', 'MR', 'MRX', 'MRY', 'MRZ', 'MPP', 'MPAD'].indexOf(name) !== -1) {
+        args = [];
+      }
+      let alias = GATE_ALIAS_MAP.get(name);
+      if (alias !== undefined) {
+        if (alias.ignore) {
+          return;
+        } else if (alias.name !== undefined) {
+          reverse_pairs = alias.rev_pair !== undefined && alias.rev_pair;
+          name = alias.name;
+        } else {
+          throw new Error(`Unimplemented alias ${name}: ${describe(alias)}.`);
         }
-        pendingAnchor = null;
       }
-      if (pendingPolyHdr) {
-        diag(pendingPolyHdr.line, 'POLY001', 'error', '##! POLY must be immediately followed by "#! pragma POLYGON".');
-        pendingPolyHdr = null;
-      }
-
-      const op = new Operation(gate, '', new Float32Array(args), new Uint32Array(targets), lineNo);
-      // tack on line number (not part of original class but JS allows it)
-      try {
-        currentLayer.put(op, false);
-      } catch (_) {
+      if (name === 'TICK') {
         circuit.layers.push(new AnnotatedLayer());
         currentLayer = circuit.layers[circuit.layers.length - 1];
-        currentLayer.put(op, false);
+        return;
+      } else if (name === 'MPP') {
+        let combinedTargets = splitUncombinedTargets(targets);
+        for (let combo of combinedTargets) {
+          let op = simplifiedMPP(tag, new Float32Array(args), combo, false);
+          try {
+            currentLayer.put(op, false);
+          } catch (_) {
+            circuit.layers.push(new AnnotatedLayer());
+            currentLayer = circuit.layers[circuit.layers.length - 1];
+            currentLayer.put(op, false);
+          }
+          measurement_locs.push({ layer: layers.length - 1, targets: op.id_targets });
+        }
+        return;
+      } else if (name === 'DETECTOR' || name === 'OBSERVABLE_INCLUDE') {
+        let isDet = name === 'DETECTOR';
+        let argIndex = isDet ? num_detectors : args.length > 0 ? Math.round(args[0]) : 0;
+        for (let target of targets) {
+          if (!target.startsWith("rec[-") || !target.endsWith("]")) {
+            console.warn("Ignoring instruction due to non-record target: " + line);
+            return;
+          }
+          let index = measurement_locs.length + Number.parseInt(target.substring(4, target.length - 1));
+          if (index < 0 || index >= measurement_locs.length) {
+            console.warn("Ignoring instruction due to out of range record target: " + line);
+            return;
+          }
+          let loc = measurement_locs[index];
+          circuit.layers[loc.layer].markers.push(
+            new Operation(GATE_MAP.get(name),
+              tag,
+              new Float32Array([argIndex]),
+              new Uint32Array([loc.targets[0]]),
+            ));
+        }
+        num_detectors += isDet;
+        return;
+      } else if (name === 'SPP' || name === 'SPP_DAG') {
+        let dag = name === 'SPP_DAG';
+        let combinedTargets = splitUncombinedTargets(targets);
+        for (let combo of combinedTargets) {
+          try {
+            currentLayer.put(op, false);
+          } catch (_) {
+            circuit.layers.push(new AnnotatedLayer());
+            currentLayer = circuit.layers[circuit.layers.length - 1];
+            currentLayer.put(simplifiedSPP(tag, new Float32Array(args), dag, combo), false);
+          }
+        }
+        return;
+      } else if (name.startsWith('QUBIT_COORDS')) {
+        let x = args.length < 1 ? 0 : args[0];
+        let y = args.length < 2 ? 0 : args[1];
+        if (targets.length !== 1){
+          diag(lineNo, 'COORD003', 'error', `QUBIT_COORDS command should take exactly one target: ${line}`);
+        }
+        let q = parseInt(targets[0])
+        if ([...circuit.qubit_coords.values()].includes([x, y])) {
+          diag(lineNo, 'COORD002', 'error', `Attempted to reuse coordinates ${[x, y]}`)
+        }
+        circuit.qubit_coords.set(q, [x, y]);
+        // Coordinates are a barrier to anchored directives.
+        pendingAnchor = null;
+        return;
       }
-      seenNonSheetContent = true;
+
+      let has_feedback = false;
+      for (let targ of targets) {
+        if (targ.startsWith("rec[")) {
+          if (name === "CX" || name === "CY" || name === "CZ" || name === "ZCX" || name === "ZCY") {
+            has_feedback = true;
+          }
+        } else if (typeof parseInt(targ) !== 'number') {
+          throw new Error(line);
+        }
+      }
+      if (has_feedback) {
+        let clean_targets = [];
+        for (let k = 0; k < targets.length; k += 2) {
+          let b0 = targets[k].startsWith("rec[");
+          let b1 = targets[k + 1].startsWith("rec[");
+          if (b0 || b1) {
+            if (!b0) {
+              currentLayer.put(new Operation(
+                GATE_MAP.get("ERR"),
+                tag,
+                new Float32Array([]),
+                new Uint32Array([targets[k]]),
+                lineNo + insertList.length
+              ));
+            }
+            if (!b1) {
+              currentLayer.put(new Operation(
+                GATE_MAP.get("ERR"),
+                tag,
+                new Float32Array([]),
+                new Uint32Array([targets[k + 1]]),
+                lineNo + insertList.length
+              ));
+            }
+            diag(lineNo + insertList.length, 'FEED001', 'warning', `Feedback isn't supported yet. Ignoring ${name, targets[k], targets[k + 1]}$`);
+          } else {
+            clean_targets.push(targets[k]);
+            clean_targets.push(targets[k + 1]);
+          }
+        }
+        targets = clean_targets;
+        if (targets.length === 0) {
+          return;
+        }
+      }
+
+      let gate = GATE_MAP.get(name);
+      if (gate === undefined) {
+        diag(lineNo + length, 'GATE001', 'warning', `Ignoring unrecognized instruction: ${line}`);
+        return;
+      }
+      let a = new Float32Array(args);
+
+      if (gate.num_qubits === undefined) {
+        currentLayer.put(new Operation(gate, tag, a, new Uint32Array(targets)), lineNo + insertList.length);
+      } else {
+        if (targets.length % gate.num_qubits !== 0) {
+          throw new Error("Incorrect number of targets in line " + line);
+        }
+        for (let k = 0; k < targets.length; k += gate.num_qubits) {
+          let sub_targets = targets.slice(k, k + gate.num_qubits);
+          if (reverse_pairs) {
+            sub_targets.reverse();
+          }
+          let qs = new Uint32Array(sub_targets);
+          let op = new Operation(gate, tag, a, qs, lineNo + insertList.length);
+          try {
+            currentLayer.put(op, false);
+          } catch (_) {
+            circuit.layers.push(new AnnotatedLayer());
+            currentLayer = circuit.layers[circuit.layers.length - 1];
+            currentLayer.put(op, false);
+          }
+          if (op.countMeasurements() > 0) {
+            measurement_locs.push({ layer: circuit.layers.length - 1, targets: op.id_targets });
+          }
+        }
+      }
     }
+    /** Parse a crumble instruction line into an Operation or a side-effect (coords), or TICK. */
+    // function parseCrumble(line, lineNo) {
+    //   const s = line.replace(/\s+#.*$/, '').trim(); // strip trailing # comment
+    //   if (s.length === 0) return;
+
+    //   if (/^TICK\b/.test(s)) {
+    //     // Before switching layers, anchored polygon header missing body error.
+    //     if (pendingPolyHdr) {
+    //       diag(pendingPolyHdr.line, 'POLY001', 'error', '##! POLY must be immediately followed by "#! pragma POLYGON".');
+    //       pendingPolyHdr = null;
+    //     }
+    //     // Attach any pending anchored ann to *this* (but TICK isn't a gate, so skip)
+    //     pendingAnchor = null;
+    //     startNewLayer();
+    //     return;
+    //   }
+
+    //   // POLYGON(r,g,b,a) t1 t2 ...
+    //   const re = /^\s*POLYGON\(([^)]+)\)\s*(.*)$/;
+    //   const m = line.match(re);
+    //   if (m) {
+    //     const color = m[1].split(/\s*,\s*/).map(Number);   // [r,g,b,a]
+    //     if (color.length === 4) {
+    //       const targets = m[2].trim() ? m[2].trim().split(/\s+/).map(Number) : [];
+    //       if (targets.length !== 0) {
+    //         let { h, hdrLineNo, bdyLineNo } = [null, null, null];
+    //         if (!pendingPolyHdr) {
+    //           h = { sheet: 'DEFAULT', stroke: 'none', fill: String(color) }
+    //           hdrLineNo = lineNo + insertList.length;
+    //           insertList.push({ lineNo: lineNo, line: `##! POLY sheet=${h.sheet} stroke=${h.stroke} fill=(${h.fill})` });
+    //           bdyLineNo = lineNo + insertList.length;
+    //         }
+    //         else {
+    //           h = pendingPolyHdr.header;
+    //           hdrLineNo = pendingPolyHdr.line + insertList.length;
+    //           bdyLineNo = lineNo + insertList.length;
+    //         }
+    //         currentLayer.annotations.push({ kind: 'Polygon', headerLine: hdrLineNo, bodyLine: bdyLineNo, sheet: h.sheet, stroke: h.stroke, fill: h.fill, targets });
+    //         pendingPolyHdr = null;
+    //       }
+    //       return
+    //     }
+    //     diag(lineNo, 'POLY002', 'error', 'Invalid POLYGON body.');
+    //   }
+
+    //   // The instruction isn't a polygon body
+    //   if (pendingPolyHdr) {
+    //     diag(pendingPolyHdr.line, 'POLY001', 'error', '##! POLY must be immediately followed by "#! pragma POLYGON".');
+    //   }
+
+    //   // QUBIT_COORDS(x,y) q
+    //   const mQC = s.match(/^QUBIT_COORDS\s*\(\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*,\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*\)\s+(-?\d+)\s*$/i);
+    //   if (mQC) {
+    //     const x = parseFloat(mQC[1]);
+    //     const y = parseFloat(mQC[2]);
+    //     const q = parseInt(mQC[3]);
+    //     if ([...circuit.qubit_coords.values()].includes([x, y])) {
+    //       diag(lineNo, 'COORD001', 'error', `Attempted to reuse coordinates ${[x, y]}`)
+    //     }
+    //     circuit.qubit_coords.set(q, [x, y]);
+    //     // QUBIT_COORDS does not create an Operation.
+    //     // Pending anchor is cleared by a crumble instruction line that is not a gate? The rule says it must attach to next crumble instruction; coords shouldn't count.
+    //     // Treat coords as a barrier (safer).
+    //     pendingAnchor = null;
+    //     return;
+    //   }
+
+    //   // Generic gate line: NAME(args?) targets...
+    //   const gateMatch = s.match(/^([A-Za-z_][A-Za-z0-9_]*)(?:\s*\(([^)]*)\))?\s*(.*)$/);
+    //   if (!gateMatch) {
+    //     // Unknown crumble syntax.
+    //     diag(lineNo, 'PAR003', 'error', 'Unrecognized instruction.');
+    //     pendingAnchor = null;
+    //     return;
+    //   }
+    //   let name = gateMatch[1].toUpperCase();
+    //   if (GATE_ALIAS_MAP.has(name)) {
+    //     name = GATE_ALIAS_MAP.get(name);
+    //   }
+    //   const argsStr = (gateMatch[2] || '').trim();
+    //   const targetsStr = (gateMatch[3] || '').trim();
+
+    //   const gate = GATE_MAP.get(name);
+    //   if (!gate) {
+    //     diag(lineNo, 'PAR004', 'error', `Unknown gate: ${name}`);
+    //     pendingAnchor = null;
+    //   }
+
+    //   // Parse args as comma-separated floats.
+    //   let args = [];
+    //   if (argsStr.length) {
+    //     for (const part of argsStr.split(',')) {
+    //       const t = part.trim();
+    //       if (t.length === 0) continue;
+    //       const v = Number(t);
+    //       if (!Number.isFinite(v)) {
+    //         diag(lineNo, 'PAR005', 'error', `Bad gate argument: ${t}`);
+    //         return;
+    //       }
+    //       args.push(v);
+    //     }
+    //   }
+    //   // Parse targets as space/comma separated integers. (No rec[...] or ^ yet.)
+    //   let targets = [];
+    //   if (targetsStr.length) {
+    //     for (const part of targetsStr.split(/[,\s]+/)) {
+    //       const t = part.trim();
+    //       if (!t) continue;
+    //       if (!/^-?\d+$/.test(t)) {
+    //         diag(lineNo, 'PAR006', 'error', `Bad target: ${t}`);
+    //         return;
+    //       }
+    //       targets.push(parseInt(t));
+    //     }
+    //   }
+
+    //   // Attach anchored annotation now (expects a gate).
+    //   if (pendingAnchor) {
+    //     if (pendingAnchor.anchorKind === 'GATE') {
+    //       // okay; we'll add annotation with opIndex = cur.operations.length (before push)
+    //       const opIndex = currentLayer.id_ops.length;
+    //       currentLayer.annotations.push(pendingAnchor.build(opIndex, circuit.layers.length - 1));
+    //     }
+    //     pendingAnchor = null;
+    //   }
+    //   if (pendingPolyHdr) {
+    //     diag(pendingPolyHdr.line, 'POLY001', 'error', '##! POLY must be immediately followed by "#! pragma POLYGON".');
+    //     pendingPolyHdr = null;
+    //   }
+
+    //   const op = new Operation(gate, '', new Float32Array(args), new Uint32Array(targets), lineNo);
+    //   // tack on line number (not part of original class but JS allows it)
+    //   try {
+    //     currentLayer.put(op, false);
+    //   } catch (_) {
+    //     circuit.layers.push(new AnnotatedLayer());
+    //     currentLayer = circuit.layers[circuit.layers.length - 1];
+    //     currentLayer.put(op, false);
+    //   }
+    //   seenNonSheetContent = true;
+    // }
 
     function parseKVs(s) {
       /** @type {Map<string,string>} */
@@ -382,7 +780,7 @@ export class AnnotatedCircuit {
       if (stack.length) { stack[stack.length - 1].lines.push({ text: s, lineNo }); return; }
 
       // Otherwise, crumble instruction
-      parseCrumble(s, lineNo);
+      parseCrumbleLine(s, lineNo);
       seenNonSheetContent = true;
     }
 
@@ -458,22 +856,29 @@ export class AnnotatedCircuit {
         while ([...circuit.qubit_coords.values()].includes([x, 0])) { x += 1; }
         circuit.qubit_coords.set(id, [x, 0]);
       }
-      circuit.qubitCoordData[2 * id] = circuit.qubit_coords.get(id)[0];
-      circuit.qubitCoordData[2 * id + 1] = circuit.qubit_coords.get(id)[1];
-      // Initialize qubit metadata (defaults).
       const [sx, sy] = circuit.qubit_coords.get(id);
-      const q = new Qubit(id, sx, sy);
-      q.panelX = sx;
-      q.panelY = sy;
-      q.sheet = 'DEFAULT';
-      q.text = '';
-      q.mouseover = '';
+      circuit.qubitCoordData[2 * id] = sx;
+      circuit.qubitCoordData[2 * id + 1] = sy;
+      // Initialize or update qubit metadata (defaults).
+      let q = circuit.qubits.get(id);
+      if (!q) {
+        q = new Qubit(id, sx, sy);
+      } else {
+        q.stimX = sx;
+        q.stimY = sy;
+        if (q.panelX === undefined) q.panelX = sx;
+        if (q.panelY === undefined) q.panelY = sy;
+        if (!q.sheet) q.sheet = 'DEFAULT';
+      }
       circuit.qubits.set(id, q);
     }
 
-    for (let { lineNo, line } of insertList) {
-      lines.splice(lineNo, 0, line);
-    }
+    // for (let { lineNo, line } of insertList) {
+    // lines.splice(lineNo, 0, line);
+    // }
+    insertList.forEach(({ lineNo, line }, index) => {
+      lines.splice(lineNo + index, 0, line);
+    })
 
     // Put the pragmas back. Most other replacements remain.
     text = lines.join("\n").replaceAll(';', '\n').
@@ -519,7 +924,7 @@ export class AnnotatedCircuit {
     let coordSet = new Map();
     for (let k = 0; k < this.qubitCoordData.length; k += 2) {
       let x = this.qubitCoordData[k];
-      let y = this.qubitCoordData[k+1];
+      let y = this.qubitCoordData[k + 1];
       coordSet.set(`${x},${y}`, [x, y]);
     }
     let minX = Infinity;
@@ -639,7 +1044,7 @@ export class AnnotatedCircuit {
           for (let op of group) {
             if (op.countMeasurements() > 0) {
               let target_id = op.id_targets[0];
-              m2d.set(`${k}:${target_id}`, {mid: m2d.size, qids: op.id_targets});
+              m2d.set(`${k}:${target_id}`, { mid: m2d.size, qids: op.id_targets });
             }
           }
         }
@@ -647,7 +1052,7 @@ export class AnnotatedCircuit {
         for (let [target_id, op] of layer.id_ops.entries()) {
           if (op.id_targets[0] === target_id) {
             if (op.countMeasurements() > 0) {
-              m2d.set(`${k}:${target_id}`, {mid: m2d.size, qids: op.id_targets});
+              m2d.set(`${k}:${target_id}`, { mid: m2d.size, qids: op.id_targets });
             }
           }
         }
@@ -662,7 +1067,7 @@ export class AnnotatedCircuit {
         if (op.gate.name === 'DETECTOR') {
           let d = Math.round(op.args[0]);
           while (detectors.length <= d) {
-            detectors.push({mids: [], qids: []});
+            detectors.push({ mids: [], qids: [] });
           }
           let det_entry = detectors[d];
           let key = `${k}:${op.id_targets[0]}`;
@@ -704,7 +1109,7 @@ export class AnnotatedCircuit {
       observables.set(k, vs);
     }
     keptDetectors.sort((a, b) => a.mids[0] - b.mids[0]);
-    return {dets: keptDetectors, obs: observables};
+    return { dets: keptDetectors, obs: observables };
   }
 
   /** @returns {!string} */
@@ -719,16 +1124,16 @@ export class AnnotatedCircuit {
       }
     }
 
-    let {dets: remainingDetectors, obs: remainingObservables} = this.collectDetectorsAndObservables(true);
+    let { dets: remainingDetectors, obs: remainingObservables } = this.collectDetectorsAndObservables(true);
     remainingDetectors.reverse();
     let seenMeasurements = 0;
     let totalMeasurements = this.countMeasurements();
 
     let packedQubitCoords = [];
     for (let q of usedQubits) {
-      let x = this.qubitCoordData[2*q];
-      let y = this.qubitCoordData[2*q+1];
-      packedQubitCoords.push({q, x, y});
+      let x = this.qubitCoordData[2 * q];
+      let y = this.qubitCoordData[2 * q + 1];
+      packedQubitCoords.push({ q, x, y });
     }
     packedQubitCoords.sort((a, b) => {
       if (a.x !== b.x) {
@@ -742,7 +1147,7 @@ export class AnnotatedCircuit {
     let old2new = new Map();
     let out = [];
     for (let q = 0; q < packedQubitCoords.length; q++) {
-      let {q: old_q, x, y} = packedQubitCoords[q];
+      let { q: old_q, x, y } = packedQubitCoords[q];
       old2new.set(old_q, q);
       out.push(`QUBIT_COORDS(${x}, ${y}) ${q}`);
     }
@@ -883,5 +1288,5 @@ export class AnnotatedCircuit {
     }
     return total;
   }
-  
+
 }

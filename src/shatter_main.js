@@ -228,7 +228,7 @@ function loadStimText(stimText) {
   try {
     currentText = String(stimText || '');
     const parsed = AnnotatedCircuit.parse(currentText);
-    annotated = parsed?.circuit || null;
+    circuit = parsed?.circuit || null;
     currentText = parsed?.text ?? currentText; // normalized text from parser
     currentLayer = 0;
 
@@ -422,20 +422,22 @@ function ensureEditorState() {
   // Subscribe to revision changes: when a commit occurs, adopt the new text.
   editorState.rev.changes().subscribe((maybeText) => {
     // Update source text and keep parsed circuit in sync when provided.
-    if (typeof maybeText === 'string') {
-      currentText = maybeText;
-      try {
-        const parsed = AnnotatedCircuit.parse(currentText);
-        annotated = parsed?.circuit || null;
-        currentText = parsed?.text ?? currentText;
-        if (editorTextareaEl) {
-          editorTextareaEl.value = currentText;
-          setEditorDirty(false);
-        }
-      } catch (e) {
-        pushStatus(`Parse error: ${e?.message || e}`, 'error');
-      }
-    }
+    // loadStimText(maybeText);
+    // if (typeof maybeText === 'string') {
+
+      // currentText = maybeText;
+      // try {
+      //   const parsed = AnnotatedCircuit.parse(currentText);
+      //   circuit = parsed?.circuit || null;
+      //   currentText = parsed?.text ?? currentText;
+      //   if (editorTextareaEl) {
+      //     editorTextareaEl.value = currentText;
+      //     setEditorDirty(false);
+      //   }
+      // } catch (e) {
+      //   pushStatus(`Parse error: ${e?.message || e}`, 'error');
+      // }
+    // }
     // Trigger a fresh snapshot; downstream subscriptions will render.
     editorState.obs_val_draw_state.set(editorState.toSnapshot(undefined));
   });
