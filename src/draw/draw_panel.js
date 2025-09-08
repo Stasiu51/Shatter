@@ -32,12 +32,16 @@ function xyToPos(x, y) {
  * @param {!PropagatedPauliFrames} propagatedMarkers
  * @param {!int} mi
  */
-function drawCrossMarkers(ctx, snap, qubitCoordsFunc, propagatedMarkers, mi) {
+function drawCrossMarkers(ctx, snap, qubitCoordsFunc, propagatedMarkers, mi, isOpVisible) {
     let crossings = propagatedMarkers.atLayer(snap.curLayer).crossings;
     if (crossings !== undefined) {
+        const layer = snap.circuit.layers[snap.curLayer];
         for (let {q1, q2, color} of crossings) {
-            let [x1, y1] = qubitCoordsFunc(q1);
-            let [x2, y2] = qubitCoordsFunc(q2);
+            const op = layer.id_ops.get(q1) || layer.id_ops.get(q2);
+            if (!op) continue;
+            if (typeof isOpVisible === 'function' && !isOpVisible(op)) continue;
+            const [x1, y1] = qubitCoordsFunc(q1);
+            const [x2, y2] = qubitCoordsFunc(q2);
             if (color === 'X') {
                 ctx.strokeStyle = 'red';
             } else if (color === 'Y') {
@@ -308,9 +312,7 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             }
         });
 
-        for (let [mi, p] of propagatedMarkerLayers.entries()) {
-            drawCrossMarkers(ctx, snap, qubitDrawCoords, p, mi);
-        }
+        // Crossings are drawn after gates; see below.
 
         const isOpVisible = (op) => {
             // Future: if op.sheets is a Set or name, check it here.
@@ -329,6 +331,11 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             if (op.gate.name !== 'POLYGON' && isOpVisible(op)) {
                 op.id_draw(qubitDrawCoords, ctx);
             }
+        }
+
+        // Draw crossings after gates, using gate-derived visibility.
+        for (let [mi, p] of propagatedMarkerLayers.entries()) {
+            drawCrossMarkers(ctx, snap, qubitDrawCoords, p, mi, isOpVisible);
         }
 
         defensiveDraw(ctx, () => {
