@@ -60,11 +60,11 @@ function drawCrossMarkers(ctx, snap, qubitCoordsFunc, propagatedMarkers, mi) {
  * @param {!function(q: !int): ![!number, !number]} qubitCoordsFunc
  * @param {!Map<!int, !PropagatedPauliFrames>} propagatedMarkerLayers
  */
-function drawMarkers(ctx, snap, qubitCoordsFunc, propagatedMarkerLayers) {
+function drawMarkers(ctx, snap, qubitCoordsFunc, propagatedMarkerLayers, isQubitVisible) {
     let obsCount = new Map();
     let detCount = new Map();
     for (let [mi, p] of propagatedMarkerLayers.entries()) {
-        drawSingleMarker(ctx, snap, qubitCoordsFunc, p, mi, obsCount, detCount);
+        drawSingleMarker(ctx, snap, qubitCoordsFunc, p, mi, obsCount, detCount, isQubitVisible);
     }
 }
 
@@ -76,13 +76,15 @@ function drawMarkers(ctx, snap, qubitCoordsFunc, propagatedMarkerLayers) {
  * @param {!int} mi
  * @param {!Map} hitCount
  */
-function drawSingleMarker(ctx, snap, qubitCoordsFunc, propagatedMarkers, mi, hitCount) {
+function drawSingleMarker(ctx, snap, qubitCoordsFunc, propagatedMarkers, mi, hitCount, isQubitVisible) {
     let basesQubitMap = propagatedMarkers.atLayer(snap.curLayer + 0.5).bases;
 
     // Convert qubit indices to draw coordinates.
     let basisCoords = [];
     for (let [q, b] of basesQubitMap.entries()) {
-        basisCoords.push([b, qubitCoordsFunc(q)]);
+        if (!isQubitVisible || isQubitVisible(q)) {
+            basisCoords.push([b, qubitCoordsFunc(q)]);
+        }
     }
 
     // Draw a polygon for the marker set.
@@ -146,18 +148,20 @@ function drawSingleMarker(ctx, snap, qubitCoordsFunc, propagatedMarkers, mi, hit
     // Show error highlights.
     let errorsQubitSet = propagatedMarkers.atLayer(snap.curLayer).errors;
     for (let q of errorsQubitSet) {
-        let [x, y] = qubitCoordsFunc(q);
-        let {dx, dy, wx, wy} = marker_placement(mi, `${x}:${y}`, hitCount);
-        if (mi < 0) {
-            ctx.lineWidth = 2;
-        } else {
-            ctx.lineWidth = 8;
+        if (!isQubitVisible || isQubitVisible(q)) {
+            let [x, y] = qubitCoordsFunc(q);
+            let {dx, dy, wx, wy} = marker_placement(mi, `${x}:${y}`, hitCount);
+            if (mi < 0) {
+                ctx.lineWidth = 2;
+            } else {
+                ctx.lineWidth = 8;
+            }
+            ctx.strokeStyle = 'magenta'
+            ctx.strokeRect(x - dx, y - dy, wx, wy);
+            ctx.lineWidth = 1;
+            ctx.fillStyle = 'black'
+            ctx.fillRect(x - dx, y - dy, wx, wy);
         }
-        ctx.strokeStyle = 'magenta'
-        ctx.strokeRect(x - dx, y - dy, wx, wy);
-        ctx.lineWidth = 1;
-        ctx.fillStyle = 'black'
-        ctx.fillRect(x - dx, y - dy, wx, wy);
     }
 }
 
@@ -357,7 +361,7 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             }
         });
 
-        drawMarkers(ctx, snap, qubitDrawCoords, propagatedMarkerLayers);
+        drawMarkers(ctx, snap, qubitDrawCoords, propagatedMarkerLayers, isQubitVisible);
 
         if (focusX !== undefined) {
             ctx.save();
