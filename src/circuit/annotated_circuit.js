@@ -5,6 +5,23 @@ import { GATE_MAP, GATE_ALIAS_MAP } from '../gates/gateset.js';
 import { Operation } from './operation.js';
 import { AnnotatedLayer } from './annotated_layer.js';
 import { Sheet } from './sheet.js'
+import {
+  sheet_not_at_top,
+  sheet_declared_twice,
+  sheet_missing,
+  qubit_requires_next_coords,
+  qubit_expected_single_target,
+  highlight_no_gate_anchor,
+  poly_missing_body,
+  poly_invalid_body,
+  annotation_unknown_command,
+  coord_single_target_required,
+  coord_reuse,
+  feedback_unsupported,
+  gate_unrecognized,
+  repeat_unmatched_close,
+  repeat_unclosed_block,
+} from '../diag/diag_factory.js';
 
 /**
  * Per-qubit metadata for overlays and rendering.
@@ -220,10 +237,10 @@ export class AnnotatedCircuit {
 
     const PARSE_ERROR = Symbol('FATAL_PARSE_ABORT');
 
-    function diag(line, code, severity, message) {
-      diagnostics.push({ line, code, severity, message });
-      if (severity === 'error') {
-        throw PARSE_ERROR;               // ← abort parsing immediately
+    function diag(diagnostic) {
+      diagnostics.push(diagnostic);
+      if (diagnostic.severity === 'error') {
+        throw PARSE_ERROR;
       }
     }
     const barrier = (lineNo) => {};
@@ -232,7 +249,7 @@ export class AnnotatedCircuit {
      */
     function getSheet(name, lineNo) {
       if (!circuit.sheets.has(name)) {
-        diag(lineNo, 'SHEET003', 'error', `No such sheet ${name}.`);
+        diag(sheet_missing(lineNo, name));
       }
       return circuit.sheets.get(name);
     }
@@ -261,10 +278,10 @@ export class AnnotatedCircuit {
         const name = getStr(KVs, 'NAME');
         const sheet = new Sheet(name);
         if (seenNonSheetContent) {
-          diag(lineNo, 'SHEET001', 'error', '##! SHEET must appear at the top of the file before any other content.');
+          diag(sheet_not_at_top(lineNo));
         }
         if (circuit.sheets.has(name)) {
-          diag(lineNo, 'SHEET002', 'error', `Sheet ${name} declared twice (note DEFAULT exists by default)`)
+          diag(sheet_declared_twice(lineNo, name))
         }
         circuit.sheets.set(name, sheet);
         return;
@@ -308,12 +325,12 @@ export class AnnotatedCircuit {
           // Defer; the callback validates kind and applies after QUBIT_COORDS is processed.
           pendingCallback = (cmdName, args, targets) => {
             if (String(cmdName || '').toUpperCase() !== 'QUBIT_COORDS') {
-              diag(lineNo, 'QU001', 'error', 'QUBIT without Q= must attach to next QUBIT_COORDS.');
+              diag(qubit_requires_next_coords(lineNo));
               return;
             }
             // Expect exactly one target qubit id.
             if (!Array.isArray(targets) || targets.length !== 1) {
-              diag(lineNo, 'QU001', 'error', 'QUBIT anchor expected exactly one QUBIT_COORDS target.');
+              diag(qubit_expected_single_target(lineNo));
               return;
             }
             applyProps(parseInt(targets[0]));
@@ -349,7 +366,7 @@ export class AnnotatedCircuit {
             const gname = String(cmdName || '').toUpperCase();
             const gate = GATE_MAP.get(gname);
             if (!gate) {
-              diag(lineNo, 'HL001', 'error', 'HIGHLIGHT GATE had no gate to attach to.');
+              diag(highlight_no_gate_anchor(lineNo));
               return;
             }
             const ids = Array.isArray(targets)
@@ -372,12 +389,12 @@ export class AnnotatedCircuit {
         const hdrLine = lineNo;
         pendingCallback = (cmdName, args, targets) => {
           if (String(cmdName || '').toUpperCase() !== 'POLYGON') {
-            diag(hdrLine, 'POLY001', 'error', '##! POLY must be immediately followed by "#! pragma POLYGON".');
+            diag(poly_missing_body(hdrLine));
             return;
           }
           const color = Array.isArray(args) ? args.map(Number) : [];
           if (color.length !== 4 || color.some(v => !Number.isFinite(v))) {
-            diag(hdrLine, 'POLY002', 'error', 'Invalid POLYGON body.');
+            diag(poly_invalid_body(hdrLine));
             return;
           }
           const ids = (Array.isArray(targets) ? targets : [])
@@ -393,7 +410,7 @@ export class AnnotatedCircuit {
       }
 
       // Unknown annotation
-      diag(lineNo, 'ANNOTATION001', 'error', `Unknown annotation command ${body}`);
+      diag(annotation_unknown_command(lineNo, body));
     }
 
 
@@ -543,11 +560,11 @@ export class AnnotatedCircuit {
         let x = args.length < 1 ? 0 : args[0];
         let y = args.length < 2 ? 0 : args[1];
         if (targets.length !== 1){
-          diag(lineNo, 'COORD003', 'error', `QUBIT_COORDS command should take exactly one target: ${line}`);
+          diag(coord_single_target_required(lineNo, line));
         }
         let q = parseInt(targets[0])
         if ([...circuit.qubit_coords.values()].includes([x, y])) {
-          diag(lineNo, 'COORD002', 'error', `Attempted to reuse coordinates ${[x, y]}`)
+          diag(coord_reuse(lineNo, x, y))
         }
         circuit.qubit_coords.set(q, [x, y]);
         // After processing coords, if there's a pending simple callback, run it now.
@@ -558,8 +575,6 @@ export class AnnotatedCircuit {
             pendingCallback = null;
           }
         }
-        // Coordinates are a barrier to legacy gate anchors.
-        pendingAnchor = null;
         return;
       }
 
@@ -597,7 +612,8 @@ export class AnnotatedCircuit {
                 lineNo + insertList.length
               ));
             }
-            diag(lineNo + insertList.length, 'FEED001', 'warning', `Feedback isn't supported yet. Ignoring ${name, targets[k], targets[k + 1]}$`);
+            const detail = `${name} ${targets[k]} ${targets[k + 1]}`;
+            diag(feedback_unsupported(lineNo + insertList.length, detail));
           } else {
             clean_targets.push(targets[k]);
             clean_targets.push(targets[k + 1]);
@@ -611,7 +627,7 @@ export class AnnotatedCircuit {
 
       let gate = GATE_MAP.get(name);
       if (gate === undefined) {
-        diag(lineNo + insertList.length, 'GATE001', 'warning', `Ignoring unrecognized instruction: ${line}`);
+        diag(gate_unrecognized(lineNo + insertList.length, line));
         return;
       }
       let a = new Float32Array(args);
@@ -824,7 +840,7 @@ export class AnnotatedCircuit {
       if (s === '}') {
         barrier(lineNo);
         const frame = stack.pop();
-        if (!frame) { diag(lineNo, 'REP001', 'error', 'Unmatched }'); return; }
+        if (!frame) { diag(repeat_unmatched_close(lineNo)); return; }
         for (let t = 0; t < frame.times; t++) {
           for (const L of frame.lines) processLine(L.text, L.lineNo);
         }
@@ -882,7 +898,7 @@ export class AnnotatedCircuit {
 
     if (stack.length) {
       const fr = stack[stack.length - 1];
-      diag(fr.startLine, 'REP002', 'error', 'Unclosed REPEAT block');
+      diag(repeat_unclosed_block(fr.startLine));
     }
 
     // Assign coordinates to any qubits that don't have them

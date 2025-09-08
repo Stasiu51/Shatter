@@ -242,16 +242,31 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             operatedOnQubits.add(t);
         }
     }
-    let usedQubitCoordSet = new Set();
-    let operatedOnQubitSet = new Set();
-    for (let q of circuit.allQubits()) {
-        let qx = circuit.qubitCoordData[q * 2];
-        let qy = circuit.qubitCoordData[q * 2 + 1];
-        usedQubitCoordSet.add(`${qx},${qy}`);
-        if (operatedOnQubits.has(q)) {
-            operatedOnQubitSet.add(`${qx},${qy}`);
+    // Build visibility context for sheet-filtered drawing (qubits first phase).
+    // Normalize sheetsToDraw (may be null) into a Set of sheet names to render.
+    const visibleSheetNames = new Set();
+    if (sheetsToDraw && typeof sheetsToDraw.size === 'number' && sheetsToDraw.size > 0) {
+        for (const [sheet, on] of sheetsToDraw.entries()) {
+            if (on) {
+                const name = (sheet && sheet.name) ? sheet.name : String(sheet ?? 'DEFAULT');
+                visibleSheetNames.add(name);
+            }
         }
+    } else if (circuit && circuit.sheets && typeof circuit.sheets.size === 'number') {
+        for (const name of circuit.sheets.keys()) visibleSheetNames.add(name);
+        if (visibleSheetNames.size === 0) visibleSheetNames.add('DEFAULT');
+    } else {
+        visibleSheetNames.add('DEFAULT');
     }
+    const isQubitVisible = (qid) => {
+        try {
+            const q = circuit.qubits?.get?.(qid);
+            const sheet = q?.sheet ?? 'DEFAULT';
+            return visibleSheetNames.has(sheet);
+        } catch (_) {
+            return true;
+        }
+    };
 
     defensiveDraw(ctx, () => {
         ctx.fillStyle = 'white';
@@ -276,47 +291,28 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             }
         }
 
-        // Draw the grid of qubits.
+        // Draw only actual qubits on visible sheets, using panel coordinates when available.
         defensiveDraw(ctx, () => {
-            for (let qx = 0; qx < 100; qx += 0.5) {
-                let [x, _] = c2dCoordTransform(qx, 0);
-                let s = `${qx}`;
-                ctx.fillStyle = 'black';
-                ctx.fillText(s, x - ctx.measureText(s).width / 2, 15);
-            }
-            for (let qy = 0; qy < 100; qy += 0.5) {
-                let [_, y] = c2dCoordTransform(0, qy);
-                let s = `${qy}`;
-                ctx.fillStyle = 'black';
-                ctx.fillText(s, 18 - ctx.measureText(s).width, y);
-            }
-
             ctx.strokeStyle = 'black';
-            for (let qx = 0; qx < 100; qx += 0.5) {
-                let [x, _] = c2dCoordTransform(qx, 0);
-                let s = `${qx}`;
-                ctx.fillStyle = 'black';
-                ctx.fillText(s, x - ctx.measureText(s).width / 2, 15);
-                for (let qy = qx % 1; qy < 100; qy += 1) {
-                    let [x, y] = c2dCoordTransform(qx, qy);
-                    ctx.fillStyle = 'white';
-                    let isUnused = !usedQubitCoordSet.has(`${qx},${qy}`);
-                    let isVeryUnused = !operatedOnQubitSet.has(`${qx},${qy}`);
-                    if (isUnused) {
-                        ctx.globalAlpha *= 0.25;
+            for (const q of circuit.allQubits()) {
+                if (!isQubitVisible(q)) continue;
+                let px, py;
+                try {
+                    const qq = circuit.qubits?.get?.(q);
+                    if (qq && typeof qq.panelX === 'number' && typeof qq.panelY === 'number') {
+                        [px, py] = [qq.panelX, qq.panelY];
+                    } else {
+                        px = circuit.qubitCoordData[2 * q];
+                        py = circuit.qubitCoordData[2 * q + 1];
                     }
-                    if (isVeryUnused) {
-                        ctx.globalAlpha *= 0.25;
-                    }
-                    ctx.fillRect(x - rad, y - rad, 2*rad, 2*rad);
-                    ctx.strokeRect(x - rad, y - rad, 2*rad, 2*rad);
-                    if (isUnused) {
-                        ctx.globalAlpha *= 4;
-                    }
-                    if (isVeryUnused) {
-                        ctx.globalAlpha *= 4;
-                    }
+                } catch (_) {
+                    px = circuit.qubitCoordData[2 * q];
+                    py = circuit.qubitCoordData[2 * q + 1];
                 }
+                const [x, y] = c2dCoordTransform(px, py);
+                ctx.fillStyle = 'white';
+                ctx.fillRect(x - rad, y - rad, 2 * rad, 2 * rad);
+                ctx.strokeRect(x - rad, y - rad, 2 * rad, 2 * rad);
             }
         });
 
