@@ -255,6 +255,16 @@ function loadStimText(stimText) {
 
     // Reset timeline scroll; rendering will occur via snapshot subscription.
     timelineCtl.setScrollY(0);
+    // Update sheet list for dropdowns from the parsed circuit.
+    try {
+      if (circuit?.sheets && typeof circuit.sheets.size === 'number') {
+        overlayState.sheets = Array.from(circuit.sheets.keys()).map(name => ({ name }));
+      } else {
+        overlayState.sheets = DEFAULT_SHEETS;
+      }
+      renderPanelSheetsOptions();
+      schedulePanelsRender();
+    } catch {}
     return true;
   } catch (e) {
     pushStatus(`Parse error: ${e?.message || e}`, 'error');
@@ -337,7 +347,8 @@ function renderAllPanels() {
   if (!snap) return;
 
   const dpr = Math.max(1, window.devicePixelRatio || 1);
-  for (const p of mgr.panels) {
+  for (let i = 0; i < mgr.panels.length; i++) {
+    const p = mgr.panels[i];
     const canvas = p.canvas;
     if (!canvas) continue;
     const rect = canvas.getBoundingClientRect();
@@ -351,13 +362,21 @@ function renderAllPanels() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     // Apply panel zoom uniformly; origin at top-left.
+    // Resolve sheet selection for this panel to pass into drawPanel.
+    // Use existing selection set if present; otherwise default to all known sheets.
+    let sheetsSel = overlayState.panelSheets[i];
+    if (!sheetsSel || sheetsSel.size === 0) {
+      const sheets = getSheetsSafe();
+      sheetsSel = new Set(sheets.map(s => s.name));
+    }
+
     if (panelZoom && panelZoom !== 1) {
       ctx.save();
       ctx.scale(panelZoom, panelZoom);
-      drawPanel(ctx, snap, null);
+      drawPanel(ctx, snap, sheetsSel);
       ctx.restore();
     } else {
-      drawPanel(ctx, snap, null);
+      drawPanel(ctx, snap, sheetsSel);
     }
   }
 }

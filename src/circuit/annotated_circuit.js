@@ -1051,41 +1051,81 @@ export class AnnotatedCircuit {
 
   /** @param {!function(!number, !number): ![!number, !number]} coordTransform @returns {!AnnotatedCircuit} */
   afterCoordTransform(coordTransform) {
-    // Copied from Circuit.afterCoordTransform, modified to construct AnnotatedCircuit
-    let newCoords = new Float64Array(this.qubitCoordData.length);
+    // Clone full circuit with transformed coordinates and preserved metadata.
+    const newCoords = new Float64Array(this.qubitCoordData.length);
     for (let k = 0; k < this.qubitCoordData.length; k += 2) {
-      let x = this.qubitCoordData[k];
-      let y = this.qubitCoordData[k + 1];
-      let [x2, y2] = coordTransform(x, y);
+      const x = this.qubitCoordData[k];
+      const y = this.qubitCoordData[k + 1];
+      const [x2, y2] = coordTransform(x, y);
       newCoords[k] = x2;
       newCoords[k + 1] = y2;
     }
-    let newLayers = this.layers.map(e => e.copy());
-    // MODIFICATION: return AnnotatedCircuit
+    const newLayers = this.layers.map(e => e.copy());
+
     const out = new AnnotatedCircuit();
     out.layers = newLayers;
     out.qubitCoordData = newCoords;
     out.sheets = new Map(this.sheets);
+    // Clone and transform qubit_coords
+    out.qubit_coords = new Map();
+    for (const [id, [sx, sy]] of this.qubit_coords.entries()) {
+      const [nx, ny] = coordTransform(sx, sy);
+      out.qubit_coords.set(id, [nx, ny]);
+    }
+    // Clone qubits with stim coords transformed; update panel coords if they matched stim
+    out.qubits = new Map();
+    for (const [id, q] of this.qubits.entries()) {
+      const nq = new Qubit(q.id, q.stimX, q.stimY);
+      const [tsx, tsy] = coordTransform(q.stimX, q.stimY);
+      nq.stimX = tsx;
+      nq.stimY = tsy;
+      const matchedPanelToStim = (q.panelX === q.stimX) && (q.panelY === q.stimY);
+      if (matchedPanelToStim) {
+        nq.panelX = tsx;
+        nq.panelY = tsy;
+      } else {
+        nq.panelX = q.panelX;
+        nq.panelY = q.panelY;
+      }
+      nq.sheet = q.sheet;
+      nq.text = q.text;
+      nq.mouseover = q.mouseover;
+      nq.colour = q.colour;
+      nq.defective = q.defective;
+      out.qubits.set(id, nq);
+    }
     return out;
   }
 
   /** @param {!Iterable<![!number, !number]>} coords */
   withCoordsIncluded(coords) {
-    // Copied from Circuit.withCoordsIncluded, modified to construct AnnotatedCircuit
-    let coordMap = this.coordToQubitMap();
-    let extraCoordData = [];
-    for (let [x, y] of coords) {
-      let key = `${x},${y}`;
+    const coordMap = this.coordToQubitMap();
+    const extraCoordData = [];
+    for (const [x, y] of coords) {
+      const key = `${x},${y}`;
       if (!coordMap.has(key)) {
         coordMap.set(key, coordMap.size);
         extraCoordData.push(x, y);
       }
     }
-    // MODIFICATION: return AnnotatedCircuit
     const out = new AnnotatedCircuit();
     out.layers = this.layers.map(e => e.copy());
     out.qubitCoordData = new Float64Array([...this.qubitCoordData, ...extraCoordData]);
     out.sheets = new Map(this.sheets);
+    // Copy qubit_coords and qubits as-is
+    out.qubit_coords = new Map(this.qubit_coords);
+    out.qubits = new Map();
+    for (const [id, q] of this.qubits.entries()) {
+      const nq = new Qubit(q.id, q.stimX, q.stimY);
+      nq.panelX = q.panelX;
+      nq.panelY = q.panelY;
+      nq.sheet = q.sheet;
+      nq.text = q.text;
+      nq.mouseover = q.mouseover;
+      nq.colour = q.colour;
+      nq.defective = q.defective;
+      out.qubits.set(id, nq);
+    }
     return out;
   }
 
