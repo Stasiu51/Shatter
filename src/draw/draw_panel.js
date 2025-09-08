@@ -61,10 +61,9 @@ function drawCrossMarkers(ctx, snap, qubitCoordsFunc, propagatedMarkers, mi) {
  * @param {!Map<!int, !PropagatedPauliFrames>} propagatedMarkerLayers
  */
 function drawMarkers(ctx, snap, qubitCoordsFunc, propagatedMarkerLayers, isQubitVisible) {
-    let obsCount = new Map();
-    let detCount = new Map();
+    let hitCount = new Map();
     for (let [mi, p] of propagatedMarkerLayers.entries()) {
-        drawSingleMarker(ctx, snap, qubitCoordsFunc, p, mi, obsCount, detCount, isQubitVisible);
+        drawSingleMarker(ctx, snap, qubitCoordsFunc, p, mi, hitCount, isQubitVisible);
     }
 }
 
