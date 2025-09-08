@@ -214,9 +214,11 @@ function drawPanel(ctx, snap, sheetsToDraw) {
 
     let c2dCoordTransform = (x, y) => [x*pitch - OFFSET_X, y*pitch - OFFSET_Y];
     let qubitDrawCoords = q => {
-        let x = circuit.qubitCoordData[2 * q];
-        let y = circuit.qubitCoordData[2 * q + 1];
-        return c2dCoordTransform(x, y);
+        const qq = circuit.qubits?.get?.(q);
+        if (!qq || typeof qq.panelX !== 'number' || typeof qq.panelY !== 'number') {
+            throw new Error(`Missing panel coords for qubit ${q}`);
+        }
+        return c2dCoordTransform(qq.panelX, qq.panelY);
     };
     let propagatedMarkerLayers = /** @type {!Map<!int, !PropagatedPauliFrames>} */ new Map();
     for (let mi = 0; mi < numPropagatedLayers; mi++) {
@@ -299,20 +301,7 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             ctx.strokeStyle = 'black';
             for (const q of circuit.allQubits()) {
                 if (!isQubitVisible(q)) continue;
-                let px, py;
-                try {
-                    const qq = circuit.qubits?.get?.(q);
-                    if (qq && typeof qq.panelX === 'number' && typeof qq.panelY === 'number') {
-                        [px, py] = [qq.panelX, qq.panelY];
-                    } else {
-                        px = circuit.qubitCoordData[2 * q];
-                        py = circuit.qubitCoordData[2 * q + 1];
-                    }
-                } catch (_) {
-                    px = circuit.qubitCoordData[2 * q];
-                    py = circuit.qubitCoordData[2 * q + 1];
-                }
-                const [x, y] = c2dCoordTransform(px, py);
+                const [x, y] = qubitDrawCoords(q);
                 ctx.fillStyle = 'white';
                 ctx.fillRect(x - rad, y - rad, 2 * rad, 2 * rad);
                 ctx.strokeRect(x - rad, y - rad, 2 * rad, 2 * rad);
