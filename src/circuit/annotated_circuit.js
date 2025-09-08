@@ -201,13 +201,11 @@ export class AnnotatedCircuit {
     const diagnostics = /** @type {Diagnostic[]} */([]);
     let currentLayer = circuit.layers[0];
 
-    /** Pending anchored annotation that must attach to the next crumble op. */
-    /** @type {null | { line:number, anchorKind:'OP'|'GATE', build:(opIndex:number, layerIndex:number) => any }} */
-    let pendingAnchor = null;
+    /** Simple function callback anchor to run after an appropriate crumble command is processed. */
+    /** @type {null | ((cmdName:string, args:any[], targets:any[])=>void)} */
+    let pendingCallback = null;
 
-    /** Pending polygon header waiting for the immediate polygon body line. */
-    /** @type {null | { line:number, header:any }} */
-    let pendingPolyHdr = null;
+    // Pending polygon header migrated to callback model (see pendingCallback below).
 
     // Enforce SHEET-at-top rule.
     let seenNonSheetContent = false;
@@ -228,13 +226,7 @@ export class AnnotatedCircuit {
         throw PARSE_ERROR;               // ← abort parsing immediately
       }
     }
-    const barrier = (lineNo) => {
-      if (pendingPolyHdr) {
-        diag(pendingPolyHdr.line, 'POLY001', 'error', '##! POLY must be immediately followed by "#! pragma POLYGON".');
-        pendingPolyHdr = null;
-      }
-      pendingAnchor = null;
-    };
+    const barrier = (lineNo) => {};
     /**
      * @param {string} name 
      */
@@ -255,9 +247,7 @@ export class AnnotatedCircuit {
       return s.startsWith('#');                   // actual comments only
     }
 
-    /** @param {string} line 
-     * @return {callback} attachment
-    */
+    /** @param {string} line */
     function parseAnnotationDirective(line, lineNo) {
       // Strip leading ##!
       const body = line.replace(/^\s*##!\s*/, '').trim();
@@ -315,8 +305,8 @@ export class AnnotatedCircuit {
           applyProps(id);
           return;
         } else {
-          // Defer to the very next crumble command; the callback validates kind.
-          pendingAnchor = (cmdName, args, targets) => {
+          // Defer; the callback validates kind and applies after QUBIT_COORDS is processed.
+          pendingCallback = (cmdName, args, targets) => {
             if (String(cmdName || '').toUpperCase() !== 'QUBIT_COORDS') {
               diag(lineNo, 'QU001', 'error', 'QUBIT without Q= must attach to next QUBIT_COORDS.');
               return;
@@ -354,10 +344,18 @@ export class AnnotatedCircuit {
         const target = (getStr(KVs, 'TARGET', 'GATE') || 'GATE').toUpperCase();
         const color = getStr(KVs, 'COLOR', undefined);
         if (target === 'GATE') {
-          pendingAnchor = {
-            line: lineNo,
-            anchorKind: 'GATE',
-            build: (opIndex, layerIndex) => ({ kind: 'GateHighlight', line: lineNo, opIndex, color })
+          // Defer to the next gate-like crumble command, then annotate it.
+          pendingCallback = (cmdName, args, targets) => {
+            const gname = String(cmdName || '').toUpperCase();
+            const gate = GATE_MAP.get(gname);
+            if (!gate) {
+              diag(lineNo, 'HL001', 'error', 'HIGHLIGHT GATE had no gate to attach to.');
+              return;
+            }
+            const ids = Array.isArray(targets)
+              ? targets.map(t => parseInt(t)).filter(n => Number.isFinite(n))
+              : [];
+            currentLayer.annotations.push({ kind: 'GateHighlight', line: lineNo, color, gate: gname, targets: ids });
           };
           return;
         }
@@ -366,12 +364,31 @@ export class AnnotatedCircuit {
         return;
       }
 
-      if (kind === 'POLY' || kind === 'POLYGON' || kind === 'POLYHDR') {
-        // Header; must be followed by a body line.
-        const sheet = getSheet(getStr(KVs, 'SHEET', undefined), lineNo);
-        const stroke = getStr(KVs, 'STROKE', undefined);
+      if (kind === 'POLY') {
+        // Store header info; body will arrive via next POLYGON(...) crumble.
+        const sheet = getStr(KVs, 'SHEET', 'DEFAULT');
+        const stroke = getStr(KVs, 'STROKE', 'none');
         const fill = getStr(KVs, 'FILL', undefined);
-        pendingPolyHdr = { line: lineNo, header: { sheet, stroke, fill } };
+        const hdrLine = lineNo;
+        pendingCallback = (cmdName, args, targets) => {
+          if (String(cmdName || '').toUpperCase() !== 'POLYGON') {
+            diag(hdrLine, 'POLY001', 'error', '##! POLY must be immediately followed by "#! pragma POLYGON".');
+            return;
+          }
+          const color = Array.isArray(args) ? args.map(Number) : [];
+          if (color.length !== 4 || color.some(v => !Number.isFinite(v))) {
+            diag(hdrLine, 'POLY002', 'error', 'Invalid POLYGON body.');
+            return;
+          }
+          const ids = (Array.isArray(targets) ? targets : [])
+            .filter(t => t !== '*')
+            .map(t => parseInt(t))
+            .filter(n => Number.isFinite(n));
+          if (ids.length === 0) {
+            return;
+          }
+          currentLayer.annotations.push({ kind: 'Polygon', line: hdrLine, sheet, stroke, fill: fill ?? `(${color.join(',')})`, targets: ids });
+        };
         return;
       }
 
@@ -416,14 +433,7 @@ export class AnnotatedCircuit {
         args = [];
         targets = b.flatMap(processTargetsTextIntoTargets);
       }
-      // Before processing this instruction, if there's a simple function anchor pending, fire it now.
-      if (typeof pendingAnchor === 'function') {
-        try {
-          pendingAnchor(name, args, targets);
-        } finally {
-          pendingAnchor = null;
-        }
-      }
+      // Do not call anchors before processing; simple callback will fire at appropriate points instead.
 
       let reverse_pairs = false;
       if (name === '') {
@@ -460,6 +470,9 @@ export class AnnotatedCircuit {
           }
           measurement_locs.push({ layer: layers.length - 1, targets: op.id_targets });
         }
+        if (pendingCallback) {
+          try { pendingCallback('MPP', args, targets); } finally { pendingCallback = null; }
+        }
         return;
       } else if (name === 'DETECTOR' || name === 'OBSERVABLE_INCLUDE') {
         let isDet = name === 'DETECTOR';
@@ -483,6 +496,9 @@ export class AnnotatedCircuit {
             ));
         }
         num_detectors += isDet;
+        if (pendingCallback) {
+          try { pendingCallback(name, args, targets); } finally { pendingCallback = null; }
+        }
         return;
       } else if (name === 'SPP' || name === 'SPP_DAG') {
         let dag = name === 'SPP_DAG';
@@ -494,6 +510,32 @@ export class AnnotatedCircuit {
             circuit.layers.push(new AnnotatedLayer());
             currentLayer = circuit.layers[circuit.layers.length - 1];
             currentLayer.put(simplifiedSPP(tag, new Float32Array(args), dag, combo), false);
+          }
+        }
+        if (pendingCallback) {
+          try { pendingCallback(name, args, targets); } finally { pendingCallback = null; }
+        }
+        return;
+      } else if (name.startsWith('POLYGON')) {
+        // Handle polygon bodies without ever adding a crumble marker.
+        // Extract color from args and targets from the remainder.
+        const color = args.map(Number);
+        const ids = (Array.isArray(targets) ? targets : [])
+          .filter(t => t !== '*')
+          .map(t => parseInt(t))
+          .filter(n => Number.isFinite(n));
+        if (pendingCallback) {
+          try {
+            pendingCallback('POLYGON', args, targets);
+          } finally {
+            pendingCallback = null;
+          }
+        } else {
+          // Synthesize default header and record it for round-trip.
+          const h = { sheet: 'DEFAULT', stroke: 'none', fill: `(${color.join(',')})` };
+          insertList.push({ lineNo: lineNo, line: `##! POLY sheet=${h.sheet} stroke=${h.stroke} fill=${h.fill}` });
+          if (ids.length > 0) {
+            currentLayer.annotations.push({ kind: 'Polygon', line: lineNo, sheet: h.sheet, stroke: h.stroke, fill: h.fill, targets: ids });
           }
         }
         return;
@@ -508,7 +550,15 @@ export class AnnotatedCircuit {
           diag(lineNo, 'COORD002', 'error', `Attempted to reuse coordinates ${[x, y]}`)
         }
         circuit.qubit_coords.set(q, [x, y]);
-        // Coordinates are a barrier to anchored directives.
+        // After processing coords, if there's a pending simple callback, run it now.
+        if (pendingCallback) {
+          try {
+            pendingCallback('QUBIT_COORDS', args, targets);
+          } finally {
+            pendingCallback = null;
+          }
+        }
+        // Coordinates are a barrier to legacy gate anchors.
         pendingAnchor = null;
         return;
       }
@@ -561,7 +611,7 @@ export class AnnotatedCircuit {
 
       let gate = GATE_MAP.get(name);
       if (gate === undefined) {
-        diag(lineNo + length, 'GATE001', 'warning', `Ignoring unrecognized instruction: ${line}`);
+        diag(lineNo + insertList.length, 'GATE001', 'warning', `Ignoring unrecognized instruction: ${line}`);
         return;
       }
       let a = new Float32Array(args);
@@ -590,6 +640,9 @@ export class AnnotatedCircuit {
             measurement_locs.push({ layer: circuit.layers.length - 1, targets: op.id_targets });
           }
         }
+      }
+      if (pendingCallback) {
+        try { pendingCallback(name, args, targets); } finally { pendingCallback = null; }
       }
     }
     /** Parse a crumble instruction line into an Operation or a side-effect (coords), or TICK. */
@@ -878,7 +931,7 @@ export class AnnotatedCircuit {
     // }
     insertList.forEach(({ lineNo, line }, index) => {
       lines.splice(lineNo + index, 0, line);
-    })
+    });
 
     // Put the pragmas back. Most other replacements remain.
     text = lines.join("\n").replaceAll(';', '\n').
