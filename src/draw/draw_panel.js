@@ -177,6 +177,75 @@ function setDefensiveDrawEnabled(val) {
     _defensive_draw_enabled = val;
 }
 
+// --- Annotations (Polygons) -------------------------------------------------
+/**
+ * @param {!CanvasRenderingContext2D} ctx
+ * @param {!StateSnapshot} snap
+ * @param {!function(q: !int): ![!number, !number]} qubitCoordsFunc
+ * @param {!Set<string>} visibleSheetNames
+ */
+function drawAnnotations(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
+    // Find latest layer up to curLayer that has Polygon annotations.
+    const layers = snap.circuit.layers;
+    let last = -1;
+    for (let r = 0; r <= snap.curLayer && r < layers.length; r++) {
+        const anns = layers[r].annotations || [];
+        if (anns.some(a => a && a.kind === 'Polygon')) last = r;
+    }
+    if (last < 0) return;
+    const anns = (layers[last].annotations || []).filter(a => a && a.kind === 'Polygon');
+    if (anns.length === 0) return;
+
+    // Sort larger polygons first (by number of vertices) for nicer layering.
+    anns.sort((a, b) => (b.targets?.length || 0) - (a.targets?.length || 0));
+
+    for (const a of anns) {
+        const sheetName = a.sheet || 'DEFAULT';
+        if (!visibleSheetNames.has(sheetName)) continue;
+        const ids = Array.isArray(a.targets) ? a.targets : [];
+        if (ids.length === 0) continue;
+        const coords = [];
+        try {
+            for (const q of ids) coords.push(qubitCoordsFunc(q));
+        } catch (_) {
+            // Missing coords; skip this polygon.
+            continue;
+        }
+        // Determine fill/stroke styles.
+        const parseFill = (val) => {
+            if (!val || val === 'none') return null;
+            // Accept formats like '(r,g,b,a)' or 'r,g,b,a' or CSS names.
+            const s = String(val).trim();
+            if (/^\(?\s*\d+\s*,/.test(s)) {
+                const nums = s.replace(/[()]/g, '').split(',').map(Number);
+                if (nums.length >= 4 && nums.every(n => Number.isFinite(n))) {
+                    const [r, g, b, a] = nums;
+                    return `rgba(${r*255 || r}, ${g*255 || g}, ${b*255 || b}, ${a})`;
+                }
+            }
+            return s; // assume CSS color string
+        };
+        const fillStyle = parseFill(a.fill);
+        const strokeStyle = (a.stroke && a.stroke !== 'none') ? String(a.stroke) : null;
+
+        beginPathPolygon(ctx, coords);
+        if (fillStyle) {
+            ctx.save();
+            ctx.globalAlpha *= 0.25;
+            ctx.fillStyle = fillStyle;
+            ctx.fill();
+            ctx.restore();
+        }
+        if (strokeStyle) {
+            ctx.save();
+            ctx.strokeStyle = strokeStyle;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+}
+
 /**
  * @param {!CanvasRenderingContext2D} ctx
  * @param {!function} body
@@ -282,23 +351,8 @@ function drawPanel(ctx, snap, sheetsToDraw) {
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         let [focusX, focusY] = xyToPos(snap.curMouseX, snap.curMouseY);
 
-        // Draw the background polygons.
-        let lastPolygonLayer = snap.curLayer;
-        for (let r = 0; r <= snap.curLayer; r++) {
-            for (let op of circuit.layers[r].markers) {
-                if (op.gate.name === 'POLYGON') {
-                    lastPolygonLayer = r;
-                    break;
-                }
-            }
-        }
-        let polygonMarkers = [...circuit.layers[lastPolygonLayer].markers];
-        polygonMarkers.sort((a, b) => b.id_targets.length - a.id_targets.length);
-        for (let op of polygonMarkers) {
-            if (op.gate.name === 'POLYGON') {
-                op.id_draw(qubitDrawCoords, ctx);
-            }
-        }
+        // Draw annotation polygons under qubits.
+        drawAnnotations(ctx, snap, qubitDrawCoords, visibleSheetNames);
 
         // Draw only actual qubits on visible sheets, using panel coordinates when available.
         defensiveDraw(ctx, () => {
