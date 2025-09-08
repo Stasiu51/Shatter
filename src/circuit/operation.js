@@ -42,6 +42,8 @@ class Operation {
         this.args = args;
         this.id_targets = targets;
         this.line = line
+        // Sheets this operation belongs to (null means infer from targets).
+        this.sheets = null;
     }
 
     /**

@@ -320,8 +320,21 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             drawCrossMarkers(ctx, snap, qubitDrawCoords, p, mi);
         }
 
+        const isOpVisible = (op) => {
+            // Future: if op.sheets is a Set or name, check it here.
+            if (op.sheets && op.sheets.size >= 0) {
+                // Placeholder for future semantics; for now treat as visible.
+                return true;
+            }
+            // Default: visible if any target qubit is visible on this panel.
+            for (let t of op.id_targets) {
+                if (isQubitVisible(t)) return true;
+            }
+            return false;
+        };
+
         for (let op of circuit.layers[snap.curLayer].iter_gates_and_markers()) {
-            if (op.gate.name !== 'POLYGON') {
+            if (op.gate.name !== 'POLYGON' && isOpVisible(op)) {
                 op.id_draw(qubitDrawCoords, ctx);
             }
         }
