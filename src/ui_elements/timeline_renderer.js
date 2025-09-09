@@ -95,14 +95,10 @@ export function renderTimeline({canvas, circuit, currentLayer, timelineZoom, tim
   // Inject synthetic POLYGON markers from Polygon annotations so timeline code renders them.
   try {
     const layers = snap.circuit.layers;
-    // Find the latest layer up to currentLayer that has polygons.
-    let lastPoly = -1;
-    for (let r = 0; r <= snap.curLayer && r < layers.length; r++) {
-      const anns = layers[r].annotations || [];
-      if (anns.some(a => a && a.kind === 'Polygon')) lastPoly = r;
-    }
-    if (lastPoly >= 0) {
-      const anns = (layers[lastPoly].annotations || []).filter(a => a && a.kind === 'Polygon');
+    // For each layer, inject that layer's polygons as POLYGON markers so they show at their time column.
+    for (let r = 0; r < layers.length; r++) {
+      const anns = (layers[r].annotations || []).filter(a => a && a.kind === 'Polygon');
+      if (anns.length === 0) continue;
       for (const a of anns) {
         const ids = Array.isArray(a.targets) ? a.targets : [];
         if (ids.length === 0) continue;
@@ -113,13 +109,11 @@ export function renderTimeline({canvas, circuit, currentLayer, timelineZoom, tim
           args = s.split(',').map(Number);
           if (args.length !== 4 || args.some(v => !Number.isFinite(v))) args = [];
         } catch { args = []; }
-        // Only push if we have valid color.
-        if (args.length === 4) {
-          const gate = GATE_MAP.get('POLYGON');
-          if (!gate) continue;
-          const op = new Operation(gate, '', new Float32Array(args), new Uint32Array(ids), -1);
-          layers[lastPoly].markers.push(op);
-        }
+        if (args.length !== 4) continue;
+        const gate = GATE_MAP.get('POLYGON');
+        if (!gate) continue;
+        const op = new Operation(gate, '', new Float32Array(args), new Uint32Array(ids), -1);
+        layers[r].markers.push(op);
       }
     }
   } catch (_) {}
