@@ -231,7 +231,6 @@ function drawAnnotations(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
         beginPathPolygon(ctx, coords);
         if (fillStyle) {
             ctx.save();
-            ctx.globalAlpha *= 0.25;
             ctx.fillStyle = fillStyle;
             ctx.fill();
             ctx.restore();
@@ -262,7 +261,7 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
         const anns = layers[r].annotations || [];
         for (const a of anns) {
             if (!a || a.kind !== 'ConnSet') continue;
-            const sheetName = a.sheet || 'DEFAULT';
+            const sheetName = a.sheet.name || 'DEFAULT';
             if (!visibleSheetNames.has(sheetName)) continue;
             const edges = Array.isArray(a.edges) ? a.edges : [];
             for (const e of edges) {
@@ -281,7 +280,7 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
     ctx.save();
     try {
         ctx.lineCap = 'round';
-        ctx.lineWidth = 3; // slightly thicker than multi-qubit ops
+        ctx.lineWidth = 4; // slightly thicker and dimmer than multi-qubit ops
         for (const { q1, q2, colour } of edgeMap.values()) {
             let p1, p2;
             try {
@@ -291,7 +290,7 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
                 // If coordinates are missing for either endpoint, skip.
                 continue;
             }
-            ctx.strokeStyle = colour || '#9aa0a6';
+            ctx.strokeStyle = colour || '#b0b5ba';
             ctx.beginPath();
             ctx.moveTo(p1[0], p1[1]);
             ctx.lineTo(p2[0], p2[1]);

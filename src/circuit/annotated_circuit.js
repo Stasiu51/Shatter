@@ -385,7 +385,6 @@ export class AnnotatedCircuit {
         // Store header info; body will arrive via next POLYGON(...) crumble.
         const sheet = getStr(KVs, 'SHEET', 'DEFAULT');
         const stroke = getStr(KVs, 'STROKE', 'none');
-        const fill = getStr(KVs, 'FILL', undefined);
         const hdrLine = lineNo;
         pendingCallback = (cmdName, args, targets) => {
           if (String(cmdName || '').toUpperCase() !== 'POLYGON') {
@@ -404,7 +403,7 @@ export class AnnotatedCircuit {
           if (ids.length === 0) {
             return;
           }
-          currentLayer.annotations.push({ kind: 'Polygon', line: hdrLine, sheet, stroke, fill: fill ?? `(${color.join(',')})`, targets: ids });
+          currentLayer.annotations.push({ kind: 'Polygon', line: hdrLine, sheet, stroke, fill: `(${color.join(',')})`, targets: ids });
         };
         return;
       }
@@ -549,12 +548,12 @@ export class AnnotatedCircuit {
           }
         } else {
           // Synthesize default header and record it, accounting for possible repeats.
-          const h = { sheet: 'DEFAULT', stroke: 'none', fill: `(${color.join(',')})` };
+          const h = { sheet: 'DEFAULT', stroke: 'none' };
           if (!insertList.some(item => item.lineNo === lineNo)) {
-            insertList.push({ lineNo: lineNo, line: `##! POLY sheet=${h.sheet} stroke=${h.stroke} fill=${h.fill}` });
+            insertList.push({ lineNo: lineNo, line: `##! POLY sheet=${h.sheet} stroke=${h.stroke}` });
           }
           if (ids.length > 0) {
-            currentLayer.annotations.push({ kind: 'Polygon', line: lineNo, sheet: h.sheet, stroke: h.stroke, fill: h.fill, targets: ids });
+            currentLayer.annotations.push({ kind: 'Polygon', line: lineNo, sheet: h.sheet, stroke: h.stroke, fill: `(${color.join(',')})`, targets: ids });
           }
         }
         return;
@@ -690,7 +689,16 @@ export class AnnotatedCircuit {
     }
 
     function processLine(raw, lineNo) {
-      const s = raw.trim();
+      let s = raw.trim();
+      // Remove anything after a # as a comment, unless it's a ##! directive
+      // Only match a single # not followed by another #
+      if (!/^##!/.test(s)) {
+        const idx = s.search(/#(?!#)/);
+        if (idx !== -1) {
+          s = s.slice(0, idx).trim();
+        }
+      }
+
       if (isBlank(s) || isComment(s)) { barrier(lineNo); return; }
 
       // Annotation directives

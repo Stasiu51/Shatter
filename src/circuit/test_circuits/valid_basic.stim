@@ -1,6 +1,12 @@
 # Basic operations and annotations in one place
 
 ##! SHEET NAME="BACKGROUND"       # free-form: immediate annotation, no anchor
+##! CONN SET SHEET="DEFAULT" EDGES=(0-1,1-2)
+##! POLY SHEET="BACKGROUND" STROKE="none" FILL=(0,1,0,0.5)  # header
+#!pragma POLYGON(1,0,0,1) 0 1        # body: must be immediate next line
+##! POLY SHEET="BACKGROUND" STROKE="none" FILL=(0,1,0,0.5)  # header
+#!pragma POLYGON(1,0,0,1) 1 2        # body: must be immediate next line
+
 
 QUBIT_COORDS(0.0, 0.0) 0
 H 0
@@ -10,12 +16,10 @@ TICK
 ##! HIGHLIGHT GATE COLOR="yellow"  # anchored: must attach to NEXT crumble instruction (a gate here)
 H 2                                 # <-- highlight attaches to THIS op (opIndex = layer0 length before push)
 
-##! CONN SET SHEET="DEFULT" EDGES=(0-1, 1-2)
 
-##! POLY SHEET="BACKGROUND" STROKE="black" FILL="none"  # header
-#!pragma POLYGON(1,0,0,1) 1 2 3          # body: must be immediate next line
 
 # Body-only polygon - synthesize default POLY header
+##! POLY sheet=DEFAULT stroke=none fill=(0,1,0,0.5)
 #!pragma POLYGON(0,1,0,0.5) 0 2
 TICK
 #!pragma MARKX(0) 3               # crumble instruction → Operation
