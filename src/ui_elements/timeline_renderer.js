@@ -4,6 +4,7 @@ import {pitch, OFFSET_X, OFFSET_Y} from '../draw/config.js';
 import {drawScrubber} from '../draw/scrubber.js';
 import {PropagatedPauliFrames} from '../circuit/propagated_pauli_frames.js';
 import {Operation} from '../circuit/operation.js';
+import {GATE_MAP} from '../gates/gateset.js';
 
 export const TIMELINE_PITCH = 32; // keep in sync with Crumble
 
@@ -114,8 +115,9 @@ export function renderTimeline({canvas, circuit, currentLayer, timelineZoom, tim
         } catch { args = []; }
         // Only push if we have valid color.
         if (args.length === 4) {
-          const gateShim = { name: 'POLYGON', num_qubits: undefined, is_marker: true, drawer: () => {} };
-          const op = new Operation(gateShim, '', new Float32Array(args), new Uint32Array(ids), -1);
+          const gate = GATE_MAP.get('POLYGON');
+          if (!gate) continue;
+          const op = new Operation(gate, '', new Float32Array(args), new Uint32Array(ids), -1);
           layers[lastPoly].markers.push(op);
         }
       }
