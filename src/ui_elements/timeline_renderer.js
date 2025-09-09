@@ -3,6 +3,7 @@ import {drawTimelineOnly} from '../draw/timeline_only.js';
 import {pitch, OFFSET_X, OFFSET_Y} from '../draw/config.js';
 import {drawScrubber} from '../draw/scrubber.js';
 import {PropagatedPauliFrames} from '../circuit/propagated_pauli_frames.js';
+import {Operation} from '../circuit/operation.js';
 
 export const TIMELINE_PITCH = 32; // keep in sync with Crumble
 
@@ -89,6 +90,37 @@ export function renderTimeline({canvas, circuit, currentLayer, timelineZoom, tim
     new Map(),
     0, 0, undefined, undefined, []
   );
+
+  // Inject synthetic POLYGON markers from Polygon annotations so timeline code renders them.
+  try {
+    const layers = snap.circuit.layers;
+    // Find the latest layer up to currentLayer that has polygons.
+    let lastPoly = -1;
+    for (let r = 0; r <= snap.curLayer && r < layers.length; r++) {
+      const anns = layers[r].annotations || [];
+      if (anns.some(a => a && a.kind === 'Polygon')) lastPoly = r;
+    }
+    if (lastPoly >= 0) {
+      const anns = (layers[lastPoly].annotations || []).filter(a => a && a.kind === 'Polygon');
+      for (const a of anns) {
+        const ids = Array.isArray(a.targets) ? a.targets : [];
+        if (ids.length === 0) continue;
+        // Fill is '(r,g,b,a)' — convert to numeric args array Crumble expects.
+        let args = [];
+        try {
+          const s = String(a.fill || '').replace(/[()]/g, '');
+          args = s.split(',').map(Number);
+          if (args.length !== 4 || args.some(v => !Number.isFinite(v))) args = [];
+        } catch { args = []; }
+        // Only push if we have valid color.
+        if (args.length === 4) {
+          const gateShim = { name: 'POLYGON', num_qubits: undefined, is_marker: true, drawer: () => {} };
+          const op = new Operation(gateShim, '', new Float32Array(args), new Uint32Array(ids), -1);
+          layers[lastPoly].markers.push(op);
+        }
+      }
+    }
+  } catch (_) {}
   const propagated = computePropagated(circuit);
   const c2d = (x, y) => [x * pitch - OFFSET_X, y * pitch - OFFSET_Y];
   const qubitDrawCoords = q => {

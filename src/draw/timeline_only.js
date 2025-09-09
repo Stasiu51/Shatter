@@ -190,46 +190,7 @@ export function drawTimelineOnly(ctx, snap, propagatedMarkerLayers, timesliceQub
     const layer = snap.circuit.layers[time];
     if (!layer) continue;
 
-    // Draw polygons from annotations: use the latest layer up to 'time' that has Polygons.
-    let lastPoly = -1;
-    for (let r = 0; r <= time && r < snap.circuit.layers.length; r++) {
-      const anns = snap.circuit.layers[r].annotations || [];
-      if (anns.some(a => a && a.kind === 'Polygon')) lastPoly = r;
-    }
-    if (lastPoly >= 0) {
-      const anns = (snap.circuit.layers[lastPoly].annotations || []).filter(a => a && a.kind === 'Polygon');
-      // Largest first for nicer layering.
-      anns.sort((a, b) => (b.targets?.length || 0) - (a.targets?.length || 0));
-      for (const a of anns) {
-        const ids = Array.isArray(a.targets) ? a.targets : [];
-        if (ids.length === 0) continue;
-        const coords = [];
-        for (const q of ids) {
-          const [x, y] = qubitsCoordsFuncForLayer(q);
-          if (x === undefined || y === undefined) { coords.length = 0; break; }
-          coords.push([x, y]);
-        }
-        if (coords.length === 0) continue;
-        const fill = a.fill;
-        const stroke = (a.stroke && a.stroke !== 'none') ? a.stroke : null;
-        beginPathPolygon(ctx, coords);
-        if (fill) {
-          ctx.save();
-          ctx.globalAlpha *= 0.25;
-          // Fill is already rgba(...) formatted by parser; use as-is.
-          ctx.fillStyle = fill.startsWith('(') ? `rgba(${fill.slice(1, -1)})` : fill;
-          ctx.fill();
-          ctx.restore();
-        }
-        if (stroke) {
-          ctx.save();
-          ctx.strokeStyle = stroke;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          ctx.restore();
-        }
-      }
-    }
+    // Polygons are now injected into markers by timeline_renderer; no separate annotation draw here.
     for (let op of layer.iter_gates_and_markers()) {
       op.id_draw(qubitsCoordsFuncForLayer, ctx);
     }
