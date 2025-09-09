@@ -246,6 +246,62 @@ function drawAnnotations(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
     }
 }
 
+// --- Connections (under qubits, above polygons) ----------------------------
+/**
+ * @param {!CanvasRenderingContext2D} ctx
+ * @param {!StateSnapshot} snap
+ * @param {!function(q: !int): ![!number, !number]} qubitCoordsFunc
+ * @param {!Set<string>} visibleSheetNames
+ */
+function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
+    const layers = snap.circuit.layers;
+    // Accumulate unique edges from all ConnSet annotations up to current layer.
+    // Key edges by normalized pair "min-max" and keep style (colour) by last occurrence.
+    const edgeMap = new Map(); // key => {q1,q2, colour}
+    for (let r = 0; r <= snap.curLayer && r < layers.length; r++) {
+        const anns = layers[r].annotations || [];
+        for (const a of anns) {
+            if (!a || a.kind !== 'ConnSet') continue;
+            const sheetName = a.sheet || 'DEFAULT';
+            if (!visibleSheetNames.has(sheetName)) continue;
+            const edges = Array.isArray(a.edges) ? a.edges : [];
+            for (const e of edges) {
+                if (!Array.isArray(e) || e.length !== 2) continue;
+                let [q1, q2] = e.map(v => parseInt(v));
+                if (!(Number.isFinite(q1) && Number.isFinite(q2))) continue;
+                const a1 = Math.min(q1, q2);
+                const a2 = Math.max(q1, q2);
+                const key = `${a1}-${a2}`;
+                edgeMap.set(key, { q1: a1, q2: a2, colour: a.COLOUR || a.colour || '#9aa0a6' });
+            }
+        }
+    }
+    if (edgeMap.size === 0) return;
+
+    ctx.save();
+    try {
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 3; // slightly thicker than multi-qubit ops
+        for (const { q1, q2, colour } of edgeMap.values()) {
+            let p1, p2;
+            try {
+                p1 = qubitCoordsFunc(q1);
+                p2 = qubitCoordsFunc(q2);
+            } catch (_) {
+                // If coordinates are missing for either endpoint, skip.
+                continue;
+            }
+            ctx.strokeStyle = colour || '#9aa0a6';
+            ctx.beginPath();
+            ctx.moveTo(p1[0], p1[1]);
+            ctx.lineTo(p2[0], p2[1]);
+            ctx.stroke();
+        }
+    } finally {
+        ctx.restore();
+    }
+}
+
 /**
  * @param {!CanvasRenderingContext2D} ctx
  * @param {!function} body
@@ -323,14 +379,13 @@ function drawPanel(ctx, snap, sheetsToDraw) {
     // Build visibility context for sheet-filtered drawing (qubits first phase).
     // Normalize sheetsToDraw (may be null) into a Set of sheet names to render.
     const visibleSheetNames = new Set();
-    if (sheetsToDraw && typeof sheetsToDraw.size === 'number' && sheetsToDraw.size > 0) {
-        for (const [sheet, on] of sheetsToDraw.entries()) {
-            if (on) {
-                const name = (sheet && sheet.name) ? sheet.name : String(sheet ?? 'DEFAULT');
-                visibleSheetNames.add(name);
-            }
+    if (sheetsToDraw && typeof sheetsToDraw.size === 'number') {
+        // Respect explicit selection; if empty, draw nothing.
+        for (const name of sheetsToDraw.values()) {
+            visibleSheetNames.add(name);
         }
     } else if (circuit && circuit.sheets && typeof circuit.sheets.size === 'number') {
+        // No selection provided; default to all sheets known in circuit.
         for (const name of circuit.sheets.keys()) visibleSheetNames.add(name);
         if (visibleSheetNames.size === 0) visibleSheetNames.add('DEFAULT');
     } else {
@@ -353,6 +408,9 @@ function drawPanel(ctx, snap, sheetsToDraw) {
 
         // Draw annotation polygons under qubits.
         drawAnnotations(ctx, snap, qubitDrawCoords, visibleSheetNames);
+
+        // Draw connections (under qubits, above polygons).
+        drawConnections(ctx, snap, qubitDrawCoords, visibleSheetNames);
 
         // Draw only actual qubits on visible sheets, using panel coordinates when available.
         defensiveDraw(ctx, () => {

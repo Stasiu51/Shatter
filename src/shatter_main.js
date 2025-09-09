@@ -365,7 +365,7 @@ function renderAllPanels() {
     // Resolve sheet selection for this panel to pass into drawPanel.
     // Use existing selection set if present; otherwise default to all known sheets.
     let sheetsSel = overlayState.panelSheets[i];
-    if (!sheetsSel || sheetsSel.size === 0) {
+    if (!sheetsSel) {
       const sheets = getSheetsSafe();
       sheetsSel = new Set(sheets.map(s => s.name));
     }
