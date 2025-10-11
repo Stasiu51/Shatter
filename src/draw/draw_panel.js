@@ -3,6 +3,7 @@ import {marker_placement} from "../gates/gateset_markers.js";
 import {PropagatedPauliFrames} from "../circuit/propagated_pauli_frames.js";
 import {stroke_connector_to} from "../gates/gate_draw_util.js"
 import {beginPathPolygon} from './draw_util.js';
+import { parseCssColor } from '../util/color.js';
 
 /**
  * @param {!number|undefined} x
@@ -211,22 +212,9 @@ function drawAnnotations(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
             // Missing coords; skip this polygon.
             continue;
         }
-        // Determine fill/stroke styles.
-        const parseFill = (val) => {
-            if (!val || val === 'none') return null;
-            // Accept formats like '(r,g,b,a)' or 'r,g,b,a' or CSS names.
-            const s = String(val).trim();
-            if (/^\(?\s*\d+\s*,/.test(s)) {
-                const nums = s.replace(/[()]/g, '').split(',').map(Number);
-                if (nums.length >= 4 && nums.every(n => Number.isFinite(n))) {
-                    const [r, g, b, a] = nums;
-                    return `rgba(${r*255 || r}, ${g*255 || g}, ${b*255 || b}, ${a})`;
-                }
-            }
-            return s; // assume CSS color string
-        };
-        const fillStyle = parseFill(a.fill);
-        const strokeStyle = (a.stroke && a.stroke !== 'none') ? String(a.stroke) : null;
+        // Determine fill/stroke styles, reusing shared color parsing.
+        const fillStyle = (a.fill && a.fill !== 'none') ? parseCssColor(a.fill) : null;
+        const strokeStyle = (a.stroke && a.stroke !== 'none') ? parseCssColor(a.stroke) : null;
 
         beginPathPolygon(ctx, coords);
         if (fillStyle) {
@@ -290,11 +278,95 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
                 // If coordinates are missing for either endpoint, skip.
                 continue;
             }
-            ctx.strokeStyle = colour || '#b0b5ba';
+            ctx.strokeStyle = parseCssColor(colour) || '#b0b5ba';
             ctx.beginPath();
             ctx.moveTo(p1[0], p1[1]);
             ctx.lineTo(p2[0], p2[1]);
             ctx.stroke();
+        }
+    } finally {
+        ctx.restore();
+    }
+}
+
+// --- Highlights (panel-only, latest layer) ----------------------------------
+function findLatestHighlightLayerIndex(circuit, upTo) {
+    const maxIdx = Math.min(upTo, circuit.layers.length - 1);
+    for (let r = maxIdx; r >= 0; r--) {
+        const anns = circuit.layers[r].annotations || [];
+        const hasQ = anns.some(a => a && a.kind === 'QubitHighlight');
+        const hasC = anns.some(a => a && a.kind === 'ConnSet' && a.highlight && a.highlight.enabled);
+        if (hasQ || hasC) return r;
+    }
+    return -1;
+}
+
+function drawConnectionHighlights(ctx, snap, c2dCoordTransform, getPanelXY, visibleSheetNames, embedding, layerIndex) {
+    if (layerIndex < 0) return;
+    const anns = snap.circuit.layers[layerIndex].annotations || [];
+    const connSets = anns.filter(a => a && a.kind === 'ConnSet' && a.highlight && a.highlight.enabled);
+    if (connSets.length === 0) return;
+    ctx.save();
+    try {
+        ctx.lineCap = 'round';
+        for (const a of connSets) {
+            const sheetName = a.sheet?.name || a.sheet || 'DEFAULT';
+            if (!visibleSheetNames.has(sheetName)) continue;
+            const edges = Array.isArray(a.edges) ? a.edges : [];
+            const baseColor = a.highlight?.color || a.COLOUR || a.colour || '#FFD500';
+            ctx.strokeStyle = parseCssColor(baseColor) || '#FFD500';
+            ctx.globalAlpha *= 0.6;
+            ctx.lineWidth = 6; // underlay thicker than connection line
+            for (const e of edges) {
+                if (!Array.isArray(e) || e.length !== 2) continue;
+                let [q1, q2] = e.map(v => parseInt(v));
+                if (!(Number.isFinite(q1) && Number.isFinite(q2))) continue;
+                let p1, p2;
+                try {
+                    p1 = getPanelXY(q1);
+                    p2 = getPanelXY(q2);
+                } catch { continue; }
+                const segs = (embedding && embedding.type === 'TORUS')
+                    ? torusSegmentsBetween(p1, p2, embedding.Lx, embedding.Ly)
+                    : [[p1, p2]];
+                for (const [[sx, sy], [tx, ty]] of segs) {
+                    const [dx1, dy1] = c2dCoordTransform(sx, sy);
+                    const [dx2, dy2] = c2dCoordTransform(tx, ty);
+                    ctx.beginPath();
+                    ctx.moveTo(dx1, dy1);
+                    ctx.lineTo(dx2, dy2);
+                    ctx.stroke();
+                }
+            }
+        }
+    } finally {
+        ctx.restore();
+    }
+}
+
+function drawQubitHighlights(ctx, snap, qubitDrawCoords, visibleSheetNames, layerIndex) {
+    if (layerIndex < 0) return;
+    const anns = snap.circuit.layers[layerIndex].annotations || [];
+    const sets = anns.filter(a => a && a.kind === 'QubitHighlight');
+    if (sets.length === 0) return;
+    ctx.save();
+    try {
+        for (const a of sets) {
+            const color = parseCssColor(a.color) || 'rgba(255,215,0,0.6)';
+            ctx.fillStyle = color;
+            ctx.globalAlpha *= 0.8;
+            const qids = Array.isArray(a.qubits) ? a.qubits : [];
+            for (const q of qids) {
+                try {
+                    const qmeta = snap.circuit.qubits?.get?.(q);
+                    const sheetName = qmeta?.sheet || 'DEFAULT';
+                    if (!visibleSheetNames.has(sheetName)) continue;
+                    const [x, y] = qubitDrawCoords(q);
+                    // Slightly larger square underlay
+                    const k = 1.3;
+                    ctx.fillRect(x - rad * k, y - rad * k, 2 * rad * k, 2 * rad * k);
+                } catch (_) { /* ignore */ }
+            }
         }
     } finally {
         ctx.restore();
@@ -340,14 +412,23 @@ function drawPanel(ctx, snap, sheetsToDraw) {
         }
     }
 
-    let c2dCoordTransform = (x, y) => [x*pitch - OFFSET_X, y*pitch - OFFSET_Y];
-    let qubitDrawCoords = q => {
+    const embedding = circuit.embedding || { type: 'PLANE' };
+    const c2dCoordTransform = (x, y) => [x*pitch - OFFSET_X, y*pitch - OFFSET_Y];
+    const modWrap = (v, L) => ((v % L) + L) % L;
+    const getPanelXY = (q) => {
         const qq = circuit.qubits?.get?.(q);
         if (!qq || typeof qq.panelX !== 'number' || typeof qq.panelY !== 'number') {
             throw new Error(`Missing panel coords for qubit ${q}`);
         }
-        return c2dCoordTransform(qq.panelX, qq.panelY);
+        let x = qq.panelX;
+        let y = qq.panelY;
+        if (embedding && embedding.type === 'TORUS') {
+            x = modWrap(x, embedding.Lx);
+            y = modWrap(y, embedding.Ly);
+        }
+        return [x, y];
     };
+    const qubitDrawCoords = q => c2dCoordTransform(...getPanelXY(q));
     let propagatedMarkerLayers = /** @type {!Map<!int, !PropagatedPauliFrames>} */ new Map();
     for (let mi = 0; mi < numPropagatedLayers; mi++) {
         propagatedMarkerLayers.set(mi, PropagatedPauliFrames.fromCircuit(circuit, mi));
@@ -405,11 +486,42 @@ function drawPanel(ctx, snap, sheetsToDraw) {
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         let [focusX, focusY] = xyToPos(snap.curMouseX, snap.curMouseY);
 
+        // Draw torus domain bounding box to indicate wrap edges.
+        if (embedding && embedding.type === 'TORUS') {
+            ctx.save();
+            try {
+                const [x0, y0] = c2dCoordTransform(0, 0);
+                ctx.strokeStyle = '#9aa0a6';
+                ctx.lineWidth = 1;
+                if (typeof ctx.setLineDash === 'function') ctx.setLineDash([6, 4]);
+                ctx.globalAlpha *= 0.9;
+                ctx.strokeRect(x0, y0, embedding.Lx * pitch, embedding.Ly * pitch);
+            } finally {
+                ctx.restore();
+            }
+        }
+
         // Draw annotation polygons under qubits.
         drawAnnotations(ctx, snap, qubitDrawCoords, visibleSheetNames);
 
+        // Draw connection highlights (latest highlight layer), under connections.
+        const hlLayer = findLatestHighlightLayerIndex(circuit, snap.curLayer);
+        if (embedding && embedding.type === 'TORUS') {
+            drawConnectionHighlights(ctx, snap, c2dCoordTransform, getPanelXY, visibleSheetNames, embedding, hlLayer);
+        } else {
+            // Plane: reuse the same draw helper with trivial split
+            drawConnectionHighlights(ctx, snap, c2dCoordTransform, getPanelXY, visibleSheetNames, null, hlLayer);
+        }
+
         // Draw connections (under qubits, above polygons).
-        drawConnections(ctx, snap, qubitDrawCoords, visibleSheetNames);
+        if (embedding && embedding.type === 'TORUS') {
+            drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleSheetNames, embedding);
+        } else {
+            drawConnections(ctx, snap, qubitDrawCoords, visibleSheetNames);
+        }
+
+        // Draw qubit highlights (latest highlight layer), under qubit squares.
+        drawQubitHighlights(ctx, snap, qubitDrawCoords, visibleSheetNames, hlLayer);
 
         // Draw only actual qubits on visible sheets, using panel coordinates when available.
         defensiveDraw(ctx, () => {
@@ -417,7 +529,10 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             for (const q of circuit.allQubits()) {
                 if (!isQubitVisible(q)) continue;
                 const [x, y] = qubitDrawCoords(q);
-                ctx.fillStyle = 'white';
+                const meta = circuit.qubits?.get?.(q);
+                // Fill with per-qubit colour if present; default white.
+                const fill = (meta && meta.colour) ? parseCssColor(meta.colour) : 'white';
+                ctx.fillStyle = fill || 'white';
                 ctx.fillRect(x - rad, y - rad, 2 * rad, 2 * rad);
                 ctx.strokeRect(x - rad, y - rad, 2 * rad, 2 * rad);
             }
@@ -446,7 +561,11 @@ function drawPanel(ctx, snap, sheetsToDraw) {
 
         // Draw crossings after gates, using gate-derived visibility.
         for (let [mi, p] of propagatedMarkerLayers.entries()) {
-            drawCrossMarkers(ctx, snap, qubitDrawCoords, p, mi, isOpVisible);
+            if (embedding && embedding.type === 'TORUS') {
+                drawCrossMarkersTorus(ctx, snap, c2dCoordTransform, getPanelXY, p, mi, isOpVisible, embedding);
+            } else {
+                drawCrossMarkers(ctx, snap, qubitDrawCoords, p, mi, isOpVisible);
+            }
         }
 
         defensiveDraw(ctx, () => {
@@ -505,4 +624,180 @@ function drawPanel(ctx, snap, sheetsToDraw) {
 
     // Timeline rendering and scrubber have been removed from this panel draw.
 }
+// --- Torus helpers and variants --------------------------------------------
+function wrappedDelta(d, L) { return d - Math.round(d / L) * L; }
+function torusSegmentsBetween(p1, p2, Lx, Ly) {
+    // Inputs assumed in-domain [0,Lx) x [0,Ly). Return array of segments [[x1,y1],[x2,y2]]
+    const [x1, y1] = p1;
+    const [x2, y2] = p2;
+    const dist2 = (ax, ay, bx, by) => (ax - bx) * (ax - bx) + (ay - by) * (ay - by);
+
+    // Nine candidate virtual positions for p2
+    const candidates = [
+        { tag: 'base',       vx: x2,       vy: y2       },
+        { tag: 'left',       vx: x2 - Lx,  vy: y2       },
+        { tag: 'right',      vx: x2 + Lx,  vy: y2       },
+        { tag: 'up',         vx: x2,       vy: y2 + Ly  },
+        { tag: 'down',       vx: x2,       vy: y2 - Ly  },
+        { tag: 'left_up',    vx: x2 - Lx,  vy: y2 + Ly  },
+        { tag: 'left_down',  vx: x2 - Lx,  vy: y2 - Ly  },
+        { tag: 'right_up',   vx: x2 + Lx,  vy: y2 + Ly  },
+        { tag: 'right_down', vx: x2 + Lx,  vy: y2 - Ly  },
+    ];
+    let best = candidates[0];
+    let bestD2 = dist2(x1, y1, best.vx, best.vy);
+    for (let k = 1; k < candidates.length; k++) {
+        const c = candidates[k];
+        const d2 = dist2(x1, y1, c.vx, c.vy);
+        if (d2 < bestD2) { best = c; bestD2 = d2; }
+    }
+
+    const dx = best.vx - x1;
+    const dy = best.vy - y1;
+    const eps = 1e-12;
+
+    switch (best.tag) {
+        case 'base':
+            // Straight path within the domain.
+            return [[[x1, y1], [x2, y2]]];
+        case 'left': {
+            // Cross x=0 seam once.
+            const ex = 0;
+            const t = Math.abs(dx) > eps ? (ex - x1) / dx : 0.5;
+            const ey = y1 + dy * t;
+            return [[[x1, y1], [0, ey]], [[Lx, ey], [x2, y2]]];
+        }
+        case 'right': {
+            // Cross x=Lx seam once.
+            const ex = Lx;
+            const t = Math.abs(dx) > eps ? (ex - x1) / dx : 0.5;
+            const ey = y1 + dy * t;
+            return [[[x1, y1], [Lx, ey]], [[0, ey], [x2, y2]]];
+        }
+        case 'down': {
+            // Cross y=0 seam once.
+            const ey = 0;
+            const t = Math.abs(dy) > eps ? (ey - y1) / dy : 0.5;
+            const ex = x1 + dx * t;
+            return [[[x1, y1], [ex, 0]], [[ex, Ly], [x2, y2]]];
+        }
+        case 'up': {
+            // Cross y=Ly seam once.
+            const ey = Ly;
+            const t = Math.abs(dy) > eps ? (ey - y1) / dy : 0.5;
+            const ex = x1 + dx * t;
+            return [[[x1, y1], [ex, Ly]], [[ex, 0], [x2, y2]]];
+        }
+        case 'left_up':
+        case 'left_down':
+        case 'right_up':
+        case 'right_down':
+            // Diagonal wrap: cross one vertical seam and one horizontal seam.
+            // Determine target seams for this tag.
+            const ex1 = (best.tag.startsWith('left')) ? 0 : Lx;          // first vertical seam in unfolded space
+            const exOpp = ex1 === 0 ? Lx : 0;                            // opposite vertical edge
+            const ey1 = (best.tag.endsWith('up')) ? Ly : 0;              // first horizontal seam in unfolded space
+            const eyOpp = ey1 === 0 ? Ly : 0;                            // opposite horizontal edge
+
+            // Intersections along the ray to p2v in the unfolded plane.
+            const tX = Math.abs(dx) > eps ? (ex1 - x1) / dx : Infinity;  // where x reaches ex1
+            const tY = Math.abs(dy) > eps ? (ey1 - y1) / dy : Infinity;  // where y reaches ey1
+            const Ax = ex1;
+            const Ay = y1 + dy * (isFinite(tX) ? tX : 0.5);
+            const Bx = x1 + dx * (isFinite(tY) ? tY : 0.5);
+            const By = ey1;
+
+            if (tX < tY) {
+                // Cross vertical seam first at (ex1, Ay), teleport to (exOpp, Ay), continue to y=ey1.
+                const deltaX = exOpp - ex1; // ±Lx
+                const seg1 = [[x1, y1], [Ax, Ay]];
+                const seg2 = [[exOpp, Ay], [Bx + deltaX, By]];
+                const seg3 = [[Bx + deltaX, eyOpp], [x2, y2]];
+                return [seg1, seg2, seg3];
+            } else {
+                // Cross horizontal seam first at (Bx, ey1), teleport to (Bx, eyOpp), continue to x=ex1.
+                const deltaY = eyOpp - ey1; // ±Ly
+                const seg1 = [[x1, y1], [Bx, By]];
+                const seg2 = [[Bx, eyOpp], [Ax, Ay + deltaY]];
+                const seg3 = [[exOpp, Ay + deltaY], [x2, y2]];
+                return [seg1, seg2, seg3];
+            }
+        default:
+            return [[[x1, y1], [x2, y2]]];
+    }
+}
+
+function drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleSheetNames, embedding) {
+    const layers = snap.circuit.layers;
+    const edgeMap = new Map();
+    for (let r = 0; r <= snap.curLayer && r < layers.length; r++) {
+        const anns = layers[r].annotations || [];
+        for (const a of anns) {
+            if (!a || a.kind !== 'ConnSet') continue;
+            const sheetName = a.sheet.name || 'DEFAULT';
+            if (!visibleSheetNames.has(sheetName)) continue;
+            const edges = Array.isArray(a.edges) ? a.edges : [];
+            for (const e of edges) {
+                if (!Array.isArray(e) || e.length !== 2) continue;
+                let [q1, q2] = e.map(v => parseInt(v));
+                if (!(Number.isFinite(q1) && Number.isFinite(q2))) continue;
+                const a1 = Math.min(q1, q2);
+                const a2 = Math.max(q1, q2);
+                const key = `${a1}-${a2}`;
+                edgeMap.set(key, { q1: a1, q2: a2, colour: a.COLOUR || a.colour || '#9aa0a6' });
+            }
+        }
+    }
+    if (edgeMap.size === 0) return;
+    ctx.save();
+    try {
+        ctx.lineCap = 'round';
+        ctx.lineWidth = 4;
+        for (const { q1, q2, colour } of edgeMap.values()) {
+            let p1, p2;
+            try {
+                p1 = getPanelXY(q1);
+                p2 = getPanelXY(q2);
+            } catch { continue; }
+            ctx.strokeStyle = parseCssColor(colour) || '#b0b5ba';
+            const segs = torusSegmentsBetween(p1, p2, embedding.Lx, embedding.Ly);
+            for (const [[sx, sy], [tx, ty]] of segs) {
+                const [dx1, dy1] = c2dCoordTransform(sx, sy);
+                const [dx2, dy2] = c2dCoordTransform(tx, ty);
+                ctx.beginPath();
+                ctx.moveTo(dx1, dy1);
+                ctx.lineTo(dx2, dy2);
+                ctx.stroke();
+            }
+        }
+    } finally {
+        ctx.restore();
+    }
+}
+
+function drawCrossMarkersTorus(ctx, snap, c2dCoordTransform, getPanelXY, propagatedMarkers, mi, isOpVisible, embedding) {
+    let crossings = propagatedMarkers.atLayer(snap.curLayer).crossings;
+    if (crossings === undefined) return;
+    const layer = snap.circuit.layers[snap.curLayer];
+    for (let {q1, q2, color} of crossings) {
+        const op = layer.id_ops.get(q1) || layer.id_ops.get(q2);
+        if (!op) continue;
+        if (typeof isOpVisible === 'function' && !isOpVisible(op)) continue;
+        const [x1p, y1p] = getPanelXY(q1);
+        const [x2p, y2p] = getPanelXY(q2);
+        if (color === 'X') ctx.strokeStyle = 'red';
+        else if (color === 'Y') ctx.strokeStyle = 'green';
+        else if (color === 'Z') ctx.strokeStyle = 'blue';
+        else ctx.strokeStyle = 'purple';
+        ctx.lineWidth = 8;
+        const segs = torusSegmentsBetween([x1p, y1p], [x2p, y2p], embedding.Lx, embedding.Ly);
+        for (const [[sx, sy], [tx, ty]] of segs) {
+            const [dx1, dy1] = c2dCoordTransform(sx, sy);
+            const [dx2, dy2] = c2dCoordTransform(tx, ty);
+            stroke_connector_to(ctx, dx1, dy1, dx2, dy2);
+        }
+        ctx.lineWidth = 1;
+    }
+}
+
 export {xyToPos, drawPanel, setDefensiveDrawEnabled, OFFSET_X, OFFSET_Y}

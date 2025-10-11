@@ -21,6 +21,8 @@ import {
   gate_unrecognized,
   repeat_unmatched_close,
   repeat_unclosed_block,
+  embedding_must_be_at_top,
+  embedding_invalid,
 } from '../diag/diag_factory.js';
 
 /**
@@ -44,6 +46,41 @@ export class Qubit {
     this.mouseover = '';
     this.colour = undefined;
     this.defective = false;
+  }
+
+  /**
+   * Create a copy of this Qubit.
+   * If coordTransform is provided, apply it to stim coords and, if the panel coords
+   * matched the stim coords originally, also update panel coords to the transformed values.
+   * @param {{coordTransform?: (x:number,y:number)=>[number,number]}} [opts]
+   * @returns {Qubit}
+   */
+  copy(opts = undefined) {
+    const out = new Qubit(this.id, this.stimX, this.stimY);
+    const matchedPanelToStim = (this.panelX === this.stimX) && (this.panelY === this.stimY);
+    if (opts && typeof opts.coordTransform === 'function') {
+      const [tsx, tsy] = opts.coordTransform(this.stimX, this.stimY);
+      out.stimX = tsx;
+      out.stimY = tsy;
+      if (matchedPanelToStim) {
+        out.panelX = tsx;
+        out.panelY = tsy;
+      } else {
+        out.panelX = this.panelX;
+        out.panelY = this.panelY;
+      }
+    } else {
+      out.stimX = this.stimX;
+      out.stimY = this.stimY;
+      out.panelX = this.panelX;
+      out.panelY = this.panelY;
+    }
+    out.sheet = this.sheet;
+    out.text = this.text;
+    out.mouseover = this.mouseover;
+    out.colour = this.colour;
+    out.defective = this.defective;
+    return out;
   }
 }
 /**
@@ -205,6 +242,8 @@ export class AnnotatedCircuit {
     this.sheets = new Map([["DEFAULT", new Sheet("DEFAULT")]]);
     /** @type {Map<number, Qubit>} */
     this.qubits = new Map();
+    /** @type {{type:'PLANE'|'TORUS', Lx?:number, Ly?:number}} */
+    this.embedding = { type: 'PLANE' };
   }
 
   /** @param {string} text */
@@ -286,6 +325,28 @@ export class AnnotatedCircuit {
         circuit.sheets.set(name, sheet);
         return;
       }
+      if (kind === 'EMBEDDING') {
+        // ##! EMBEDDING TYPE=PLANE | TORUS LX=<float> LY=<float>
+        const type = (getStr(KVs, 'TYPE', 'PLANE') || 'PLANE').toUpperCase();
+        if (seenNonSheetContent) {
+          // Must be declared at top, before any non-sheet content.
+          diag(embedding_must_be_at_top(lineNo));
+        }
+        if (type === 'PLANE') {
+          circuit.embedding = { type: 'PLANE' };
+        } else if (type === 'TORUS') {
+          const Lx = getNum(KVs, 'LX', NaN);
+          const Ly = getNum(KVs, 'LY', NaN);
+          if (!Number.isFinite(Lx) || !Number.isFinite(Ly) || Lx <= 0 || Ly <= 0) {
+            diag(embedding_invalid(lineNo, 'TORUS requires numeric LX>0 and LY>0'));
+          } else {
+            circuit.embedding = { type: 'TORUS', Lx, Ly };
+          }
+        } else {
+          diag(embedding_invalid(lineNo, `Unknown TYPE=${type}`));
+        }
+        return;
+      }
       if (kind === 'QUBIT') {
         const qStr = getStr(KVs, 'Q', undefined);
         const px = getNum(KVs, 'X', undefined);
@@ -341,6 +402,7 @@ export class AnnotatedCircuit {
       if (kind === 'CONN' || kind === 'CONN_SET' || (kind === 'CONN' && (rest[0] || '').toUpperCase() === 'SET')) {
         const sheet = getSheet(getStr(KVs, 'SHEET', undefined), lineNo);
         const droop = getNum(KVs, 'DROOP', undefined);
+        const colour = getStr(KVs, 'COLOUR', undefined);
         const edgesStr = KVs.get('EDGES');
         /** @type {Array<[number,number]>} */
         const edges = [];
@@ -353,7 +415,7 @@ export class AnnotatedCircuit {
             }
           }
         }
-        currentLayer.annotations.push({ kind: 'ConnSet', line: lineNo, sheet, droop, edges });
+        currentLayer.annotations.push({ kind: 'ConnSet', line: lineNo, sheet, droop, edges, colour });
         return;
       }
 
@@ -375,9 +437,20 @@ export class AnnotatedCircuit {
             currentLayer.annotations.push({ kind: 'GateHighlight', line: lineNo, color, gate: gname, targets: ids });
           };
           return;
+        } else if (target === 'QUBIT') {
+          // Immediate qubit highlight list at this layer.
+          const qList = getStr(KVs, 'QUBITS', '') || '';
+          const qids = qList.split(',').map(s => parseInt(s.trim())).filter(n => Number.isFinite(n));
+          if (qids.length > 0) {
+            currentLayer.annotations.push({ kind: 'QubitHighlight', line: lineNo, color, qubits: qids });
+          }
+          return;
+        } else if (target === 'CONN' || target === 'CONNECTION' || target === 'EDGE') {
+          // Not supported per design; connection highlights come from CONN SET HIGHLIGHT=...
+          // Ignore or warn silently; for now, no-op.
+          return;
         }
-        // Other targets not yet implemented; fall back to free-form
-        currentLayer.annotations.push({ kind: 'Highlight', line: lineNo, target, color });
+        // Other targets: no-op for now.
         return;
       }
 
@@ -937,33 +1010,18 @@ export class AnnotatedCircuit {
     out.layers = newLayers;
     out.qubitCoordData = newCoords;
     out.sheets = new Map(this.sheets);
+    // Copy embedding (shallow is fine for our shape)
+    out.embedding = this.embedding ? { ...this.embedding } : { type: 'PLANE' };
     // Clone and transform qubit_coords
     out.qubit_coords = new Map();
     for (const [id, [sx, sy]] of this.qubit_coords.entries()) {
       const [nx, ny] = coordTransform(sx, sy);
       out.qubit_coords.set(id, [nx, ny]);
     }
-    // Clone qubits with stim coords transformed; update panel coords if they matched stim
+    // Clone qubits using Qubit.copy and transform their stim coords
     out.qubits = new Map();
     for (const [id, q] of this.qubits.entries()) {
-      const nq = new Qubit(q.id, q.stimX, q.stimY);
-      const [tsx, tsy] = coordTransform(q.stimX, q.stimY);
-      nq.stimX = tsx;
-      nq.stimY = tsy;
-      const matchedPanelToStim = (q.panelX === q.stimX) && (q.panelY === q.stimY);
-      if (matchedPanelToStim) {
-        nq.panelX = tsx;
-        nq.panelY = tsy;
-      } else {
-        nq.panelX = q.panelX;
-        nq.panelY = q.panelY;
-      }
-      nq.sheet = q.sheet;
-      nq.text = q.text;
-      nq.mouseover = q.mouseover;
-      nq.colour = q.colour;
-      nq.defective = q.defective;
-      out.qubits.set(id, nq);
+      out.qubits.set(id, q.copy({ coordTransform }));
     }
     return out;
   }
@@ -983,20 +1041,10 @@ export class AnnotatedCircuit {
     out.layers = this.layers.map(e => e.copy());
     out.qubitCoordData = new Float64Array([...this.qubitCoordData, ...extraCoordData]);
     out.sheets = new Map(this.sheets);
+    out.embedding = this.embedding ? { ...this.embedding } : { type: 'PLANE' };
     // Copy qubit_coords and qubits as-is
     out.qubit_coords = new Map(this.qubit_coords);
-    out.qubits = new Map();
-    for (const [id, q] of this.qubits.entries()) {
-      const nq = new Qubit(q.id, q.stimX, q.stimY);
-      nq.panelX = q.panelX;
-      nq.panelY = q.panelY;
-      nq.sheet = q.sheet;
-      nq.text = q.text;
-      nq.mouseover = q.mouseover;
-      nq.colour = q.colour;
-      nq.defective = q.defective;
-      out.qubits.set(id, nq);
-    }
+    out.qubits = new Map([...this.qubits.entries()].map(([id, q]) => [id, q.copy()]));
     return out;
   }
 

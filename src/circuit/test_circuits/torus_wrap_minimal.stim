@@ -1,0 +1,35 @@
+###############################################################################
+# Minimal torus-embedding wrap test
+# - Four qubits on a 12x12 torus domain
+# - Q0 near left edge, Q1 near right edge → connection should wrap across seam
+# - Q2, Q3 close together near the center → straight short connection
+###############################################################################
+
+##! EMBEDDING TYPE=TORUS LX=12 LY=12
+
+# Qubits:
+# - Two near (but not on) left/right edges (Q0,Q1)
+# - Two close together in the center (Q2,Q3)
+# - Two near (but not on) top/bottom edges (Q4,Q5)
+# - Four near corners (not exactly aligned) to test single-axis wrapping (Q6..Q9)
+QUBIT_COORDS(0.7,6.1) 0      # near left edge, slightly offset
+QUBIT_COORDS(11.3,6.9) 1     # near right edge, slightly offset
+QUBIT_COORDS(6.1,6.2) 2      # center-ish
+QUBIT_COORDS(6.6,6.5) 3      # center-ish, offset from q2
+QUBIT_COORDS(6.2,0.7) 4      # near top edge, offset
+QUBIT_COORDS(5.8,11.3) 5     # near bottom edge, offset
+QUBIT_COORDS(0.6,0.8) 6      # near top-left corner, offset
+QUBIT_COORDS(11.4,0.9) 7     # near top-right corner, offset
+QUBIT_COORDS(0.5,11.2) 8     # near bottom-left corner, offset
+QUBIT_COORDS(11.2,11.4) 9    # near bottom-right corner, offset
+
+# Overlay connections (no spaces in EDGES list):
+# - Horizontal wrap across left/right: (0-1), (6-7), (8-9)
+# - Vertical wrap across top/bottom: (4-5)
+# - Short center segment: (2-3)
+# - Left edge vertical wrap segment: (6-8)
+##! CONN SET SHEET=DEFAULT EDGES=(0-1,2-3,4-5,6-7,8-9,6-8,6-9,7-8) COLOUR=#b0b5ba
+
+# Ensure qubits render by referencing them in an operation.
+TICK
+R 0 1 2 3 4 5 6 7 8 9

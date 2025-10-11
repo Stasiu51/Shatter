@@ -67,5 +67,12 @@ export const Diag = {
   repeat_unclosed_block,
 };
 
-export default Diag;
+// --- Embedding (EMB) ---
+export const embedding_must_be_at_top = (line) => make(line, 'error', 'EMB001', '##! EMBEDDING must appear at the top of the file before any other content.');
+export const embedding_invalid = (line, msg) => make(line, 'error', 'EMB002', `Invalid EMBEDDING directive: ${msg}`);
 
+// Add to aggregate convenience export
+Diag.embedding_must_be_at_top = embedding_must_be_at_top;
+Diag.embedding_invalid = embedding_invalid;
+
+export default Diag;
