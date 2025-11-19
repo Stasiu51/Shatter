@@ -44,6 +44,11 @@ export function createSelectionWidget() {
     else if (kind === 'polygon') poly.classList.add('active');
   };
 
+  root.setAltActive = (active) => {
+    if (active) root.classList.add('alt-active');
+    else root.classList.remove('alt-active');
+  };
+
   return root;
 }
 

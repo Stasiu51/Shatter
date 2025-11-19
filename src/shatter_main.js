@@ -3,6 +3,7 @@ import { parseStim, stringifyStim, pickAndReadFile, downloadText } from './io/im
 import { AnnotatedCircuit } from './circuit/annotated_circuit.js';
 import { renderTimeline as renderTimelineCore, computeMaxScrollCSS } from './ui_elements/timeline_renderer.js';
 import { drawPanel } from './draw/draw_panel.js'
+import { torusSegmentsBetween } from './draw/draw_panel.js'
 import { setupTimelineUI } from './ui_elements/timeline_controller.js';
 import { createStatusLogger } from './ui_elements/status_logger.js';
 import { setupNameEditor, sanitizeName } from './ui_elements/name_editor.js';
@@ -10,6 +11,8 @@ import { setupLayerKeyboard } from './layers/keyboard.js';
 import { createSheetsDropdown } from './ui_elements/sheets_dropdown.js';
 import { setupTextEditorUI } from './ui_elements/text_editor_controller.js';
 import { EditorState } from './editor/editor_state.js';
+import { selectionStore } from './editor/selection_store.js';
+import { hitTestAt } from './draw/hit_test.js';
 
 const panelsEl = document.getElementById('panels');
 const mgr = new PanelManager(panelsEl);
@@ -46,6 +49,7 @@ const statusTextRight = document.getElementById('status-text-right');
 const statusDotRight = document.getElementById('status-dot-right');
 const btnImport = document.getElementById('btn-import');
 const btnExport = document.getElementById('btn-export');
+
 
 // Editor elements
 const editorEl = document.getElementById('editor');
@@ -185,6 +189,8 @@ const editorCtl = setupTextEditorUI({
   },
 });
 
+// (Inspector pane removed)
+
 /** Build inline per-panel sheet toggles inside each panel header. */
 function renderPanelSheetsOptions() {
   if (!mgr?.panels?.length) return;
@@ -206,6 +212,7 @@ function renderPanelSheetsOptions() {
         },
         onChange: (newSet) => {
           overlayState.panelSheets[i] = newSet;
+          reconcileSelectionVisibility();
           schedulePanelsRender();
         },
       });
@@ -322,6 +329,8 @@ function setLayer(layer) {
   }
   timelineCtl.render();
   updateLayerIndicator();
+  // Prune selection based on new layer visibility.
+  reconcileSelectionVisibility();
   schedulePanelsRender();
 }
 
@@ -377,6 +386,11 @@ function renderAllPanels() {
       ctx.restore();
     } else {
       drawPanel(ctx, snap, sheetsSel);
+    }
+    // Bind mouse events once per canvas.
+    if (!p._eventsBound) {
+      bindPanelMouse(p, i);
+      p._eventsBound = true;
     }
   }
 }
@@ -467,5 +481,204 @@ function ensureEditorState() {
       timelineCtl.render();
     });
   });
+  // Redraw panels on selection changes
+  selectionStore.subscribe(() => schedulePanelsRender());
   return editorState;
+}
+
+function bindPanelMouse(panelRef, panelIndex) {
+  const canvas = panelRef.canvas;
+  if (!canvas) return;
+  const onMove = (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const offsetX = (ev.clientX - rect.left) * dpr;
+    const offsetY = (ev.clientY - rect.top) * dpr;
+    const sheetsSel = overlayState.panelSheets[panelIndex] || new Set(getSheetsSafe().map(s=>s.name));
+    const embedding = circuit?.embedding || { type: 'PLANE' };
+    const getPanelXY = (q) => {
+      const qq = circuit.qubits?.get?.(q);
+      let x = qq?.panelX, y = qq?.panelY;
+      if (embedding && embedding.type === 'TORUS') {
+        const mod = (v,L)=>((v%L)+L)%L;
+        x = mod(x, embedding.Lx);
+        y = mod(y, embedding.Ly);
+      }
+      return [x,y];
+    };
+    const hit = hitTestAt({
+      canvas,
+      offsetX,
+      offsetY,
+      panelZoom,
+      snap: editorState?.obs_val_draw_state.get(),
+      visibleSheets: sheetsSel,
+      embedding,
+      getPanelXY,
+      torusSegmentsBetween: (p1,p2,Lx,Ly)=>torusSegmentsBetween(p1,p2,Lx,Ly),
+      altOnly: ev.altKey === true,
+    });
+    if (hit) selectionStore.setHover(hit); else selectionStore.setHover(null);
+  };
+  const onLeave = () => selectionStore.setHover(null);
+  const onClick = (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const offsetX = (ev.clientX - rect.left) * dpr;
+    const offsetY = (ev.clientY - rect.top) * dpr;
+    const sheetsSel = overlayState.panelSheets[panelIndex] || new Set(getSheetsSafe().map(s=>s.name));
+    const embedding = circuit?.embedding || { type: 'PLANE' };
+    const getPanelXY = (q) => {
+      const qq = circuit.qubits?.get?.(q);
+      let x = qq?.panelX, y = qq?.panelY;
+      if (embedding && embedding.type === 'TORUS') {
+        const mod = (v,L)=>((v%L)+L)%L;
+        x = mod(x, embedding.Lx);
+        y = mod(y, embedding.Ly);
+      }
+      return [x,y];
+    };
+    const hit = hitTestAt({
+      canvas,
+      offsetX,
+      offsetY,
+      panelZoom,
+      snap: editorState?.obs_val_draw_state.get(),
+      visibleSheets: sheetsSel,
+      embedding,
+      getPanelXY,
+      torusSegmentsBetween: (p1,p2,Lx,Ly)=>torusSegmentsBetween(p1,p2,Lx,Ly),
+      altOnly: ev.altKey === true,
+    });
+    // Click on empty space without multi-select modifiers clears selection.
+    if (!hit && !ev.shiftKey && !(ev.ctrlKey || ev.metaKey)) {
+      selectionStore.clear();
+      for (const p of mgr.panels) { if (p.sel?.setActive) p.sel.setActive('gate'); }
+      return;
+    }
+    const res = selectionStore.applySelection(hit && { kind: hit.kind, id: hit.id }, { shift: ev.shiftKey, ctrl: ev.ctrlKey || ev.metaKey });
+    if (res.conflict) {
+      // Flash selection widget
+      for (const p of mgr.panels) { if (p.sel?.flashError) p.sel.flashError(); }
+    } else {
+      // Update chip mode display
+      for (const p of mgr.panels) { if (p.sel?.setActive) p.sel.setActive(selectionStore.kind || 'gate'); }
+    }
+  };
+  canvas.addEventListener('mousemove', onMove);
+  canvas.addEventListener('mouseleave', onLeave);
+  canvas.addEventListener('click', onClick);
+}
+
+// Emphasize Alt state in the selection widget when holding Alt.
+let _altPressed = false;
+function setAltPressed(v) {
+  if (_altPressed === v) return;
+  _altPressed = v;
+  for (const p of mgr.panels) { if (p.sel?.setAltActive) p.sel.setAltActive(_altPressed); }
+}
+window.addEventListener('keydown', (e) => {
+  if (e.altKey) setAltPressed(true);
+});
+window.addEventListener('keyup', (e) => {
+  if (!e.altKey) setAltPressed(false);
+});
+window.addEventListener('blur', () => setAltPressed(false));
+
+function reconcileSelectionVisibility() {
+  if (!circuit) return;
+  const snap = editorState?.obs_val_draw_state.get();
+  if (!snap) return;
+  const embedding = circuit?.embedding || { type: 'PLANE' };
+  const sel = selectionStore.snapshot();
+  if (!sel.kind || sel.selected.size === 0) return;
+
+  // Build per-panel sheet sets.
+  const panelSheets = mgr.panels.map((_, i) => overlayState.panelSheets[i] || new Set(getSheetsSafe().map(s => s.name)));
+
+  // Helper: does connection edge exist up to current layer?
+  const connExists = (q1, q2) => {
+    for (let r = 0; r <= snap.curLayer && r < circuit.layers.length; r++) {
+      const anns = circuit.layers[r].annotations || [];
+      for (const a of anns) {
+        if (!a || a.kind !== 'ConnSet') continue;
+        const edges = Array.isArray(a.edges) ? a.edges : [];
+        for (const e of edges) {
+          if (!Array.isArray(e) || e.length !== 2) continue;
+          let [x, y] = e.map(v => parseInt(v));
+          const a1 = Math.min(x, y);
+          const a2 = Math.max(x, y);
+          if (a1 === Math.min(q1,q2) && a2 === Math.max(q1,q2)) return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  // Latest polygon layer index up to curLayer.
+  let lastPolyLayer = -1;
+  for (let r = 0; r <= snap.curLayer && r < circuit.layers.length; r++) {
+    const anns = circuit.layers[r].annotations || [];
+    if (anns.some(a => a && a.kind === 'Polygon')) lastPolyLayer = r;
+  }
+
+  const keep = new Set();
+  for (const id of sel.selected) {
+    const tokens = id.split(':');
+    const kind = tokens[0];
+    let visibleAnywhere = false;
+    try {
+      if (kind === 'q' || kind === 'qubit') {
+        const q = parseInt(tokens[1]);
+        for (let i=0;i<panelSheets.length && !visibleAnywhere;i++) {
+          const sheets = panelSheets[i];
+          const qmeta = circuit.qubits?.get?.(q);
+          const sheet = qmeta?.sheet || 'DEFAULT';
+          if (sheets.has(sheet)) visibleAnywhere = true;
+        }
+      } else if (kind === 'g' || kind === 'gate') {
+        const layerIdx = parseInt(tokens[1]);
+        const first = parseInt(tokens[2]);
+        if (layerIdx === snap.curLayer) {
+          const op = circuit.layers?.[layerIdx]?.id_ops?.get?.(first);
+          if (op) {
+            for (let i=0;i<panelSheets.length && !visibleAnywhere;i++) {
+              const sheets = panelSheets[i];
+              if (op.id_targets.some(q => sheets.has((circuit.qubits?.get?.(q)?.sheet)||'DEFAULT'))) visibleAnywhere = true;
+            }
+          }
+        }
+      } else if (kind === 'c' || kind === 'connection') {
+        const sheet = tokens[1];
+        const [q1s,q2s] = tokens[2].split('-');
+        const q1 = parseInt(q1s), q2 = parseInt(q2s);
+        if (connExists(q1,q2)) {
+          for (let i=0;i<panelSheets.length && !visibleAnywhere;i++) {
+            const sheets = panelSheets[i];
+            if (sheets.has(sheet)) visibleAnywhere = true;
+          }
+        }
+      } else if (kind === 'p' || kind === 'polygon') {
+        const layerIdx = parseInt(tokens[1]);
+        const targetsStr = tokens[2];
+        const ids = targetsStr.split('-').map(s=>parseInt(s));
+        if (lastPolyLayer === layerIdx) {
+          const anns = circuit.layers?.[layerIdx]?.annotations || [];
+          const poly = anns.find(a => a && a.kind === 'Polygon' && Array.isArray(a.targets) && a.targets.length === ids.length && a.targets.every((q, idx)=>q===ids[idx]));
+          const psheet = poly?.sheet || 'DEFAULT';
+          for (let i=0;i<panelSheets.length && !visibleAnywhere;i++) {
+            const sheets = panelSheets[i];
+            if (sheets.has(psheet)) visibleAnywhere = true;
+          }
+        }
+      }
+    } catch {}
+    if (visibleAnywhere) keep.add(id);
+  }
+
+  if (keep.size !== sel.selected.size) {
+    selectionStore.replace(keep.size > 0 ? sel.kind : null, keep);
+    // Update chip mode display
+    for (const p of mgr.panels) { if (p.sel?.setActive) p.sel.setActive(selectionStore.kind || 'gate'); }
+  }
 }

@@ -4,6 +4,7 @@ import {PropagatedPauliFrames} from "../circuit/propagated_pauli_frames.js";
 import {stroke_connector_to} from "../gates/gate_draw_util.js"
 import {beginPathPolygon} from './draw_util.js';
 import { parseCssColor } from '../util/color.js';
+import { selectionStore } from '../editor/selection_store.js';
 
 /**
  * @param {!number|undefined} x
@@ -608,6 +609,157 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             }
         });
 
+        // Selection/hover overlays (global selection store; cross-panel synced).
+        defensiveDraw(ctx, () => {
+            try {
+                const sel = selectionStore.snapshot();
+                const drawQ = (q, style) => {
+                    const [x,y] = qubitDrawCoords(q);
+                    if (style === 'hover') {
+                        ctx.strokeStyle = '#f2c744';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(x - rad*1.3, y - rad*1.3, 2.6*rad, 2.6*rad);
+                    } else {
+                        ctx.strokeStyle = '#1e90ff';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(x - rad*1.4, y - rad*1.4, 2.8*rad, 2.8*rad);
+                    }
+                    ctx.lineWidth = 1;
+                };
+
+                // Hover outline
+                if (sel.hover) {
+                    const [kind, rest] = sel.hover.id.split(':',2);
+                    if (sel.hover.kind === 'qubit') {
+                        const q = parseInt(rest);
+                        if (isQubitVisible(q)) drawQ(q, 'hover');
+                    } else if (sel.hover.kind === 'gate') {
+                        const tokens = sel.hover.id.split(':');
+                        const layerIdx = parseInt(tokens[1]);
+                        const first = parseInt(tokens[2]);
+                        const op = circuit.layers?.[layerIdx]?.id_ops?.get?.(first);
+                        if (op) {
+                            // Highlight gate qubit squares.
+                            for (const q of op.id_targets) if (isQubitVisible(q)) drawQ(q, 'hover');
+                            // Highlight connectors between consecutive qubits of the gate.
+                            const color = '#f2c744';
+                            const thick = 4;
+                            for (let k = 1; k < op.id_targets.length; k++) {
+                                const q0 = op.id_targets[k-1];
+                                const q1 = op.id_targets[k];
+                                if (!isQubitVisible(q0) || !isQubitVisible(q1)) continue;
+                                if (embedding && embedding.type === 'TORUS') {
+                                    const p0 = getPanelXY(q0), p1 = getPanelXY(q1);
+                                    const segs = torusSegmentsBetween(p0, p1, embedding.Lx, embedding.Ly);
+                                    for (const [[sx,sy],[tx,ty]] of segs) {
+                                        const [dx1,dy1] = c2dCoordTransform(sx,sy);
+                                        const [dx2,dy2] = c2dCoordTransform(tx,ty);
+                                        stroke_connector_to(ctx, dx1, dy1, dx2, dy2, { color, thickness: thick });
+                                    }
+                                } else {
+                                    const [x0,y0] = qubitDrawCoords(q0);
+                                    const [x1,y1] = qubitDrawCoords(q1);
+                                    stroke_connector_to(ctx, x0, y0, x1, y1, { color, thickness: thick });
+                                }
+                            }
+                        }
+                    } else if (sel.hover.kind === 'connection') {
+                        const [, sheet, key] = sel.hover.id.split(':');
+                        const [q1s,q2s] = key.split('-');
+                        const q1 = parseInt(q1s), q2 = parseInt(q2s);
+                        const color = '#f2c744';
+                        if (embedding && embedding.type === 'TORUS') {
+                            const p1 = getPanelXY(q1), p2 = getPanelXY(q2);
+                            const segs = torusSegmentsBetween(p1, p2, embedding.Lx, embedding.Ly);
+                            for (const [[sx,sy],[tx,ty]] of segs) {
+                                const [dx1,dy1] = c2dCoordTransform(sx,sy);
+                                const [dx2,dy2] = c2dCoordTransform(tx,ty);
+                                stroke_connector_to(ctx, dx1, dy1, dx2, dy2, { color, thickness: 5, droop: 0 });
+                            }
+                        } else {
+                            const [x1,y1] = qubitDrawCoords(q1);
+                            const [x2,y2] = qubitDrawCoords(q2);
+                            stroke_connector_to(ctx, x1, y1, x2, y2, { color, thickness: 5, droop: 0 });
+                        }
+                    } else if (sel.hover.kind === 'polygon') {
+                        const [, layerStr, targetsStr] = sel.hover.id.split(':');
+                        const ids = targetsStr.split('-').map(s=>parseInt(s));
+                        const pts = ids.map(q => qubitDrawCoords(q));
+                        beginPathPolygon(ctx, pts);
+                        ctx.strokeStyle = '#f2c744';
+                        ctx.lineWidth = 3;
+                        ctx.stroke();
+                        ctx.lineWidth = 1;
+                    }
+                }
+
+                // Selected outline(s)
+                if (sel.selected.size > 0) {
+                    for (const id of sel.selected) {
+                        const tokens = id.split(':');
+                        if (sel.kind === 'qubit') {
+                            const q = parseInt(rest);
+                            if (isQubitVisible(q)) drawQ(q, 'selected');
+                        } else if (sel.kind === 'gate') {
+                            const layerIdx = parseInt(tokens[1]);
+                            const first = parseInt(tokens[2]);
+                            const op = circuit.layers?.[layerIdx]?.id_ops?.get?.(first);
+                            if (op) {
+                                for (const q of op.id_targets) if (isQubitVisible(q)) drawQ(q, 'selected');
+                                const color = '#1e90ff';
+                                const thick = 6;
+                                for (let k = 1; k < op.id_targets.length; k++) {
+                                    const q0 = op.id_targets[k-1];
+                                    const q1 = op.id_targets[k];
+                                    if (!isQubitVisible(q0) || !isQubitVisible(q1)) continue;
+                                    if (embedding && embedding.type === 'TORUS') {
+                                        const p0 = getPanelXY(q0), p1 = getPanelXY(q1);
+                                        const segs = torusSegmentsBetween(p0, p1, embedding.Lx, embedding.Ly);
+                                        for (const [[sx,sy],[tx,ty]] of segs) {
+                                            const [dx1,dy1] = c2dCoordTransform(sx,sy);
+                                            const [dx2,dy2] = c2dCoordTransform(tx,ty);
+                                            stroke_connector_to(ctx, dx1, dy1, dx2, dy2, { color, thickness: thick });
+                                        }
+                                    } else {
+                                        const [x0,y0] = qubitDrawCoords(q0);
+                                        const [x1,y1] = qubitDrawCoords(q1);
+                                        stroke_connector_to(ctx, x0, y0, x1, y1, { color, thickness: thick });
+                                    }
+                                }
+                            }
+                        } else if (sel.kind === 'connection') {
+                            const [, sheet, key] = tokens;
+                            const [q1s,q2s] = key.split('-');
+                            const q1 = parseInt(q1s), q2 = parseInt(q2s);
+                            const color = '#1e90ff';
+                            if (embedding && embedding.type === 'TORUS') {
+                                const p1 = getPanelXY(q1), p2 = getPanelXY(q2);
+                                const segs = torusSegmentsBetween(p1, p2, embedding.Lx, embedding.Ly);
+                                for (const [[sx,sy],[tx,ty]] of segs) {
+                                    const [dx1,dy1] = c2dCoordTransform(sx,sy);
+                                    const [dx2,dy2] = c2dCoordTransform(tx,ty);
+                                    stroke_connector_to(ctx, dx1, dy1, dx2, dy2, { color, thickness: 6, droop: 0 });
+                                }
+                            } else {
+                                const [x1,y1] = qubitDrawCoords(q1);
+                                const [x2,y2] = qubitDrawCoords(q2);
+                                stroke_connector_to(ctx, x1, y1, x2, y2, { color, thickness: 6, droop: 0 });
+                            }
+                        } else if (sel.kind === 'polygon') {
+                            const [, layerStr, targetsStr] = tokens;
+                            const ids = targetsStr.split('-').map(s=>parseInt(s));
+                            const pts = ids.map(q => qubitDrawCoords(q));
+                            beginPathPolygon(ctx, pts);
+                            ctx.strokeStyle = '#1e90ff';
+                            ctx.lineWidth = 4;
+                            ctx.stroke();
+                            ctx.lineWidth = 1;
+                        }
+                    }
+                }
+            } catch {}
+        });
+
         drawMarkers(ctx, snap, qubitDrawCoords, propagatedMarkerLayers, isQubitVisible);
 
         if (focusX !== undefined) {
@@ -917,4 +1069,4 @@ function drawMppConnectorsTorus(ctx, op, c2dCoordTransform, getPanelXY, embeddin
     }
 }
 
-export {xyToPos, drawPanel, setDefensiveDrawEnabled, OFFSET_X, OFFSET_Y}
+export {xyToPos, drawPanel, setDefensiveDrawEnabled, OFFSET_X, OFFSET_Y, torusSegmentsBetween}

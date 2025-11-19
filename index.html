@@ -323,6 +323,10 @@
       fill: none;
     }
 
+    /* Alt-active emphasis on selection widget */
+    .sel-widget.alt-active .sel-alt { font-weight: 700; color: #111; }
+    .sel-widget.alt-active .sel-brace path { stroke-width: 2; stroke: #111; }
+
     .flash {
       animation: flash 0.5s linear 1;
     }
@@ -524,6 +528,7 @@
       <div class="panels-wrap">
         <div id="panels" class="layout-1"></div>
       </div>
+      
       <div class="timeline-resizer" id="timeline-resizer" title="Drag to resize timeline"></div>
       <div class="timeline" id="timeline">
         <div class="timeline-header">
