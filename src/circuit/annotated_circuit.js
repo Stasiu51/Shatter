@@ -404,6 +404,9 @@ export class AnnotatedCircuit {
         const sheet = getSheet(getStr(KVs, 'SHEET', undefined), lineNo);
         const droop = getNum(KVs, 'DROOP', undefined);
         const colour = getStr(KVs, 'COLOUR', undefined);
+        // Prefer THICKNESS; accept legacy WIDTH as a fallback.
+        let thickness = getNum(KVs, 'THICKNESS', undefined);
+        if (thickness === undefined) thickness = getNum(KVs, 'WIDTH', undefined);
         const edgesStr = KVs.get('EDGES');
         /** @type {Array<[number,number]>} */
         const edges = [];
@@ -416,7 +419,7 @@ export class AnnotatedCircuit {
             }
           }
         }
-        currentLayer.annotations.push({ kind: 'ConnSet', line: lineNo, sheet, droop, edges, colour });
+        currentLayer.annotations.push({ kind: 'ConnSet', line: lineNo, sheet, droop, edges, colour, thickness });
         return;
       }
 

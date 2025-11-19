@@ -244,7 +244,7 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
     const layers = snap.circuit.layers;
     // Accumulate unique edges from all ConnSet annotations up to current layer.
     // Key edges by normalized pair "min-max" and keep style (colour) by last occurrence.
-    const edgeMap = new Map(); // key => {q1,q2, colour}
+    const edgeMap = new Map(); // key => {q1,q2, colour, thickness}
     for (let r = 0; r <= snap.curLayer && r < layers.length; r++) {
         const anns = layers[r].annotations || [];
         for (const a of anns) {
@@ -259,7 +259,12 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
                 const a1 = Math.min(q1, q2);
                 const a2 = Math.max(q1, q2);
                 const key = `${a1}-${a2}`;
-                edgeMap.set(key, { q1: a1, q2: a2, colour: a.COLOUR || a.colour || '#9aa0a6' });
+                edgeMap.set(key, {
+                    q1: a1,
+                    q2: a2,
+                    colour: a.COLOUR || a.colour || '#9aa0a6',
+                    thickness: (typeof a.thickness === 'number' && isFinite(a.thickness)) ? a.thickness : undefined,
+                });
             }
         }
     }
@@ -268,8 +273,7 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
     ctx.save();
     try {
         ctx.lineCap = 'round';
-        ctx.lineWidth = 4; // slightly thicker and dimmer than multi-qubit ops
-        for (const { q1, q2, colour } of edgeMap.values()) {
+        for (const { q1, q2, colour, thickness } of edgeMap.values()) {
             let p1, p2;
             try {
                 p1 = qubitCoordsFunc(q1);
@@ -279,10 +283,18 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
                 continue;
             }
             ctx.strokeStyle = parseCssColor(colour) || '#b0b5ba';
+            // Use per-edge thickness when provided; default to 4.
+            let w = 4;
+            if (typeof thickness === 'number' && isFinite(thickness)) {
+                w = Math.max(0.5, Math.min(16, thickness));
+            }
+            const prevW = ctx.lineWidth;
+            ctx.lineWidth = w;
             ctx.beginPath();
             ctx.moveTo(p1[0], p1[1]);
             ctx.lineTo(p2[0], p2[1]);
             ctx.stroke();
+            ctx.lineWidth = prevW;
         }
     } finally {
         ctx.restore();
@@ -554,7 +566,19 @@ function drawPanel(ctx, snap, sheetsToDraw) {
         };
 
         for (let op of circuit.layers[snap.curLayer].iter_gates_and_markers()) {
-            if (op.gate.name !== 'POLYGON' && isOpVisible(op)) {
+            if (!isOpVisible(op)) continue;
+            if (op.gate.name === 'POLYGON') continue;
+
+            if (op.gate.name && op.gate.name.startsWith('MPP:')) {
+                // Custom MPP drawing that reuses connection line logic (toroidal aware),
+                // instead of relying on Crumble's single-segment connector.
+                if (embedding && embedding.type === 'TORUS') {
+                    drawMppConnectorsTorus(ctx, op, c2dCoordTransform, getPanelXY, embedding, isQubitVisible);
+                } else {
+                    drawMppConnectorsPlane(ctx, op, qubitDrawCoords, isQubitVisible);
+                }
+                drawMppGlyphs(ctx, op, qubitDrawCoords);
+            } else {
                 op.id_draw(qubitDrawCoords, ctx);
             }
         }
@@ -729,7 +753,7 @@ function torusSegmentsBetween(p1, p2, Lx, Ly) {
 
 function drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleSheetNames, embedding) {
     const layers = snap.circuit.layers;
-    const edgeMap = new Map();
+    const edgeMap = new Map(); // key => {q1,q2, colour, thickness}
     for (let r = 0; r <= snap.curLayer && r < layers.length; r++) {
         const anns = layers[r].annotations || [];
         for (const a of anns) {
@@ -744,7 +768,12 @@ function drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleS
                 const a1 = Math.min(q1, q2);
                 const a2 = Math.max(q1, q2);
                 const key = `${a1}-${a2}`;
-                edgeMap.set(key, { q1: a1, q2: a2, colour: a.COLOUR || a.colour || '#9aa0a6' });
+                edgeMap.set(key, {
+                    q1: a1,
+                    q2: a2,
+                    colour: a.COLOUR || a.colour || '#9aa0a6',
+                    thickness: (typeof a.thickness === 'number' && isFinite(a.thickness)) ? a.thickness : undefined,
+                });
             }
         }
     }
@@ -752,14 +781,19 @@ function drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleS
     ctx.save();
     try {
         ctx.lineCap = 'round';
-        ctx.lineWidth = 4;
-        for (const { q1, q2, colour } of edgeMap.values()) {
+        for (const { q1, q2, colour, thickness } of edgeMap.values()) {
             let p1, p2;
             try {
                 p1 = getPanelXY(q1);
                 p2 = getPanelXY(q2);
             } catch { continue; }
             ctx.strokeStyle = parseCssColor(colour) || '#b0b5ba';
+            let w = 4;
+            if (typeof thickness === 'number' && isFinite(thickness)) {
+                w = Math.max(0.5, Math.min(16, thickness));
+            }
+            const prevW = ctx.lineWidth;
+            ctx.lineWidth = w;
             const segs = torusSegmentsBetween(p1, p2, embedding.Lx, embedding.Ly);
             for (const [[sx, sy], [tx, ty]] of segs) {
                 const [dx1, dy1] = c2dCoordTransform(sx, sy);
@@ -769,6 +803,7 @@ function drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleS
                 ctx.lineTo(dx2, dy2);
                 ctx.stroke();
             }
+            ctx.lineWidth = prevW;
         }
     } finally {
         ctx.restore();
@@ -797,6 +832,92 @@ function drawCrossMarkersTorus(ctx, snap, c2dCoordTransform, getPanelXY, propaga
             stroke_connector_to(ctx, dx1, dy1, dx2, dy2);
         }
         ctx.lineWidth = 1;
+    }
+}
+
+// --- MPP custom drawing (reuse connection logic) ----------------------------
+function drawMppGlyphs(ctx, op, coordFunc) {
+    // Draw per-qubit squares + labels like Crumble does.
+    try {
+        const name = op?.gate?.name || '';
+        const bases = name.startsWith('MPP:') ? name.substring(4) : '';
+        for (let k = 0; k < op.id_targets.length; k++) {
+            const t = op.id_targets[k];
+            const [x, y] = coordFunc(t);
+            ctx.fillStyle = 'gray';
+            ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+            ctx.strokeStyle = 'black';
+            ctx.strokeRect(x - rad, y - rad, rad * 2, rad * 2);
+            ctx.fillStyle = 'black';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 12pt monospace';
+            const ch = bases[k] || '';
+            ctx.fillText(ch, x, y - 1);
+            ctx.font = '5pt monospace';
+            ctx.fillText('MPP', x, y + 8);
+        }
+    } catch (_) { /* ignore draw failures */ }
+}
+
+function drawMppConnectorsPlane(ctx, op, coordFunc, isQubitVisible) {
+    // Connect successive targets with the same style used for connectors.
+    // Skip segments where endpoints are not visible on this panel.
+    ctx.save();
+    try {
+        ctx.lineCap = 'round';
+        const prevW = ctx.lineWidth;
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'black';
+        let prev = null;
+        for (let k = 0; k < op.id_targets.length; k++) {
+            const q = op.id_targets[k];
+            if (typeof isQubitVisible === 'function' && !isQubitVisible(q)) {
+                prev = null;
+                continue;
+            }
+            const [x, y] = coordFunc(q);
+            if (prev) {
+                const [px, py] = prev;
+                stroke_connector_to(ctx, px, py, x, y);
+            }
+            prev = [x, y];
+        }
+        ctx.lineWidth = prevW;
+    } finally {
+        ctx.restore();
+    }
+}
+
+function drawMppConnectorsTorus(ctx, op, c2dCoordTransform, getPanelXY, embedding, isQubitVisible) {
+    // Split segments across torus seams like connections do.
+    ctx.save();
+    try {
+        ctx.lineCap = 'round';
+        const prevW = ctx.lineWidth;
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'black';
+        let prev = null;
+        for (let k = 0; k < op.id_targets.length; k++) {
+            const q = op.id_targets[k];
+            if (typeof isQubitVisible === 'function' && !isQubitVisible(q)) {
+                prev = null;
+                continue;
+            }
+            const p = getPanelXY(q);
+            if (prev) {
+                const segs = torusSegmentsBetween(prev, p, embedding.Lx, embedding.Ly);
+                for (const [[sx, sy], [tx, ty]] of segs) {
+                    const [dx1, dy1] = c2dCoordTransform(sx, sy);
+                    const [dx2, dy2] = c2dCoordTransform(tx, ty);
+                    stroke_connector_to(ctx, dx1, dy1, dx2, dy2);
+                }
+            }
+            prev = p;
+        }
+        ctx.lineWidth = prevW;
+    } finally {
+        ctx.restore();
     }
 }
 
