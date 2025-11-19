@@ -6,6 +6,7 @@ import { drawPanel } from './draw/draw_panel.js'
 import { torusSegmentsBetween } from './draw/draw_panel.js'
 import { setupTimelineUI } from './ui_elements/timeline_controller.js';
 import { setupResizablePane } from './util/ui_utils.js';
+import { renderInspector } from './ui_elements/inspector_renderer.js';
 import { createStatusLogger } from './ui_elements/status_logger.js';
 import { setupNameEditor, sanitizeName } from './ui_elements/name_editor.js';
 import { setupLayerKeyboard } from './layers/keyboard.js';
@@ -56,8 +57,8 @@ const btnExport = document.getElementById('btn-export');
 const inspectorEl = document.getElementById('inspector');
 const inspectorResizerEl = document.getElementById('inspector-resizer');
 // Note: both header and local buttons share id 'inspector-toggle' in HTML skeleton.
-const inspectorToggleGlobalEl = document.querySelector('header .toolbar #inspector-toggle');
-const inspectorToggleLocalEl = document.querySelector('.inspector .inspector-header #inspector-toggle');
+const inspectorToggleGlobalEl = document.getElementById('inspector-toggle-global');
+const inspectorToggleLocalEl = document.getElementById('inspector-collapse-btn');
 
 // Editor elements
 const editorEl = document.getElementById('editor');
@@ -197,17 +198,28 @@ if (inspectorEl && inspectorResizerEl) {
       // Keep adjacent content responsive
       renderAllPanels();
       timelineCtl.render();
+      renderInspectorUI();
     },
     onResizing: () => {
       renderAllPanels();
       timelineCtl.render();
+      renderInspectorUI();
     },
     onResized: () => {
       renderAllPanels();
       timelineCtl.render();
+      renderInspectorUI();
     },
     updateToggleText: updateInspectorToggleText,
   });
+}
+
+function renderInspectorUI() {
+  try {
+    const container = document.querySelector('#inspector .inspector-body');
+    if (!container) return;
+    renderInspector({ containerEl: container, circuit, curLayer: currentLayer });
+  } catch {}
 }
 
 // Editor UI setup (resizable + collapsible)
@@ -228,8 +240,6 @@ const editorCtl = setupTextEditorUI({
     timelineCtl.render();
   },
 });
-
-// (Inspector pane removed)
 
 /** Build inline per-panel sheet toggles inside each panel header. */
 function renderPanelSheetsOptions() {
@@ -311,6 +321,7 @@ function loadStimText(stimText) {
       }
       renderPanelSheetsOptions();
       schedulePanelsRender();
+      renderInspectorUI();
     } catch {}
     return true;
   } catch (e) {
@@ -372,6 +383,7 @@ function setLayer(layer) {
   // Prune selection based on new layer visibility.
   reconcileSelectionVisibility();
   schedulePanelsRender();
+  renderInspectorUI();
 }
 
 // Layer keyboard handling
@@ -519,10 +531,11 @@ function ensureEditorState() {
     requestAnimationFrame(() => {
       renderAllPanels(ds);
       timelineCtl.render();
+      renderInspectorUI();
     });
   });
-  // Redraw panels on selection changes
-  selectionStore.subscribe(() => schedulePanelsRender());
+  // Redraw panels and inspector on selection changes
+  selectionStore.subscribe(() => { schedulePanelsRender(); renderInspectorUI(); });
   return editorState;
 }
 

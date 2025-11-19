@@ -47,6 +47,8 @@ export class Qubit {
     this.mouseover = '';
     this.colour = undefined;
     this.defective = false;
+    /** @type {number|undefined} line number of QUBIT_COORDS */
+    this.coordsLine = undefined;
   }
 
   /**
@@ -164,7 +166,7 @@ function splitUncombinedTargets(targets) {
  * @param {!boolean} convertIntoOtherGates
  * @returns {!Operation}
  */
-function simplifiedMPP(tag, args, combinedTargets, convertIntoOtherGates) {
+function simplifiedMPP(tag, args, combinedTargets, convertIntoOtherGates, lineNo) {
   let bases = '';
   let qubits = [];
   for (let t of combinedTargets) {
@@ -193,7 +195,7 @@ function simplifiedMPP(tag, args, combinedTargets, convertIntoOtherGates) {
   if (gate === undefined) {
     gate = make_mpp_gate(bases);
   }
-  return new Operation(gate, tag, args, new Uint32Array(qubits));
+  return new Operation(gate, tag, args, new Uint32Array(qubits), lineNo);
 }
 
 /**
@@ -203,7 +205,7 @@ function simplifiedMPP(tag, args, combinedTargets, convertIntoOtherGates) {
  * @param {!Array.<!string>} combinedTargets
  * @returns {!Operation}
  */
-function simplifiedSPP(tag, args, dag, combinedTargets) {
+function simplifiedSPP(tag, args, dag, combinedTargets, lineNo) {
   let bases = '';
   let qubits = [];
   for (let t of combinedTargets) {
@@ -226,7 +228,7 @@ function simplifiedSPP(tag, args, dag, combinedTargets) {
   if (gate === undefined) {
     gate = make_spp_gate(bases, dag);
   }
-  return new Operation(gate, tag, args, new Uint32Array(qubits));
+  return new Operation(gate, tag, args, new Uint32Array(qubits), lineNo);
 }
 
 
@@ -553,7 +555,7 @@ export class AnnotatedCircuit {
       } else if (name === 'MPP') {
         let combinedTargets = splitUncombinedTargets(targets);
         for (let combo of combinedTargets) {
-          let op = simplifiedMPP(tag, new Float32Array(args), combo, false);
+          let op = simplifiedMPP(tag, new Float32Array(args), combo, false, lineNo + insertList.length);
           try {
             currentLayer.put(op, false);
           } catch (_) {
@@ -586,6 +588,7 @@ export class AnnotatedCircuit {
               tag,
               new Float32Array([argIndex]),
               new Uint32Array([loc.targets[0]]),
+              lineNo + insertList.length,
             ));
         }
         num_detectors += isDet;
@@ -597,12 +600,13 @@ export class AnnotatedCircuit {
         let dag = name === 'SPP_DAG';
         let combinedTargets = splitUncombinedTargets(targets);
         for (let combo of combinedTargets) {
+          const op = simplifiedSPP(tag, new Float32Array(args), dag, combo, lineNo + insertList.length);
           try {
             currentLayer.put(op, false);
           } catch (_) {
             circuit.layers.push(new AnnotatedLayer());
             currentLayer = circuit.layers[circuit.layers.length - 1];
-            currentLayer.put(simplifiedSPP(tag, new Float32Array(args), dag, combo), false);
+            currentLayer.put(op, false);
           }
         }
         if (pendingCallback) {
@@ -645,6 +649,9 @@ export class AnnotatedCircuit {
           diag(coord_reuse(lineNo, x, y))
         }
         circuit.qubit_coords.set(q, [x, y]);
+        // Remember line number for this qubit's coords; copied into Qubit later.
+        if (!circuit._qubitCoordLines) circuit._qubitCoordLines = new Map();
+        circuit._qubitCoordLines.set(q, lineNo);
         // After processing coords, if there's a pending simple callback, run it now.
         if (pendingCallback) {
           try {
@@ -711,7 +718,8 @@ export class AnnotatedCircuit {
       let a = new Float32Array(args);
 
       if (gate.num_qubits === undefined) {
-        currentLayer.put(new Operation(gate, tag, a, new Uint32Array(targets)), lineNo + insertList.length);
+        const op = new Operation(gate, tag, a, new Uint32Array(targets), lineNo + insertList.length);
+        currentLayer.put(op);
       } else {
         if (targets.length % gate.num_qubits !== 0) {
           throw new Error("Incorrect number of targets in line " + line);
@@ -887,6 +895,8 @@ export class AnnotatedCircuit {
         if (q.panelY === undefined) q.panelY = sy;
         if (!q.sheet) q.sheet = 'DEFAULT';
       }
+      // Attach coords line if present.
+      try { if (circuit._qubitCoordLines && circuit._qubitCoordLines.has(id)) q.coordsLine = circuit._qubitCoordLines.get(id); } catch {}
       circuit.qubits.set(id, q);
     }
 

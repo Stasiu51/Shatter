@@ -613,14 +613,14 @@ function drawPanel(ctx, snap, sheetsToDraw) {
         defensiveDraw(ctx, () => {
             try {
                 const sel = selectionStore.snapshot();
-                const drawQ = (q, style) => {
+                const drawQ = (q, style, colorOverride) => {
                     const [x,y] = qubitDrawCoords(q);
                     if (style === 'hover') {
-                        ctx.strokeStyle = '#f2c744';
+                        ctx.strokeStyle = colorOverride || '#f2c744';
                         ctx.lineWidth = 2;
                         ctx.strokeRect(x - rad*1.3, y - rad*1.3, 2.6*rad, 2.6*rad);
                     } else {
-                        ctx.strokeStyle = '#1e90ff';
+                        ctx.strokeStyle = colorOverride || '#1e90ff';
                         ctx.lineWidth = 3;
                         ctx.strokeRect(x - rad*1.4, y - rad*1.4, 2.8*rad, 2.8*rad);
                     }
@@ -682,10 +682,14 @@ function drawPanel(ctx, snap, sheetsToDraw) {
                             stroke_connector_to(ctx, x1, y1, x2, y2, { color, thickness: 5, droop: 0 });
                         }
                     } else if (sel.hover.kind === 'polygon') {
-                        const [, layerStr, targetsStr] = sel.hover.id.split(':');
-                        const ids = targetsStr.split('-').map(s=>parseInt(s));
+                        const tokens = sel.hover.id.split(':');
+                        const layerIdx = parseInt(tokens[1]);
+                        const lineNum = parseInt(tokens[2]);
+                        const anns = circuit.layers?.[layerIdx]?.annotations || [];
+                        const poly = anns.find(a => a && a.kind === 'Polygon' && a.line === lineNum);
+                        const ids = Array.isArray(poly?.targets) ? poly.targets : [];
                         const pts = ids.map(q => qubitDrawCoords(q));
-                        beginPathPolygon(ctx, pts);
+                        if (pts.length >= 3) beginPathPolygon(ctx, pts);
                         ctx.strokeStyle = '#f2c744';
                         ctx.lineWidth = 3;
                         ctx.stroke();
@@ -698,15 +702,19 @@ function drawPanel(ctx, snap, sheetsToDraw) {
                     for (const id of sel.selected) {
                         const tokens = id.split(':');
                         if (sel.kind === 'qubit') {
-                            const q = parseInt(rest);
-                            if (isQubitVisible(q)) drawQ(q, 'selected');
+                            const q = parseInt(tokens[1]);
+                            if (isQubitVisible(q)) {
+                                drawQ(q, 'selected', selectionStore.getColorFor(id) || '#1e90ff');
+                            }
                         } else if (sel.kind === 'gate') {
                             const layerIdx = parseInt(tokens[1]);
                             const first = parseInt(tokens[2]);
                             const op = circuit.layers?.[layerIdx]?.id_ops?.get?.(first);
                             if (op) {
-                                for (const q of op.id_targets) if (isQubitVisible(q)) drawQ(q, 'selected');
-                                const color = '#1e90ff';
+                                const color = selectionStore.getColorFor(id) || '#1e90ff';
+                                for (const q of op.id_targets) if (isQubitVisible(q)) {
+                                    drawQ(q, 'selected', color);
+                                }
                                 const thick = 6;
                                 for (let k = 1; k < op.id_targets.length; k++) {
                                     const q0 = op.id_targets[k-1];
@@ -731,7 +739,7 @@ function drawPanel(ctx, snap, sheetsToDraw) {
                             const [, sheet, key] = tokens;
                             const [q1s,q2s] = key.split('-');
                             const q1 = parseInt(q1s), q2 = parseInt(q2s);
-                            const color = '#1e90ff';
+                            const color = selectionStore.getColorFor(id) || '#1e90ff';
                             if (embedding && embedding.type === 'TORUS') {
                                 const p1 = getPanelXY(q1), p2 = getPanelXY(q2);
                                 const segs = torusSegmentsBetween(p1, p2, embedding.Lx, embedding.Ly);
@@ -746,11 +754,14 @@ function drawPanel(ctx, snap, sheetsToDraw) {
                                 stroke_connector_to(ctx, x1, y1, x2, y2, { color, thickness: 6, droop: 0 });
                             }
                         } else if (sel.kind === 'polygon') {
-                            const [, layerStr, targetsStr] = tokens;
-                            const ids = targetsStr.split('-').map(s=>parseInt(s));
+                            const layerIdx = parseInt(tokens[1]);
+                            const lineNum = parseInt(tokens[2]);
+                            const anns = circuit.layers?.[layerIdx]?.annotations || [];
+                            const poly = anns.find(a => a && a.kind === 'Polygon' && a.line === lineNum);
+                            const ids = Array.isArray(poly?.targets) ? poly.targets : [];
                             const pts = ids.map(q => qubitDrawCoords(q));
-                            beginPathPolygon(ctx, pts);
-                            ctx.strokeStyle = '#1e90ff';
+                            if (pts.length >= 3) beginPathPolygon(ctx, pts);
+                            ctx.strokeStyle = selectionStore.getColorFor(id) || '#1e90ff';
                             ctx.lineWidth = 4;
                             ctx.stroke();
                             ctx.lineWidth = 1;

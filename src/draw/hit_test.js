@@ -136,7 +136,7 @@ export function hitTestAt(opts) {
         if (intersect) inside = !inside;
       }
       if (inside) {
-        const key = `p:${lastPolyLayer}:${ids.join('-')}`;
+        const key = `p:${lastPolyLayer}:${a.line ?? -1}`;
         candidates.push({ kind: 'polygon', id: key, z: 100 });
       }
     }
@@ -146,4 +146,3 @@ export function hitTestAt(opts) {
   candidates.sort((a,b) => a.z - b.z); // lowest first
   return candidates[candidates.length - 1]; // topmost
 }
-
