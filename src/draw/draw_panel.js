@@ -244,7 +244,7 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
     const layers = snap.circuit.layers;
     // Accumulate unique edges from all ConnSet annotations up to current layer.
     // Key edges by normalized pair "min-max" and keep style (colour) by last occurrence.
-    const edgeMap = new Map(); // key => {q1,q2, colour, thickness}
+    const edgeMap = new Map(); // key => {q1,q2, colour, thickness, droop}
     for (let r = 0; r <= snap.curLayer && r < layers.length; r++) {
         const anns = layers[r].annotations || [];
         for (const a of anns) {
@@ -264,6 +264,7 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
                     q2: a2,
                     colour: a.COLOUR || a.colour || '#9aa0a6',
                     thickness: (typeof a.thickness === 'number' && isFinite(a.thickness)) ? a.thickness : undefined,
+                    droop: (typeof a.droop === 'number' && isFinite(a.droop)) ? a.droop : 0,
                 });
             }
         }
@@ -273,7 +274,7 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
     ctx.save();
     try {
         ctx.lineCap = 'round';
-        for (const { q1, q2, colour, thickness } of edgeMap.values()) {
+        for (const { q1, q2, colour, thickness, droop } of edgeMap.values()) {
             let p1, p2;
             try {
                 p1 = qubitCoordsFunc(q1);
@@ -282,19 +283,16 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
                 // If coordinates are missing for either endpoint, skip.
                 continue;
             }
-            ctx.strokeStyle = parseCssColor(colour) || '#b0b5ba';
-            // Use per-edge thickness when provided; default to 4.
-            let w = 4;
-            if (typeof thickness === 'number' && isFinite(thickness)) {
-                w = Math.max(0.5, Math.min(16, thickness));
-            }
-            const prevW = ctx.lineWidth;
-            ctx.lineWidth = w;
-            ctx.beginPath();
-            ctx.moveTo(p1[0], p1[1]);
-            ctx.lineTo(p2[0], p2[1]);
-            ctx.stroke();
-            ctx.lineWidth = prevW;
+            // Draw using shared connector, honoring THICKNESS and DROOP, and color.
+            stroke_connector_to(
+                ctx,
+                p1[0], p1[1], p2[0], p2[1],
+                {
+                    thickness: (typeof thickness === 'number' && isFinite(thickness)) ? thickness : 4,
+                    droop: (typeof droop === 'number' && isFinite(droop)) ? droop : 0,
+                    color: parseCssColor(colour) || '#b0b5ba',
+                }
+            );
         }
     } finally {
         ctx.restore();
@@ -753,7 +751,7 @@ function torusSegmentsBetween(p1, p2, Lx, Ly) {
 
 function drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleSheetNames, embedding) {
     const layers = snap.circuit.layers;
-    const edgeMap = new Map(); // key => {q1,q2, colour, thickness}
+    const edgeMap = new Map(); // key => {q1,q2, colour, thickness, droop}
     for (let r = 0; r <= snap.curLayer && r < layers.length; r++) {
         const anns = layers[r].annotations || [];
         for (const a of anns) {
@@ -773,6 +771,7 @@ function drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleS
                     q2: a2,
                     colour: a.COLOUR || a.colour || '#9aa0a6',
                     thickness: (typeof a.thickness === 'number' && isFinite(a.thickness)) ? a.thickness : undefined,
+                    droop: (typeof a.droop === 'number' && isFinite(a.droop)) ? a.droop : 0,
                 });
             }
         }
@@ -781,29 +780,26 @@ function drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleS
     ctx.save();
     try {
         ctx.lineCap = 'round';
-        for (const { q1, q2, colour, thickness } of edgeMap.values()) {
+        for (const { q1, q2, colour, thickness, droop } of edgeMap.values()) {
             let p1, p2;
             try {
                 p1 = getPanelXY(q1);
                 p2 = getPanelXY(q2);
             } catch { continue; }
-            ctx.strokeStyle = parseCssColor(colour) || '#b0b5ba';
-            let w = 4;
-            if (typeof thickness === 'number' && isFinite(thickness)) {
-                w = Math.max(0.5, Math.min(16, thickness));
-            }
-            const prevW = ctx.lineWidth;
-            ctx.lineWidth = w;
             const segs = torusSegmentsBetween(p1, p2, embedding.Lx, embedding.Ly);
             for (const [[sx, sy], [tx, ty]] of segs) {
                 const [dx1, dy1] = c2dCoordTransform(sx, sy);
                 const [dx2, dy2] = c2dCoordTransform(tx, ty);
-                ctx.beginPath();
-                ctx.moveTo(dx1, dy1);
-                ctx.lineTo(dx2, dy2);
-                ctx.stroke();
+                stroke_connector_to(
+                    ctx,
+                    dx1, dy1, dx2, dy2,
+                    {
+                        thickness: (typeof thickness === 'number' && isFinite(thickness)) ? thickness : 4,
+                        droop: (typeof droop === 'number' && isFinite(droop)) ? droop : 0,
+                        color: parseCssColor(colour) || '#b0b5ba',
+                    }
+                );
             }
-            ctx.lineWidth = prevW;
         }
     } finally {
         ctx.restore();

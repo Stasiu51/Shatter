@@ -189,33 +189,71 @@ function stroke_degenerate_connector(ctx, x, y) {
  * @param {undefined|!number} x2
  * @param {undefined|!number} y2
  */
-function stroke_connector_to(ctx, x1, y1, x2, y2) {
+/**
+ * Strokes a connector from (x1,y1) to (x2,y2).
+ * Backward compatible default behavior (no options) matches previous drooping bezier for long spans.
+ *
+ * @param {!CanvasRenderingContext2D} ctx
+ * @param {number|undefined} x1
+ * @param {number|undefined} y1
+ * @param {number|undefined} x2
+ * @param {number|undefined} y2
+ * @param {{droop?:number, color?:string, thickness?:number, cap?:CanvasLineCap, straightThreshold?:number}=} opts
+ */
+function stroke_connector_to(ctx, x1, y1, x2, y2, opts) {
     if (x1 === undefined || y1 === undefined || x2 === undefined || y2 === undefined) {
         stroke_degenerate_connector(ctx, x1, y1);
         stroke_degenerate_connector(ctx, x2, y2);
         return;
     }
+    // Ensure ordering (for consistent control point computation)
     if (x2 < x1 || (x2 === x1 && y2 < y1)) {
-        stroke_connector_to(ctx, x2, y2, x1, y1);
+        stroke_connector_to(ctx, x2, y2, x1, y1, opts);
         return;
     }
 
-    let dx = x2 - x1;
-    let dy = y2 - y1;
-    let d = Math.sqrt(dx*dx + dy*dy);
-    let ux = dx / d * 14;
-    let uy = dy / d * 14;
+    const droop = typeof opts?.droop === 'number' && isFinite(opts.droop) ? opts.droop : undefined;
+    const thickness = typeof opts?.thickness === 'number' && isFinite(opts.thickness) ? Math.max(0.5, Math.min(16, opts.thickness)) : undefined;
+    const color = typeof opts?.color === 'string' ? opts.color : undefined;
+    const cap = opts?.cap;
+    const straightThreshold = typeof opts?.straightThreshold === 'number' && isFinite(opts.straightThreshold)
+        ? opts.straightThreshold
+        : pitch * 1.1;
+
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const d = Math.sqrt(dx*dx + dy*dy) || 1;
+
+    // Unit along and perpendicular (scaled by base magnitude)
+    const base = 14; // matches legacy curve offset magnitude
+    const ux = (dx / d) * base;
+    const uy = (dy / d) * base;
     let px = uy;
     let py = -ux;
+    // Apply droop scaling when provided; default preserves legacy droop (1)
+    const droopScale = droop === undefined ? 1 : droop;
+    px *= droopScale;
+    py *= droopScale;
 
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    if (d < pitch * 1.1) {
-        ctx.lineTo(x2, y2);
-    } else {
-        ctx.bezierCurveTo(x1 + ux + px, y1 + uy + py, x2 - ux + px, y2 - uy + py, x2, y2);
+    // Save styles if overriding.
+    const needSave = (thickness !== undefined) || (color !== undefined) || (cap !== undefined);
+    if (needSave) ctx.save();
+    try {
+        if (thickness !== undefined) ctx.lineWidth = thickness;
+        if (color !== undefined) ctx.strokeStyle = color;
+        if (cap !== undefined) ctx.lineCap = cap;
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        if (d < straightThreshold || droopScale === 0) {
+            ctx.lineTo(x2, y2);
+        } else {
+            ctx.bezierCurveTo(x1 + ux + px, y1 + uy + py, x2 - ux + px, y2 - uy + py, x2, y2);
+        }
+        ctx.stroke();
+    } finally {
+        if (needSave) ctx.restore();
     }
-    ctx.stroke();
 }
 
 /**
@@ -226,10 +264,13 @@ function stroke_connector_to(ctx, x1, y1, x2, y2) {
  * @param {undefined|!number} y2
  */
 function draw_connector(ctx, x1, y1, x2, y2) {
+    const prevW = ctx.lineWidth;
+    const prevS = ctx.strokeStyle;
     ctx.lineWidth = 2;
     ctx.strokeStyle = 'black';
     stroke_connector_to(ctx, x1, y1, x2, y2);
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = prevS;
+    ctx.lineWidth = prevW;
 }
 
 export {
