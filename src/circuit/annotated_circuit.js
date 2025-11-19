@@ -24,6 +24,7 @@ import {
   embedding_must_be_at_top,
   embedding_invalid,
 } from '../diag/diag_factory.js';
+import {make_mpp_gate, make_spp_gate} from '../gates/gateset_mpp.js';
 
 /**
  * Per-qubit metadata for overlays and rendering.
@@ -557,7 +558,7 @@ export class AnnotatedCircuit {
             currentLayer = circuit.layers[circuit.layers.length - 1];
             currentLayer.put(op, false);
           }
-          measurement_locs.push({ layer: layers.length - 1, targets: op.id_targets });
+          measurement_locs.push({ layer: circuit.layers.length - 1, targets: op.id_targets });
         }
         if (pendingCallback) {
           try { pendingCallback('MPP', args, targets); } finally { pendingCallback = null; }
