@@ -5,6 +5,7 @@ import { renderTimeline as renderTimelineCore, computeMaxScrollCSS } from './ui_
 import { drawPanel } from './draw/draw_panel.js'
 import { torusSegmentsBetween } from './draw/draw_panel.js'
 import { setupTimelineUI } from './ui_elements/timeline_controller.js';
+import { setupResizablePane } from './util/ui_utils.js';
 import { createStatusLogger } from './ui_elements/status_logger.js';
 import { setupNameEditor, sanitizeName } from './ui_elements/name_editor.js';
 import { setupLayerKeyboard } from './layers/keyboard.js';
@@ -50,6 +51,13 @@ const statusDotRight = document.getElementById('status-dot-right');
 const btnImport = document.getElementById('btn-import');
 const btnExport = document.getElementById('btn-export');
 
+
+// Inspector elements (skeleton present in HTML)
+const inspectorEl = document.getElementById('inspector');
+const inspectorResizerEl = document.getElementById('inspector-resizer');
+// Note: both header and local buttons share id 'inspector-toggle' in HTML skeleton.
+const inspectorToggleGlobalEl = document.querySelector('header .toolbar #inspector-toggle');
+const inspectorToggleLocalEl = document.querySelector('.inspector .inspector-header #inspector-toggle');
 
 // Editor elements
 const editorEl = document.getElementById('editor');
@@ -169,6 +177,38 @@ const timelineCtl = setupTimelineUI({
     renderAllPanels();
   },
 });
+
+// Inspector UI setup (resizable + collapsible) using the common resizable pane helper.
+if (inspectorEl && inspectorResizerEl) {
+  const updateInspectorToggleText = (collapsed) => {
+    if (inspectorToggleGlobalEl) inspectorToggleGlobalEl.textContent = collapsed ? 'Show inspector' : 'Hide inspector';
+    if (inspectorToggleLocalEl) inspectorToggleLocalEl.textContent = collapsed ? 'Show' : 'Hide';
+  };
+  setupResizablePane({
+    paneEl: inspectorEl,
+    resizerEl: inspectorResizerEl,
+    rootStyle,
+    cssVar: '--inspector-width',
+    lsWidthKey: 'inspectorWidth',
+    lsCollapsedKey: 'inspectorCollapsed',
+    defaultWidthPx: 320,
+    toggleEls: [inspectorToggleGlobalEl, inspectorToggleLocalEl].filter(Boolean),
+    onCollapsedChanged: () => {
+      // Keep adjacent content responsive
+      renderAllPanels();
+      timelineCtl.render();
+    },
+    onResizing: () => {
+      renderAllPanels();
+      timelineCtl.render();
+    },
+    onResized: () => {
+      renderAllPanels();
+      timelineCtl.render();
+    },
+    updateToggleText: updateInspectorToggleText,
+  });
+}
 
 // Editor UI setup (resizable + collapsible)
 const editorCtl = setupTextEditorUI({
