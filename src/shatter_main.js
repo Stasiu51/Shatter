@@ -53,6 +53,8 @@ const statusTextRight = document.getElementById('status-text-right');
 const statusDotRight = document.getElementById('status-dot-right');
 const btnImport = document.getElementById('btn-import');
 const btnExport = document.getElementById('btn-export');
+const btnUndo = document.getElementById('btn-undo');
+const btnRedo = document.getElementById('btn-redo');
 
 
 // Inspector elements (skeleton present in HTML)
@@ -366,6 +368,16 @@ function loadStimText(stimText) {
     // Init or update EditorState (source of interactive edits ⇒ text). Start fresh baseline.
     ensureEditorState();
     editorState.rev.clear(currentText);
+    // Precompute propagation and push a snapshot immediately so first render uses cache.
+    try {
+      const propagated = editorState._computePropagationCache(circuit);
+      editorState.obs_val_draw_state.set(editorState.toSnapshot(circuit, propagated));
+    } catch {}
+    // Update Undo/Redo availability after establishing baseline
+    try {
+      if (btnUndo) btnUndo.disabled = editorState.rev.isAtBeginningOfHistory();
+      if (btnRedo) btnRedo.disabled = editorState.rev.isAtEndOfHistory();
+    } catch {}
 
     // Reset timeline scroll; rendering will occur via snapshot subscription.
     timelineCtl.setScrollY(0);
@@ -423,11 +435,19 @@ function updateLayerIndicator() {
   const el = document.getElementById('timeline-layer-info');
   if (!el) return;
   if (!circuit) {
-    el.textContent = '';
+    const f = el.querySelector('.full');
+    const c = el.querySelector('.compact');
+    if (f) f.textContent = '';
+    if (c) c.textContent = '';
     return;
   }
   const last = Math.max(0, circuit.layers.length - 1);
-  el.textContent = `Layer ${currentLayer}/${last}. Use Q/E to move.`;
+  const f = el.querySelector('.full');
+  const c = el.querySelector('.compact');
+  const fullTxt = `Layer ${currentLayer}/${last}. Use Q/E to move.`;
+  const compactTxt = `${currentLayer}/${last}`;
+  if (f) f.textContent = fullTxt; else el.textContent = fullTxt;
+  if (c) c.textContent = compactTxt;
 }
 
 function setLayer(layer) {
@@ -566,6 +586,9 @@ function ensureEditorState() {
   // Prefer first panel canvas; fallback to a throwaway canvas.
   const canvas = mgr.panels?.[0]?.canvas || document.createElement('canvas');
   editorState = new EditorState(canvas);
+  // Wire Undo/Redo buttons
+  if (btnUndo) btnUndo.onclick = () => { try { editorState.undo(); } catch {} };
+  if (btnRedo) btnRedo.onclick = () => { try { editorState.redo(); } catch {} };
   // Subscribe to revision changes: when a commit occurs, adopt the new text.
   editorState.rev.changes().subscribe((maybeText) => {
     // Sync emitted text back into editor and top-level circuit.
@@ -591,6 +614,11 @@ function ensureEditorState() {
     } catch {
       editorState.obs_val_draw_state.set(editorState.toSnapshot(undefined));
     }
+    // Update Undo/Redo availability
+    try {
+      if (btnUndo) btnUndo.disabled = editorState.rev.isAtBeginningOfHistory();
+      if (btnRedo) btnRedo.disabled = editorState.rev.isAtEndOfHistory();
+    } catch {}
   });
   // Draw panels on snapshot changes, mirroring stim_crumble's render loop.
   editorState.obs_val_draw_state.observable().subscribe(ds => {

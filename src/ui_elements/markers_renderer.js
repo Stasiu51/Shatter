@@ -55,7 +55,8 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
     // No second row; controls are in the compact grid
 
     try {
-      const p = propagated?.get?.(i) || PropagatedPauliFrames.fromCircuit(circuit, i);
+      const p = propagated?.get?.(i);
+      if (!p) throw new Error('No cached propagation');
       const currentBasesMap = p.atLayer(currentLayer + 0.5).bases;
       const basisSet = [...currentBasesMap.values()];
       const color = basisColor(basisSet);

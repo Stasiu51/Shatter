@@ -440,29 +440,7 @@ function drawPanel(ctx, snap, sheetsToDraw) {
         return [x, y];
     };
     const qubitDrawCoords = q => c2dCoordTransform(...getPanelXY(q));
-    let propagatedMarkerLayers = snap.propagatedFrames;
-    if (!propagatedMarkerLayers) {
-        propagatedMarkerLayers = /** @type {!Map<!int, !PropagatedPauliFrames>} */ new Map();
-        for (let mi = 0; mi < numPropagatedLayers; mi++) {
-            propagatedMarkerLayers.set(mi, PropagatedPauliFrames.fromCircuit(circuit, mi));
-        }
-        let {dets: dets, obs: obs} = circuit.collectDetectorsAndObservables(false);
-        let batch_input = [];
-        for (let mi = 0; mi < dets.length; mi++) {
-            batch_input.push(dets[mi].mids);
-        }
-        for (let mi of obs.keys()) {
-            batch_input.push(obs.get(mi));
-        }
-        let batch_output = PropagatedPauliFrames.batchFromMeasurements(circuit, batch_input);
-        let batch_index = 0;
-        for (let mi = 0; mi < dets.length; mi++) {
-            propagatedMarkerLayers.set(~mi, batch_output[batch_index++]);
-        }
-        for (let mi of obs.keys()) {
-            propagatedMarkerLayers.set(~mi ^ (1 << 30), batch_output[batch_index++]);
-        }
-    }
+    const propagatedMarkerLayers = snap.propagatedFrames || new Map();
 
     let operatedOnQubits = new Set();
     for (let layer of circuit.layers) {

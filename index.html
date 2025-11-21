@@ -508,6 +508,8 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      /* enable container queries for compact layer text */
+      container-type: inline-size;
     }
 
     .timeline-left {
@@ -525,6 +527,12 @@
       margin-left: 0;
       font-weight: 500;
       color: #57606a;
+    }
+    .timeline-header .layer-info .full { display: inline; }
+    .timeline-header .layer-info .compact { display: none; }
+    @container (max-width: 400px) {
+      .timeline-header .layer-info .full { display: none; }
+      .timeline-header .layer-info .compact { display: inline; }
     }
 
     .timeline-body {
@@ -661,8 +669,9 @@
     <span class="label" style="margin-left:12px;">Tools:</span>
     <button class="btn" id="btn-import" style="background-color:#28a745; color:white;">Import</button>
     <button class="btn" id="btn-export">Export</button>
-    <button class="btn" id="btn-run-tests">Run tests</button>
     <button class="btn" id="btn-help">Help</button>
+    <button class="btn" id="btn-undo" title="Undo (Ctrl/Cmd+Z)">Undo</button>
+    <button class="btn" id="btn-redo" title="Redo (Shift+Ctrl/Cmd+Z)">Redo</button>
   </div>
   <main>
     <div class="workspace">
@@ -699,7 +708,7 @@
         <div class="timeline-header">
           <div class="timeline-left">
             <div class="timeline-title">Timeline</div>
-            <span id="timeline-layer-info" class="layer-info"></span>
+            <span id="timeline-layer-info" class="layer-info"><span class="full"></span><span class="compact"></span></span>
           </div>
           <span class="right">
             <div class="seg" id="timeline-zoom-seg">
