@@ -46,7 +46,7 @@ function rowEl() {
   return { row, square, btnCl, btnO, btnD, btnX, btnY, btnZ };
 }
 
-export function renderMarkers({ containerEl, circuit, currentLayer, canToggle, onClearIndex, onToggleType }) {
+export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType }) {
   if (!containerEl) return;
   containerEl.innerHTML='';
   for (let i=0;i<10;i++) {
@@ -55,7 +55,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, canToggle, o
     // No second row; controls are in the compact grid
 
     try {
-      const p = PropagatedPauliFrames.fromCircuit(circuit, i);
+      const p = propagated?.get?.(i) || PropagatedPauliFrames.fromCircuit(circuit, i);
       const currentBasesMap = p.atLayer(currentLayer + 0.5).bases;
       const basisSet = [...currentBasesMap.values()];
       const color = basisColor(basisSet);

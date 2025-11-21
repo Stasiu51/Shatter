@@ -18,7 +18,7 @@ class StateSnapshot {
      * @param {!number} mouseDownY
      * @param {!Array<![!number, !number]>} boxHighlightPreview
      */
-    constructor(circuit, curLayer, focusedSet, timelineSet, curMouseX, curMouseY, mouseDownX, mouseDownY, boxHighlightPreview) {
+    constructor(circuit, curLayer, focusedSet, timelineSet, curMouseX, curMouseY, mouseDownX, mouseDownY, boxHighlightPreview, propagatedFrames = undefined) {
         this.circuit = circuit.copy();
         this.curLayer = curLayer;
         this.focusedSet = new Map(focusedSet.entries());
@@ -28,6 +28,8 @@ class StateSnapshot {
         this.mouseDownX = mouseDownX;
         this.mouseDownY = mouseDownY;
         this.boxHighlightPreview = [...boxHighlightPreview];
+        // Optional cache of propagated pauli frames (Map<int, PropagatedPauliFrames>)
+        this.propagatedFrames = propagatedFrames || undefined;
 
         while (this.circuit.layers.length <= this.curLayer) {
             this.circuit.layers.push(new AnnotatedLayer());

@@ -282,10 +282,12 @@ function renderMarkersUI() {
         const snapSel = selectionStore.snapshot();
         canToggle = !!(snapSel && ['qubit','gate','connection','polygon'].includes(snapSel.kind) && snapSel.selected.size > 0);
       } catch {}
+      const snap = editorState?.obs_val_draw_state.get?.();
       renderMarkers({
         containerEl: container,
         circuit,
         currentLayer,
+        propagated: snap?.propagatedFrames,
         canToggle,
         onClearIndex: (idx) => { try { editorState?.clearMarkersIndex?.(idx); renderMarkersUI(); schedulePanelsRender(); } catch {} },
         onToggleType: (gateName, idx) => { try { editorState?.toggleMarkerAtSelection?.(false, gateName, idx); renderMarkersUI(); schedulePanelsRender(); } catch {} },
@@ -581,8 +583,14 @@ function ensureEditorState() {
         pushStatus(`Parse error: ${e?.message || e}`, 'error');
       }
     }
-    // Trigger a fresh snapshot; downstream subscriptions will render.
-    editorState.obs_val_draw_state.set(editorState.toSnapshot(undefined));
+    // Trigger a fresh snapshot with cached propagation frames.
+    try {
+      const snapCircuit = circuit || editorState.copyOfCurAnnotatedCircuit();
+      const propagated = editorState._computePropagationCache(snapCircuit);
+      editorState.obs_val_draw_state.set(editorState.toSnapshot(snapCircuit, propagated));
+    } catch {
+      editorState.obs_val_draw_state.set(editorState.toSnapshot(undefined));
+    }
   });
   // Draw panels on snapshot changes, mirroring stim_crumble's render loop.
   editorState.obs_val_draw_state.observable().subscribe(ds => {

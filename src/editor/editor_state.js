@@ -190,15 +190,17 @@ class EditorState {
      * @param {!AnnotatedCircuit} newAnnotatedCircuit
      */
     preview(newAnnotatedCircuit) {
+        // Emit preview text and prepare a snapshot with cached propagation frames.
         this.rev.startedWorkingOnCommit(newAnnotatedCircuit.toStimCircuit());
-        this.obs_val_draw_state.set(this.toSnapshot(newAnnotatedCircuit));
+        const propagated = this._computePropagationCache(newAnnotatedCircuit);
+        this.obs_val_draw_state.set(this.toSnapshot(newAnnotatedCircuit, propagated));
     }
 
     /**
      * @param {undefined|!AnnotatedCircuit} previewAnnotatedCircuit
      * @returns {!StateSnapshot}
      */
-    toSnapshot(previewAnnotatedCircuit) {
+    toSnapshot(previewAnnotatedCircuit, propagatedFrames) {
         if (previewAnnotatedCircuit === undefined) {
             previewAnnotatedCircuit = this.copyOfCurAnnotatedCircuit();
         }
@@ -212,12 +214,53 @@ class EditorState {
             this.mouseDownX,
             this.mouseDownY,
             this.currentPositionsBoxesByMouseDrag(this.chorder.curModifiers.has("alt")),
+            propagatedFrames,
         );
     }
 
     force_redraw() {
         let previewedAnnotatedCircuit = this.obs_val_draw_state.get().circuit;
-        this.obs_val_draw_state.set(this.toSnapshot(previewedAnnotatedCircuit));
+        // Preserve existing propagated frames when just redrawing.
+        const existing = this.obs_val_draw_state.get().propagatedFrames;
+        this.obs_val_draw_state.set(this.toSnapshot(previewedAnnotatedCircuit, existing));
+    }
+
+    /**
+     * Build a cache of propagated pauli frames for the given circuit:
+     * - marker indices present in the circuit (0..max)
+     * - detector frames keyed by ~index
+     * - observable frames keyed by obs index
+     * @param {!AnnotatedCircuit} c
+     * @returns {!Map<number, import('../circuit/propagated_pauli_frames.js').default>}
+     */
+    _computePropagationCache(c) {
+        const cache = new Map();
+        try {
+            // Collect used marker indices
+            let maxIndex = -1;
+            for (const layer of c.layers) {
+                for (const op of layer.iter_gates_and_markers()) {
+                    const name = op?.gate?.name || '';
+                    if ((name === 'MARKX' || name === 'MARKY' || name === 'MARKZ') && op.args && op.args.length > 0) {
+                        const mi = Math.round(op.args[0]);
+                        if (mi > maxIndex) maxIndex = mi;
+                    }
+                }
+            }
+            for (let mi = 0; mi <= maxIndex; mi++) {
+                cache.set(mi, PropagatedPauliFrames.fromCircuit(c, mi));
+            }
+            // Detectors and observables (batch)
+            const { dets, obs } = c.collectDetectorsAndObservables(false);
+            const batch_input = [];
+            for (let di = 0; di < dets.length; di++) batch_input.push(dets[di].mids);
+            for (const oi of obs.keys()) batch_input.push(obs.get(oi));
+            const batch = PropagatedPauliFrames.batchFromMeasurements(c, batch_input);
+            let idx = 0;
+            for (let di = 0; di < dets.length; di++) cache.set(~di, batch[idx++]);
+            for (const oi of obs.keys()) cache.set((~oi) ^ (1 << 30), batch[idx++]);
+        } catch {}
+        return cache;
     }
 
     clearAnnotatedCircuit() {
