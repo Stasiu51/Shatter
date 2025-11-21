@@ -467,6 +467,23 @@
       overflow-y: auto;
     }
     .markers.collapsed { width: 0 !important; border: none; }
+        .markers-border {
+      width: 6px;
+      cursor: col-resize;
+      position: relative;
+    }
+
+    .markers-border::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 2px;
+      width: 2px;
+      background: var(--border);
+      border-radius: 2px;
+      opacity: 0.8;
+    }
     /* Timeline (global) */
     .timeline {
       width: var(--timeline-width);
@@ -653,6 +670,7 @@
         <div id="panels" class="layout-1"></div>
       </div>
       <!-- Markers panel (fixed width) -->
+       <div class="markers-border" id="markers-border"></div>
       <div class="markers" id="markers">
         <div class="markers-header">
           <div class="markers-title">Markers</div>

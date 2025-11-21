@@ -668,9 +668,9 @@ function drawPanel(ctx, snap, sheetsToDraw) {
                     } else if (sel.hover.kind === 'polygon') {
                         const tokens = sel.hover.id.split(':');
                         const layerIdx = parseInt(tokens[1]);
-                        const lineNum = parseInt(tokens[2]);
+                        const polyIndex = parseInt(tokens[2]);
                         const anns = circuit.layers?.[layerIdx]?.annotations || [];
-                        const poly = anns.find(a => a && a.kind === 'Polygon' && a.line === lineNum);
+                        const poly = anns.find(a => a && a.kind === 'Polygon' && a.polyIndex === polyIndex);
                         const ids = Array.isArray(poly?.targets) ? poly.targets : [];
                         const pts = ids.map(q => qubitDrawCoords(q));
                         if (pts.length >= 3) beginPathPolygon(ctx, pts);
@@ -739,9 +739,9 @@ function drawPanel(ctx, snap, sheetsToDraw) {
                             }
                         } else if (sel.kind === 'polygon') {
                             const layerIdx = parseInt(tokens[1]);
-                            const lineNum = parseInt(tokens[2]);
+                            const polyIndex = parseInt(tokens[2]);
                             const anns = circuit.layers?.[layerIdx]?.annotations || [];
-                            const poly = anns.find(a => a && a.kind === 'Polygon' && a.line === lineNum);
+                            const poly = anns.find(a => a && a.kind === 'Polygon' && a.polyIndex === polyIndex);
                             const ids = Array.isArray(poly?.targets) ? poly.targets : [];
                             const pts = ids.map(q => qubitDrawCoords(q));
                             if (pts.length >= 3) beginPathPolygon(ctx, pts);

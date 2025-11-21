@@ -500,7 +500,8 @@ export class AnnotatedCircuit {
           if (ids.length === 0) {
             return;
           }
-          currentLayer.annotations.push({ kind: 'Polygon', line: hdrLine, sheet, stroke, fill: `(${color.join(',')})`, targets: ids });
+          const polyIndex = (currentLayer.annotations || []).filter(a => a && a.kind === 'Polygon').length;
+          currentLayer.annotations.push({ kind: 'Polygon', line: hdrLine, polyIndex, sheet, stroke, fill: `(${color.join(',')})`, targets: ids });
         };
         return;
       }
@@ -652,7 +653,8 @@ export class AnnotatedCircuit {
             insertList.push({ lineNo: lineNo, line: `##! POLY sheet=${h.sheet} stroke=${h.stroke}` });
           }
           if (ids.length > 0) {
-            currentLayer.annotations.push({ kind: 'Polygon', line: lineNo, sheet: h.sheet, stroke: h.stroke, fill: `(${color.join(',')})`, targets: ids });
+            const polyIndex = (currentLayer.annotations || []).filter(a => a && a.kind === 'Polygon').length;
+            currentLayer.annotations.push({ kind: 'Polygon', line: lineNo, polyIndex, sheet: h.sheet, stroke: h.stroke, fill: `(${color.join(',')})`, targets: ids });
           }
         }
         return;
@@ -1290,7 +1292,18 @@ export class AnnotatedCircuit {
     for (let layer of this.layers) {
       // Emit overlay annotations for this layer (ConnSet, Polygon)
       try {
-        const anns = layer.annotations || [];
+        const anns = (layer.annotations || []).slice().sort((a, b) => {
+          const ak = a && a.kind === 'Polygon';
+          const bk = b && b.kind === 'Polygon';
+          if (ak && bk) {
+            const ia = (typeof a.polyIndex === 'number') ? a.polyIndex : (1e9 + ((a && a.line) || 0));
+            const ib = (typeof b.polyIndex === 'number') ? b.polyIndex : (1e9 + ((b && b.line) || 0));
+            return ia - ib;
+          }
+          const la = (a && typeof a.line === 'number') ? a.line : 0;
+          const lb = (b && typeof b.line === 'number') ? b.line : 0;
+          return la - lb;
+        });
         for (const a of anns) {
           if (!a || !a.kind) continue;
           if (a.kind === 'ConnSet') {

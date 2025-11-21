@@ -136,7 +136,7 @@ export function hitTestAt(opts) {
         if (intersect) inside = !inside;
       }
       if (inside) {
-        const key = `p:${lastPolyLayer}:${a.line ?? -1}`;
+        const key = `p:${lastPolyLayer}:${(a.polyIndex ?? -1)}`;
         candidates.push({ kind: 'polygon', id: key, z: 100 });
       }
     }

@@ -531,9 +531,9 @@ class EditorState {
                 for (const id of snapSel.selected) {
                     const tokens = String(id).split(':');
                     const layerIdx = parseInt(tokens[1]);
-                    const lineNum = parseInt(tokens[2]);
+                    const polyIndex = parseInt(tokens[2]);
                     const anns = c?.layers?.[layerIdx]?.annotations || [];
-                    const poly = anns.find(a => a && a.kind === 'Polygon' && a.line === lineNum);
+                    const poly = anns.find(a => a && a.kind === 'Polygon' && a.polyIndex === polyIndex);
                     const ids = Array.isArray(poly?.targets) ? poly.targets : [];
                     for (const q of ids) {
                         const qid = parseInt(q);

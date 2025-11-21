@@ -74,9 +74,9 @@ function resolveNameAndLine(id, kind, circuit, curLayer) {
     }
     if (kind === 'polygon' || tokens[0] === 'p') {
       const layerIdx = parseInt(tokens[1]);
-      const lineNum = parseInt(tokens[2]);
+      const polyIndex = parseInt(tokens[2]);
       const anns = circuit.layers?.[layerIdx]?.annotations || [];
-      const poly = anns.find(a => a && a.kind === 'Polygon' && a.line === lineNum);
+      const poly = anns.find(a => a && a.kind === 'Polygon' && a.polyIndex === polyIndex);
       const count = Array.isArray(poly?.targets) ? poly.targets.length : 0;
       const name = `Polygon [${poly?.sheet || 'DEFAULT'}] (${count} vertices)`;
       const line = poly?.line;

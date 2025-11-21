@@ -796,11 +796,10 @@ function reconcileSelectionVisibility() {
         }
       } else if (kind === 'p' || kind === 'polygon') {
         const layerIdx = parseInt(tokens[1]);
-        const targetsStr = tokens[2];
-        const ids = targetsStr.split('-').map(s=>parseInt(s));
+        const polyIndex = parseInt(tokens[2]);
         if (lastPolyLayer === layerIdx) {
           const anns = circuit.layers?.[layerIdx]?.annotations || [];
-          const poly = anns.find(a => a && a.kind === 'Polygon' && Array.isArray(a.targets) && a.targets.length === ids.length && a.targets.every((q, idx)=>q===ids[idx]));
+          const poly = anns.find(a => a && a.kind === 'Polygon' && a.polyIndex === polyIndex);
           const psheet = poly?.sheet || 'DEFAULT';
           for (let i=0;i<panelSheets.length && !visibleAnywhere;i++) {
             const sheets = panelSheets[i];

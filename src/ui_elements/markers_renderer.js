@@ -18,36 +18,41 @@ function basisColor(basisSet) {
 function rowEl() {
   const row = document.createElement('div');
   row.className = 'marker-row';
-  row.style.cssText = 'display:flex; align-items:center; gap:8px;';
+  row.style.cssText = 'display:flex; align-items:center; gap:6px; padding:2px 0;';
   const square = document.createElement('canvas');
-  square.width = 28; square.height = 28; square.style.cssText='background:transparent; display:block;';
-  const btnD = document.createElement('button'); btnD.textContent='D'; btnD.className='btn'; btnD.style.cssText='padding:2px 6px;';
-  const btnO = document.createElement('button'); btnO.textContent='O'; btnO.className='btn'; btnO.style.cssText='padding:2px 6px;';
-  const label = document.createElement('span'); label.style.cssText='min-width:24px; color:#57606a;';
-  row.append(label, square, btnD, btnO);
-  return { row, square, btnD, btnO, label };
+  square.style.cssText='background:transparent; display:block; width:28px; height:28px;';
+  // Compact 3x2 grid container
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid; grid-template-columns: repeat(3, 22px); grid-auto-rows: 18px; gap:0; border:1px solid #c9d1d9; border-radius:6px; overflow:hidden;';
+  const mkBtn = (t) => { const b=document.createElement('button'); b.textContent=t; b.className='btn'; b.style.cssText='width:22px;height:18px;padding:0;border:0;background:#fff;font-size:10px;line-height:18px;text-align:center;cursor:pointer;'; return b; };
+  const btnCl = mkBtn('Cl');
+  const btnO = mkBtn('O');
+  const btnD = mkBtn('D');
+  const btnX = mkBtn('X');
+  const btnY = mkBtn('Y');
+  const btnZ = mkBtn('Z');
+  // Basis button colors
+  btnX.style.background = 'red'; btnX.style.color = '#fff';
+  btnY.style.background = 'green'; btnY.style.color = '#fff';
+  btnZ.style.background = 'blue'; btnZ.style.color = '#fff';
+  const cells = [btnCl, btnO, btnD, btnX, btnY, btnZ];
+  cells.forEach((b, idx) => {
+    const col = idx % 3; const rowi = Math.floor(idx / 3);
+    if (col < 2) b.style.borderRight = '1px solid #e5e7eb';
+    if (rowi < 1) b.style.borderBottom = '1px solid #e5e7eb';
+    grid.appendChild(b);
+  });
+  row.append(square, grid);
+  return { row, square, btnCl, btnO, btnD, btnX, btnY, btnZ };
 }
 
 export function renderMarkers({ containerEl, circuit, currentLayer, canToggle, onClearIndex, onToggleType }) {
   if (!containerEl) return;
   containerEl.innerHTML='';
   for (let i=0;i<10;i++) {
-    const { row, square, btnD, btnO, label } = rowEl();
-    label.textContent = `#${i}`;
-    // Insert a 'Cl' clear button between square and D
-    const btnCl = document.createElement('button'); btnCl.textContent='Cl'; btnCl.className='btn'; btnCl.style.cssText='padding:2px 6px;';
-    row.insertBefore(btnCl, btnD);
+    const { row, square, btnCl, btnO, btnD, btnX, btnY, btnZ } = rowEl();
     containerEl.appendChild(row);
-
-    // Add a second row for X/Y/Z buttons
-    const row2 = document.createElement('div');
-    row2.style.cssText = 'display:flex; align-items:center; gap:6px; padding-left:24px;';
-    const mkBtn = (t, color) => { const b=document.createElement('button'); b.textContent=t; b.className='btn'; b.style.cssText=`padding:2px 6px; background:${color}; color:#fff; border-color:${color}`; return b; };
-    const btnX = mkBtn('X', 'red');
-    const btnY = mkBtn('Y', 'green');
-    const btnZ = mkBtn('Z', 'blue');
-    row2.append(btnX, btnY, btnZ);
-    containerEl.appendChild(row2);
+    // No second row; controls are in the compact grid
 
     try {
       const p = PropagatedPauliFrames.fromCircuit(circuit, i);
@@ -70,13 +75,21 @@ export function renderMarkers({ containerEl, circuit, currentLayer, canToggle, o
       } catch {}
       const active = basisSet.length > 0;
 
-      // Draw square: smaller box (70%), white fill, dark outline.
+      // HiDPI-aware canvas sizing and draw using CSS-px coordinates.
+      const cssW = 28, cssH = 28;
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      if (square.width !== Math.floor(cssW * dpr) || square.height !== Math.floor(cssH * dpr)) {
+        square.width = Math.floor(cssW * dpr);
+        square.height = Math.floor(cssH * dpr);
+      }
       const ctx = square.getContext('2d');
+      ctx.setTransform(1,0,0,1,0,0);
       ctx.clearRect(0,0, square.width, square.height);
+      ctx.scale(dpr, dpr);
       const barH = 4; // height for error bar inside the box (at top)
-      const boxSize = Math.floor(Math.min(square.width, square.height) * 0.7);
-      const boxX = Math.floor((square.width - boxSize) / 2);
-      const boxY = Math.floor((square.height - boxSize) / 2);
+      const boxSize = Math.floor(Math.min(cssW, cssH) * 0.7);
+      const boxX = Math.floor((cssW - boxSize) / 2);
+      const boxY = Math.floor((cssH - boxSize) / 2);
       // Box fill always white
       ctx.fillStyle = '#fff';
       ctx.fillRect(boxX, boxY, boxSize, boxSize);
@@ -99,12 +112,21 @@ export function renderMarkers({ containerEl, circuit, currentLayer, canToggle, o
           ctx.fillRect(cx - dx, cy - dy, wx, wy);
         } catch {}
       }
+      // Draw index number inside the box
+      try {
+        const cx = boxX + Math.floor(boxSize / 2);
+        const cy = boxY + Math.floor(boxSize / 2);
+        ctx.fillStyle = '#222';
+        ctx.font = 'bold 10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(i), cx, cy);
+      } catch {}
 
       const enable = active && !hasErr;
-      btnD.disabled = !enable;
-      btnO.disabled = !enable;
-      if (btnD.disabled) { btnD.style.opacity='0.5'; } else { btnD.style.opacity='1'; }
-      if (btnO.disabled) { btnO.style.opacity='0.5'; } else { btnO.style.opacity='1'; }
+      btnD.disabled = !enable; btnO.disabled = !enable;
+      btnD.style.opacity = enable ? '1' : '0.5';
+      btnO.style.opacity = enable ? '1' : '0.5';
       btnD.title = enable ? 'Convert to DETECTOR (TODO)' : 'Unavailable';
       btnO.title = enable ? 'Convert to OBSERVABLE (TODO)' : 'Unavailable';
       // Clear enabled only when there is any support anywhere
@@ -113,9 +135,8 @@ export function renderMarkers({ containerEl, circuit, currentLayer, canToggle, o
       btnCl.onclick = () => hasSupportAny && onClearIndex?.(i);
       const toggleEnabled = !!canToggle;
       btnX.disabled = !toggleEnabled; btnY.disabled = !toggleEnabled; btnZ.disabled = !toggleEnabled;
-      btnX.style.opacity = toggleEnabled ? '1' : '0.5';
-      btnY.style.opacity = toggleEnabled ? '1' : '0.5';
-      btnZ.style.opacity = toggleEnabled ? '1' : '0.5';
+      const dim = toggleEnabled ? '1' : '0.5';
+      btnX.style.opacity = dim; btnY.style.opacity = dim; btnZ.style.opacity = dim;
       if (toggleEnabled) {
         btnX.onclick = () => onToggleType?.('MARKX', i);
         btnY.onclick = () => onToggleType?.('MARKY', i);
@@ -126,22 +147,28 @@ export function renderMarkers({ containerEl, circuit, currentLayer, canToggle, o
 
     } catch (_) {
       // empty row
+      const cssW2 = 28, cssH2 = 28;
+      const dpr2 = Math.max(1, window.devicePixelRatio || 1);
+      if (square.width !== Math.floor(cssW2 * dpr2) || square.height !== Math.floor(cssH2 * dpr2)) {
+        square.width = Math.floor(cssW2 * dpr2);
+        square.height = Math.floor(cssH2 * dpr2);
+      }
       const ctx = square.getContext('2d');
+      ctx.setTransform(1,0,0,1,0,0);
       ctx.clearRect(0,0, square.width, square.height);
+      ctx.scale(dpr2, dpr2);
       ctx.strokeStyle = '#ddd';
-      ctx.strokeRect(0.5,0.5, square.width-1, square.height-1);
+      ctx.strokeRect(0.5,0.5, cssW2-1, cssH2-1);
       btnD.disabled = true; btnD.style.opacity='0.5';
       btnO.disabled = true; btnO.style.opacity='0.5';
-      // When we can't compute support, be conservative: allow clear only if we detect any basis in current layer
-      const allowClear = basisSet.length > 0;
-      btnCl.disabled = !allowClear;
-      btnCl.style.opacity = allowClear ? '1' : '0.5';
-      btnCl.onclick = () => allowClear && onClearIndex?.(i);
+      // When compute fails, disable clear
+      btnCl.disabled = true;
+      btnCl.style.opacity = '0.5';
+      btnCl.onclick = null;
       const toggleEnabled = !!canToggle;
       btnX.disabled = !toggleEnabled; btnY.disabled = !toggleEnabled; btnZ.disabled = !toggleEnabled;
-      btnX.style.opacity = toggleEnabled ? '1' : '0.5';
-      btnY.style.opacity = toggleEnabled ? '1' : '0.5';
-      btnZ.style.opacity = toggleEnabled ? '1' : '0.5';
+      const dim2 = toggleEnabled ? '1' : '0.5';
+      btnX.style.opacity = dim2; btnY.style.opacity = dim2; btnZ.style.opacity = dim2;
       if (toggleEnabled) {
         btnX.onclick = () => onToggleType?.('MARKX', i);
         btnY.onclick = () => onToggleType?.('MARKY', i);
