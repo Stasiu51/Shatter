@@ -431,6 +431,42 @@
       border-radius: 2px;
       opacity: 0.8;
     }
+    /* Markers (global, fixed width, no resizer) */
+    .markers {
+      width: var(--markers-width);
+      min-width: 0;
+      border: none;
+      border-radius: 0;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .markers-header {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      color: #57606a;
+      font-weight: 600;
+      height: 47px;
+      min-height: 47px;
+      max-height: 47px;
+      flex: 0 0 47px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .markers-title { font-weight: 600; color: #57606a; }
+    .markers-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 8px;
+      font-size: 12px;
+      color: #24292f;
+      overflow-y: auto;
+    }
+    .markers.collapsed { width: 0 !important; border: none; }
     /* Timeline (global) */
     .timeline {
       width: var(--timeline-width);
@@ -596,6 +632,7 @@
         <button id="panels-zoom-in" title="Zoom in" style="padding:2px 6px;">+</button>
       </div>
       <div class="spacer"></div>
+      <button class="btn" id="markers-toggle-global">Show markers</button>
       <button class="btn" id="inspector-toggle-global">Show inspector</button>
       <button class="btn" id="editor-toggle">Show editor</button>
       <button id="timeline-toggle-global" class="btn">Hide timeline</button>
@@ -615,8 +652,18 @@
       <div class="panels-wrap">
         <div id="panels" class="layout-1"></div>
       </div>
+      <!-- Markers panel (fixed width) -->
+      <div class="markers" id="markers">
+        <div class="markers-header">
+          <div class="markers-title">Markers</div>
+          <div class="right">
+            <button id="markers-toggle" title="Collapse markers" class="btn" style="padding:2px 6px;">Hide</button>
+          </div>
+        </div>
+        <div class="markers-body" id="markers-body"></div>
+      </div>
      <div class="inspector-resizer" id="inspector-resizer" title="Drag to resize inspector"></div>
-      <div class="inspector" id="inspector">
+      <div class="inspector" id="inspector" data-lpignore="true">
         <div class="inspector-header">
           <div class="inspector-left">
             <div class="inspector-title">Inspector</div>
@@ -626,7 +673,7 @@
             <button id="inspector-collapse-btn" title="Collapse inspector" class="btn" style="padding:2px 6px;">Hide</button>
           </span>
         </div>
-        <div class="inspector-body"><canvas id="inspector-canvas"></canvas></div>
+        <div class="inspector-body" data-lpignore="true"><canvas id="inspector-canvas"></canvas></div>
 
       </div> 
       <div class="timeline-resizer" id="timeline-resizer" title="Drag to resize timeline"></div>

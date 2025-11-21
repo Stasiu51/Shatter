@@ -591,23 +591,7 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             }
         }
 
-        defensiveDraw(ctx, () => {
-            ctx.globalAlpha *= 0.25
-            for (let [qx, qy] of snap.timelineSet.values()) {
-                let [x, y] = c2dCoordTransform(qx, qy);
-                ctx.fillStyle = 'yellow';
-                ctx.fillRect(x - rad * 1.25, y - rad * 1.25, 2.5*rad, 2.5*rad);
-            }
-        });
-
-        defensiveDraw(ctx, () => {
-            ctx.globalAlpha *= 0.5
-            for (let [qx, qy] of snap.focusedSet.values()) {
-                let [x, y] = c2dCoordTransform(qx, qy);
-                ctx.fillStyle = 'blue';
-                ctx.fillRect(x - rad * 1.25, y - rad * 1.25, 2.5*rad, 2.5*rad);
-            }
-        });
+        // Legacy timeline/focus overlays removed; selection overlays below use selectionStore instead.
 
         // Selection/hover overlays (global selection store; cross-panel synced).
         defensiveDraw(ctx, () => {

@@ -12,6 +12,8 @@ import { setupNameEditor, sanitizeName } from './ui_elements/name_editor.js';
 import { setupLayerKeyboard } from './layers/keyboard.js';
 import { createSheetsDropdown } from './ui_elements/sheets_dropdown.js';
 import { setupTextEditorUI } from './ui_elements/text_editor_controller.js';
+import { setupMarkersUI } from './ui_elements/markers_controller.js';
+import { renderMarkers } from './ui_elements/markers_renderer.js';
 import { EditorState } from './editor/editor_state.js';
 import { selectionStore } from './editor/selection_store.js';
 import { hitTestAt } from './draw/hit_test.js';
@@ -59,6 +61,11 @@ const inspectorResizerEl = document.getElementById('inspector-resizer');
 // Note: both header and local buttons share id 'inspector-toggle' in HTML skeleton.
 const inspectorToggleGlobalEl = document.getElementById('inspector-toggle-global');
 const inspectorToggleLocalEl = document.getElementById('inspector-collapse-btn');
+
+// Markers elements
+const markersEl = document.getElementById('markers');
+const markersToggleGlobalEl = document.getElementById('markers-toggle-global');
+const markersToggleLocalEl = document.getElementById('markers-toggle');
 
 // Editor elements
 const editorEl = document.getElementById('editor');
@@ -198,28 +205,37 @@ if (inspectorEl && inspectorResizerEl) {
       // Keep adjacent content responsive
       renderAllPanels();
       timelineCtl.render();
+      renderMarkersUI();
       renderInspectorUI();
     },
     onResizing: () => {
       renderAllPanels();
       timelineCtl.render();
+      renderMarkersUI();
       renderInspectorUI();
     },
     onResized: () => {
       renderAllPanels();
       timelineCtl.render();
+      renderMarkersUI();
       renderInspectorUI();
     },
     updateToggleText: updateInspectorToggleText,
   });
 }
 
+let inspectorRenderScheduled = false;
 function renderInspectorUI() {
-  try {
-    const container = document.querySelector('#inspector .inspector-body');
-    if (!container) return;
-    renderInspector({ containerEl: container, circuit, curLayer: currentLayer });
-  } catch {}
+  if (inspectorRenderScheduled) return;
+  inspectorRenderScheduled = true;
+  requestAnimationFrame(() => {
+    inspectorRenderScheduled = false;
+    try {
+      const container = document.querySelector('#inspector .inspector-body');
+      if (!container) return;
+      renderInspector({ containerEl: container, circuit, curLayer: currentLayer });
+    } catch {}
+  });
 }
 
 // Editor UI setup (resizable + collapsible)
@@ -240,6 +256,45 @@ const editorCtl = setupTextEditorUI({
     timelineCtl.render();
   },
 });
+
+// Markers UI setup (fixed width, collapsible)
+let markersCtl = null;
+if (markersEl) {
+  markersCtl = setupMarkersUI({
+    markersEl,
+    toggleGlobalEl: markersToggleGlobalEl,
+    toggleLocalEl: markersToggleLocalEl,
+    onToggle: () => renderMarkersUI(),
+  });
+}
+
+let markersRenderScheduled = false;
+function renderMarkersUI() {
+  if (markersRenderScheduled) return;
+  markersRenderScheduled = true;
+  requestAnimationFrame(() => {
+    markersRenderScheduled = false;
+    try {
+      const container = document.getElementById('markers-body');
+      if (!container || !markersEl || markersEl.classList.contains('collapsed')) return;
+      let canToggle = false;
+      try {
+        const snapSel = selectionStore.snapshot();
+        canToggle = !!(snapSel && ['qubit','gate','connection','polygon'].includes(snapSel.kind) && snapSel.selected.size > 0);
+      } catch {}
+      renderMarkers({
+        containerEl: container,
+        circuit,
+        currentLayer,
+        canToggle,
+        onClearIndex: (idx) => { try { editorState?.clearMarkersIndex?.(idx); renderMarkersUI(); schedulePanelsRender(); } catch {} },
+        onToggleType: (gateName, idx) => { try { editorState?.toggleMarkerAtSelection?.(false, gateName, idx); renderMarkersUI(); schedulePanelsRender(); } catch {} },
+      });
+    } catch {}
+  });
+}
+
+
 
 /** Build inline per-panel sheet toggles inside each panel header. */
 function renderPanelSheetsOptions() {
@@ -319,6 +374,10 @@ function loadStimText(stimText) {
       } else {
         overlayState.sheets = DEFAULT_SHEETS;
       }
+      // Ensure panel 0 starts with all sheets visible on first import.
+      if (overlayState.sheets.length > 0) {
+        overlayState.panelSheets[0] = new Set(overlayState.sheets.map(s => s.name));
+      }
       renderPanelSheetsOptions();
       schedulePanelsRender();
       renderInspectorUI();
@@ -383,6 +442,7 @@ function setLayer(layer) {
   // Prune selection based on new layer visibility.
   reconcileSelectionVisibility();
   schedulePanelsRender();
+  renderMarkersUI();
   renderInspectorUI();
 }
 
@@ -506,23 +566,21 @@ function ensureEditorState() {
   editorState = new EditorState(canvas);
   // Subscribe to revision changes: when a commit occurs, adopt the new text.
   editorState.rev.changes().subscribe((maybeText) => {
-    // Update source text and keep parsed circuit in sync when provided.
-    // loadStimText(maybeText);
-    // if (typeof maybeText === 'string') {
-
-      // currentText = maybeText;
-      // try {
-      //   const parsed = AnnotatedCircuit.parse(currentText);
-      //   circuit = parsed?.circuit || null;
-      //   currentText = parsed?.text ?? currentText;
-      //   if (editorTextareaEl) {
-      //     editorTextareaEl.value = currentText;
-      //     setEditorDirty(false);
-      //   }
-      // } catch (e) {
-      //   pushStatus(`Parse error: ${e?.message || e}`, 'error');
-      // }
-    // }
+    // Sync emitted text back into editor and top-level circuit.
+    if (typeof maybeText === 'string') {
+      currentText = maybeText;
+      try {
+        const parsed = AnnotatedCircuit.parse(currentText);
+        circuit = parsed?.circuit || null;
+        currentText = parsed?.text ?? currentText;
+        if (editorTextareaEl) {
+          editorTextareaEl.value = currentText;
+          setEditorDirty(false);
+        }
+      } catch (e) {
+        pushStatus(`Parse error: ${e?.message || e}`, 'error');
+      }
+    }
     // Trigger a fresh snapshot; downstream subscriptions will render.
     editorState.obs_val_draw_state.set(editorState.toSnapshot(undefined));
   });
@@ -531,11 +589,36 @@ function ensureEditorState() {
     requestAnimationFrame(() => {
       renderAllPanels(ds);
       timelineCtl.render();
+      renderMarkersUI();
       renderInspectorUI();
     });
   });
-  // Redraw panels and inspector on selection changes
-  selectionStore.subscribe(() => { schedulePanelsRender(); renderInspectorUI(); });
+  // Redraw panels and inspector on selection changes; mirror qubit selections into EditorState.focusedSet
+  selectionStore.subscribe(() => {
+    try {
+      if (editorState && circuit) {
+        const snapSel = selectionStore.snapshot();
+        const newFocus = new Map();
+        if (snapSel.kind === 'qubit' && snapSel.selected && snapSel.selected.size > 0) {
+          for (const id of snapSel.selected) {
+            const parts = String(id || '').split(':');
+            if (parts[0] !== 'q') continue;
+            const qid = parseInt(parts[1]);
+            const q = circuit.qubits?.get?.(qid);
+            if (!q) continue;
+            const x = q.stimX, y = q.stimY;
+            if (typeof x === 'number' && typeof y === 'number') {
+              newFocus.set(`${x},${y}`, [x, y]);
+            }
+          }
+        }
+        editorState.focusedSet = newFocus;
+      }
+    } catch {}
+    schedulePanelsRender();
+    renderMarkersUI();
+    renderInspectorUI();
+  });
   return editorState;
 }
 

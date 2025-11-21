@@ -89,7 +89,8 @@ function resolveNameAndLine(id, kind, circuit, curLayer) {
 export function renderInspector({ containerEl, circuit, curLayer }) {
   if (!containerEl) return;
   const list = ensureListContainer(containerEl);
-  list.innerHTML = '';
+  // Clear list without touching outer container to avoid extension interference.
+  while (list.firstChild) list.removeChild(list.firstChild);
   const entries = selectionStore.orderedEntries();
   if (!entries.length) {
     const p = document.createElement('div');

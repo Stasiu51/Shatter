@@ -265,6 +265,9 @@ export class AnnotatedCircuit {
     let pendingCallback = null;
 
     // Pending polygon header migrated to callback model (see pendingCallback below).
+    // Track QUBIT overlays that omitted X/Y so we can fall back to QUBIT_COORDS once seen.
+    /** @type {Set<number>} */
+    const pendingQubitPanelFallbacks = new Set();
 
     // Enforce SHEET-at-top rule.
     let seenNonSheetContent = false;
@@ -369,8 +372,23 @@ export class AnnotatedCircuit {
             const sy = circuit.qubit_coords.has(qid) ? circuit.qubit_coords.get(qid)[1] : 0;
             q = new Qubit(qid, sx, sy);
           }
-          if (px !== undefined) q.panelX = px;
-          if (py !== undefined) q.panelY = py;
+          // Apply provided panel coords, otherwise fall back to QUBIT_COORDS if available.
+          if (px !== undefined && py !== undefined) {
+            q.panelX = px;
+            q.panelY = py;
+          } else if (px === undefined && py === undefined) {
+            if (circuit.qubit_coords.has(qid)) {
+              const [sx, sy] = circuit.qubit_coords.get(qid);
+              q.panelX = sx; q.panelY = sy;
+            } else {
+              // Defer: remember to set panel coords when QUBIT_COORDS(qid) is parsed.
+              pendingQubitPanelFallbacks.add(qid);
+            }
+          } else {
+            // Only one provided: set the provided one and leave the other as-is.
+            if (px !== undefined) q.panelX = px;
+            if (py !== undefined) q.panelY = py;
+          }
           if (sheetName !== undefined) q.sheet = sheetName;
           if (text !== undefined) q.text = text;
           if (mouseover !== undefined) q.mouseover = mouseover;
@@ -652,6 +670,15 @@ export class AnnotatedCircuit {
         // Remember line number for this qubit's coords; copied into Qubit later.
         if (!circuit._qubitCoordLines) circuit._qubitCoordLines = new Map();
         circuit._qubitCoordLines.set(q, lineNo);
+        // Update existing qubit metadata with fresh stim coords and fallback panel coords if requested.
+        try {
+          const qm = circuit.qubits.get(q);
+          if (qm) {
+            qm.stimX = x; qm.stimY = y;
+            if (pendingQubitPanelFallbacks.has(q)) { qm.panelX = x; qm.panelY = y; }
+          }
+          pendingQubitPanelFallbacks.delete(q);
+        } catch {}
         // After processing coords, if there's a pending simple callback, run it now.
         if (pendingCallback) {
           try {
@@ -1157,46 +1184,166 @@ export class AnnotatedCircuit {
   /** @returns {!string} */
   toStimCircuit() {
     // Copied from Circuit.toStimCircuit
+    // Collect all qubits to emit: any qubit referenced by ops/markers OR declared via QUBIT_COORDS OR present in metadata.
     let usedQubits = new Set();
     for (let layer of this.layers) {
       for (let op of layer.iter_gates_and_markers()) {
-        for (let t of op.id_targets) {
-          usedQubits.add(t);
-        }
+        for (let t of op.id_targets) usedQubits.add(t);
       }
     }
+    /** @type {Set<number>} */
+    const declaredQubits = new Set();
+    try { if (this.qubit_coords && typeof this.qubit_coords.keys === 'function') {
+      for (const q of this.qubit_coords.keys()) declaredQubits.add(q);
+    } } catch {}
+    try { if (this.qubits && typeof this.qubits.keys === 'function') {
+      for (const q of this.qubits.keys()) declaredQubits.add(q);
+    } } catch {}
+    const allQubits = new Set([...usedQubits, ...declaredQubits]);
 
     let { dets: remainingDetectors, obs: remainingObservables } = this.collectDetectorsAndObservables(true);
     remainingDetectors.reverse();
     let seenMeasurements = 0;
     let totalMeasurements = this.countMeasurements();
 
+    // Build qubit list (keep original ids; do NOT renumber). Use recorded stim coords.
+    /** @type {{q:number,x:number,y:number}[]} */
     let packedQubitCoords = [];
-    for (let q of usedQubits) {
-      let x = this.qubitCoordData[2 * q];
-      let y = this.qubitCoordData[2 * q + 1];
-      packedQubitCoords.push({ q, x, y });
+    for (let qid of allQubits) {
+      let sx, sy;
+      const qmeta = this.qubits?.get?.(qid);
+      if (qmeta) {
+        sx = qmeta.stimX;
+        sy = qmeta.stimY;
+      } else if (this.qubit_coords && this.qubit_coords.has(qid)) {
+        const [x, y] = this.qubit_coords.get(qid);
+        sx = x; sy = y;
+      } else {
+        sx = 0; sy = 0;
+      }
+      packedQubitCoords.push({ q: qid, x: sx, y: sy });
     }
     packedQubitCoords.sort((a, b) => {
-      if (a.x !== b.x) {
-        return a.x - b.x;
-      }
-      if (a.y !== b.y) {
-        return a.y - b.y;
-      }
+      if (a.x !== b.x) return a.x - b.x;
+      if (a.y !== b.y) return a.y - b.y;
       return a.q - b.q;
     });
+    // Identity mapping (preserve ids in output)
     let old2new = new Map();
     let out = [];
-    for (let q = 0; q < packedQubitCoords.length; q++) {
-      let { q: old_q, x, y } = packedQubitCoords[q];
-      old2new.set(old_q, q);
-      out.push(`QUBIT_COORDS(${x}, ${y}) ${q}`);
+
+    // Header overlays: SHEET declarations and EMBEDDING
+    try {
+      // SHEETS
+      if (this.sheets && typeof this.sheets.forEach === 'function') {
+        this.sheets.forEach((sheet, name) => {
+          // Don't emit DEFAULT; it's implicit and re-declaring causes a parse error.
+          if (String(name).toUpperCase() === 'DEFAULT') return;
+          out.push(`##! SHEET NAME=${name}`);
+        });
+      }
+      // EMBEDDING
+      if (this.embedding && this.embedding.type) {
+        if (this.embedding.type === 'TORUS') {
+          const Lx = this.embedding.Lx ?? 0;
+          const Ly = this.embedding.Ly ?? 0;
+          out.push(`##! EMBEDDING TYPE=TORUS LX=${Lx} LY=${Ly}`);
+        } else {
+          out.push(`##! EMBEDDING TYPE=PLANE`);
+        }
+      }
+    } catch {}
+    // Emit optional per-qubit overlay annotations (##! QUBIT ...) followed by QUBIT_COORDS with original ids.
+    for (let i = 0; i < packedQubitCoords.length; i++) {
+      const { q: qid, x, y } = packedQubitCoords[i];
+      old2new.set(qid, qid);
+      // Per-qubit overlay line if we have non-default metadata
+      try {
+        const qmeta = this.qubits?.get?.(qid);
+        if (qmeta) {
+          const parts = [
+            '##! QUBIT',
+            `Q=${qid}`,
+          ];
+          // Only include fields when set or non-default
+          const px = qmeta.panelX, py = qmeta.panelY;
+          const sheet = qmeta.sheet || 'DEFAULT';
+          if (typeof px === 'number' && typeof py === 'number' && (px !== qmeta.stimX || py !== qmeta.stimY)) {
+            parts.push(`X=${px}`);
+            parts.push(`Y=${py}`);
+          }
+          if (sheet && sheet !== 'DEFAULT') parts.push(`SHEET=${sheet}`);
+          if (qmeta.colour) parts.push(`COLOUR=${qmeta.colour}`);
+          if (qmeta.defective) parts.push(`DEFECTIVE=true`);
+          if (qmeta.text) parts.push(`TEXT="${String(qmeta.text).replace(/"/g, '\\"')}"`);
+          if (qmeta.mouseover) parts.push(`MOUSEOVER="${String(qmeta.mouseover).replace(/"/g, '\\"')}"`);
+          if (parts.length > 2) {
+            out.push(parts.join(' '));
+          }
+        }
+      } catch {}
+      out.push(`QUBIT_COORDS(${x}, ${y}) ${qid}`);
     }
     let detectorLayer = 0;
     let usedDetectorCoords = new Set();
 
     for (let layer of this.layers) {
+      // Emit overlay annotations for this layer (ConnSet, Polygon)
+      try {
+        const anns = layer.annotations || [];
+        for (const a of anns) {
+          if (!a || !a.kind) continue;
+          if (a.kind === 'ConnSet') {
+            const sheetName = a.sheet?.name || a.sheet || 'DEFAULT';
+            const edges = Array.isArray(a.edges) ? a.edges : [];
+            // No spaces between pairs per consumer requirements.
+            const edgesTxt = edges
+              .map(e => Array.isArray(e) && e.length===2 ? `${parseInt(e[0])}-${parseInt(e[1])}` : '')
+              .filter(s=>s)
+              .join(',');
+            const parts = [`##! CONN SET EDGES=(${edgesTxt})`, `SHEET=${sheetName}`];
+            if (a.droop !== undefined) parts.push(`DROOP=${a.droop}`);
+            if (a.colour) parts.push(`COLOUR=${a.colour}`);
+            if (a.thickness !== undefined) parts.push(`THICKNESS=${a.thickness}`);
+            out.push(parts.join(' '));
+          } else if (a.kind === 'Polygon') {
+            const sheetName = a.sheet || 'DEFAULT';
+            const stroke = a.stroke ?? 'none';
+            const fill = a.fill ?? '(0,0,0,0.2)';
+            out.push(`##! POLY SHEET=${sheetName} STROKE=${stroke} FILL=${fill}`);
+            // Paired pragma for Crumble interop
+            try {
+              const args = String(fill).replace(/[()]/g, '');
+              const ids = (Array.isArray(a.targets) ? a.targets : []).map(v=>parseInt(v)).filter(Number.isFinite);
+              out.push(`#!pragma POLYGON(${args}) ${ids.join(' ')}`);
+            } catch {}
+          } else if (a.kind === 'QubitHighlight') {
+            // Re-emit simple qubit highlight overlays.
+            const ids = (Array.isArray(a.qubits) ? a.qubits : [])
+              .map(v=>parseInt(v)).filter(Number.isFinite);
+            if (ids.length > 0) {
+              const parts = [
+                '##! HIGHLIGHT',
+                'TARGET=QUBIT',
+                `QUBITS=${ids.join(',')}`,
+              ];
+              if (a.color) parts.push(`COLOR=${a.color}`);
+              out.push(parts.join(' '));
+            }
+          } else if (a.kind === 'GateHighlight') {
+            // Re-emit gate highlight overlay; attach to upcoming gate when parsed.
+            const ids = (Array.isArray(a.targets) ? a.targets : [])
+              .map(v=>parseInt(v)).filter(Number.isFinite);
+            const parts = [
+              '##! HIGHLIGHT',
+              'TARGET=GATE',
+            ];
+            if (ids.length > 0) parts.push(`QUBITS=${ids.join(',')}`);
+            if (a.color) parts.push(`COLOR=${a.color}`);
+            out.push(parts.join(' '));
+          }
+        }
+      } catch {}
       let opsByName = layer.opsGroupedByNameWithArgs();
 
       for (let [nameWithArgs, group] of opsByName.entries()) {

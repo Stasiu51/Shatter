@@ -6,6 +6,7 @@ import {ObservableValue} from "../base/obs.js";
 import {pitch, rad} from "../draw/config.js";
 import {xyToPos} from "../draw/draw_panel.js";
 import {StateSnapshot} from "../draw/state_snapshot.js";
+import { selectionStore } from './selection_store.js';
 import {Operation} from "../circuit/operation.js";
 import {GATE_MAP} from "../gates/gateset.js";
 import {
@@ -227,6 +228,15 @@ class EditorState {
         let c = this.copyOfCurAnnotatedCircuit();
         for (let layer of c.layers) {
             layer.markers = layer.markers.filter(e => e.gate.name !== 'MARKX' && e.gate.name !== 'MARKY' && e.gate.name !== 'MARKZ');
+        }
+        this.commit(c);
+    }
+
+    /** Clear all markers for a given index (0-9) across the whole circuit. */
+    clearMarkersIndex(index) {
+        let c = this.copyOfCurAnnotatedCircuit();
+        for (let layer of c.layers) {
+            layer.markers = layer.markers.filter(e => !( (e.gate.name === "MARKX" || e.gate.name === "MARKY" || e.gate.name === "MARKZ") && Math.round(e.args[0]) === Math.round(index) ));
         }
         this.commit(c);
     }
@@ -461,6 +471,98 @@ class EditorState {
             ));
         }
         this.commit_or_preview(newAnnotatedCircuit, preview);
+    }
+
+    /** Toggle a marker of a given type at the current focus for marker index. */
+    toggleMarkerAtFocus(preview, gateName, markerIndex) {
+        if (this.focusedSet.size === 0) return;
+        let c = this.copyOfCurAnnotatedCircuit().withCoordsIncluded(this.focusedSet.values());
+        const layer = c.layers[this.curLayer];
+        const c2q = c.coordToQubitMap();
+        const targets = [];
+        for (const key of this.focusedSet.keys()) targets.push(c2q.get(key));
+        this._toggleMarkerOnQubits(preview, c, targets, gateName, markerIndex);
+    }
+
+    /** Toggle a marker of a given type for specific qubit ids at current layer. */
+    toggleMarkerAtQubits(preview, gateName, markerIndex, qids) {
+        if (!Array.isArray(qids) || qids.length === 0) return;
+        let c = this.copyOfCurAnnotatedCircuit();
+        this._toggleMarkerOnQubits(preview, c, qids, gateName, markerIndex);
+    }
+
+    /** Toggle a marker based on current selectionStore (qubits | gates | connections | polygons). */
+    toggleMarkerAtSelection(preview, gateName, markerIndex) {
+        try {
+            const c = this.copyOfCurAnnotatedCircuit();
+            const snapSel = selectionStore.snapshot();
+            if (!snapSel || !snapSel.kind || snapSel.selected.size === 0) return;
+            const qids = [];
+            const addQid = (id) => { if (Number.isFinite(id)) qids.push(id); };
+            const addQids = (arr) => { for (const q of arr) addQid(q); };
+            if (snapSel.kind === 'qubit') {
+                for (const id of snapSel.selected) {
+                    const parts = String(id || '').split(':');
+                    if (parts[0] !== 'q') continue;
+                    addQid(parseInt(parts[1]));
+                }
+            } else if (snapSel.kind === 'gate') {
+                for (const id of snapSel.selected) {
+                    const tokens = String(id).split(':');
+                    const layerIdx = parseInt(tokens[1]);
+                    const first = parseInt(tokens[2]);
+                    const op = c?.layers?.[layerIdx]?.id_ops?.get?.(first);
+                    if (op && op.id_targets) addQids([...op.id_targets]);
+                }
+            } else if (snapSel.kind === 'connection') {
+                const parity = new Map();
+                for (const id of snapSel.selected) {
+                    const tokens = String(id).split(':');
+                    const key = tokens[2] || '';
+                    const [a, b] = key.split('-');
+                    const q1 = parseInt(a), q2 = parseInt(b);
+                    if (Number.isFinite(q1)) parity.set(q1, (parity.get(q1) || 0) ^ 1);
+                    if (Number.isFinite(q2)) parity.set(q2, (parity.get(q2) || 0) ^ 1);
+                }
+                for (const [qid, bit] of parity.entries()) if (bit === 1) addQid(qid);
+            } else if (snapSel.kind === 'polygon') {
+                // Symmetric difference over the vertex sets of the selected polygons.
+                const parity = new Map();
+                for (const id of snapSel.selected) {
+                    const tokens = String(id).split(':');
+                    const layerIdx = parseInt(tokens[1]);
+                    const lineNum = parseInt(tokens[2]);
+                    const anns = c?.layers?.[layerIdx]?.annotations || [];
+                    const poly = anns.find(a => a && a.kind === 'Polygon' && a.line === lineNum);
+                    const ids = Array.isArray(poly?.targets) ? poly.targets : [];
+                    for (const q of ids) {
+                        const qid = parseInt(q);
+                        if (!Number.isFinite(qid)) continue;
+                        parity.set(qid, (parity.get(qid) || 0) ^ 1);
+                    }
+                }
+                for (const [qid, bit] of parity.entries()) if (bit === 1) addQid(qid);
+            }
+            if (qids.length === 0) return;
+            this._toggleMarkerOnQubits(preview, c, qids, gateName, markerIndex);
+        } catch {}
+    }
+
+    /** @private */
+    _toggleMarkerOnQubits(preview, circuit, qids, gateName, markerIndex) {
+        const layer = circuit.layers[this.curLayer];
+        for (const q of qids) {
+            if (q === undefined || q === null) continue;
+            let existing = layer.markers.find(op => (op.gate.name === "MARKX" || op.gate.name === "MARKY" || op.gate.name === "MARKZ") && op.id_targets[0] === q && Math.round(op.args[0]) === Math.round(markerIndex));
+            if (existing && existing.gate.name === gateName) {
+                layer.markers = layer.markers.filter(op => op !== existing);
+            } else {
+                layer.id_dropMarkersAt(q, markerIndex);
+                const gate = GATE_MAP.get(gateName).withDefaultArgument(markerIndex);
+                layer.put(new Operation(gate, '', new Float32Array([markerIndex]), new Uint32Array([q])));
+            }
+        }
+        this.commit_or_preview(circuit, preview);
     }
 
     /**
