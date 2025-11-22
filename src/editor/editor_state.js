@@ -159,15 +159,19 @@ class EditorState {
     }
 
     undo() {
-        const msg = this.rev.descriptionAt(this.rev.index) || undefined;
-        this.rev.undo();
-        return msg;
+        const prevIdx = this.rev.index;
+        const msg = this.rev.descriptionAt(prevIdx) || undefined;
+        const res = this.rev.undo();
+        if (res === undefined) return undefined; // nothing to undo
+        return msg; // may be undefined; caller should default to 'change'
     }
 
     redo() {
-        const msg = this.rev.descriptionAt(this.rev.index + 1) || undefined;
-        this.rev.redo();
-        return msg;
+        const nextIdx = this.rev.index + 1;
+        const msg = this.rev.descriptionAt(nextIdx) || undefined;
+        const res = this.rev.redo();
+        if (res === undefined) return undefined; // nothing to redo
+        return msg; // may be undefined; caller should default to 'change'
     }
 
     /**

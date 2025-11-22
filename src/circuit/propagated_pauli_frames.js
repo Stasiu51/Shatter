@@ -85,6 +85,7 @@ class PropagatedPauliFrameLayer {
 
 // Internal toggle for adding terminal errors for leftover support.
 export let TERMINAL_ERRORS_ENABLED = true;
+export function setTerminalErrorsEnabled(v) { TERMINAL_ERRORS_ENABLED = !!v; }
 
 class PropagatedPauliFrames {
     /**

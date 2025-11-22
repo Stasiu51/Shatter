@@ -9,11 +9,15 @@ import { setupResizablePane } from './util/ui_utils.js';
 import { renderInspector } from './ui_elements/inspector_renderer.js';
 import { createStatusLogger } from './ui_elements/status_logger.js';
 import { setupNameEditor, sanitizeName } from './ui_elements/name_editor.js';
-import { setupLayerKeyboard } from './layers/keyboard.js';
+// Unified keymap handles all keyboard shortcuts via settings (see settings_default.json)
+import { createKeymap } from './keyboard/keymap.js';
+import { loadSettings, saveUserSettings, exportUserSettings, importUserSettings } from './settings/settings.js';
+import { setTerminalErrorsEnabled } from './circuit/propagated_pauli_frames.js';
 import { createSheetsDropdown } from './ui_elements/sheets_dropdown.js';
 import { setupTextEditorUI } from './ui_elements/text_editor_controller.js';
 import { setupMarkersUI } from './ui_elements/markers_controller.js';
 import { renderMarkers } from './ui_elements/markers_renderer.js';
+import { setupSettingsUI } from './ui_elements/settings_controller.js';
 import { EditorState } from './editor/editor_state.js';
 import { selectionStore } from './editor/selection_store.js';
 import { hitTestAt } from './draw/hit_test.js';
@@ -55,6 +59,15 @@ const btnImport = document.getElementById('btn-import');
 const btnExport = document.getElementById('btn-export');
 const btnUndo = document.getElementById('btn-undo');
 const btnRedo = document.getElementById('btn-redo');
+// Settings elements
+const settingsEl = document.getElementById('settings');
+const settingsResizerEl = document.getElementById('settings-resizer');
+const settingsToggleGlobalEl = document.getElementById('settings-toggle-global');
+const settingsToggleLocalEl = document.getElementById('settings-collapse-btn');
+const settingsBodyEl = document.getElementById('settings-body');
+const settingsExportBtn = document.getElementById('settings-export-btn');
+const settingsImportBtn = document.getElementById('settings-import-btn');
+const settingsSaveBtn = document.getElementById('settings-save-btn');
 
 
 // Inspector elements (skeleton present in HTML)
@@ -231,6 +244,36 @@ if (inspectorEl && inspectorResizerEl) {
       renderInspectorUI();
     },
     updateToggleText: updateInspectorToggleText,
+  });
+}
+
+// Settings UI (resizable + collapsible) mirrors inspector/editor structure.
+if (settingsEl && settingsResizerEl) {
+  setupResizablePane({
+    paneEl: settingsEl,
+    resizerEl: settingsResizerEl,
+    rootStyle,
+    cssVar: '--settings-width',
+    lsWidthKey: 'settingsWidth',
+    lsCollapsedKey: 'settingsCollapsed',
+    defaultWidthPx: 320,
+    toggleEls: [settingsToggleGlobalEl, settingsToggleLocalEl].filter(Boolean),
+    onCollapsedChanged: () => {
+      renderAllPanels();
+      timelineCtl.render();
+      renderMarkersUI();
+      renderInspectorUI();
+    },
+    onResizing: () => {
+      renderAllPanels();
+      timelineCtl.render();
+    },
+    onResized: () => {
+      renderAllPanels();
+      timelineCtl.render();
+    },
+    // Settings toggle button shows a constant cog, so no toggle text to update.
+    updateToggleText: () => {},
   });
 }
 
@@ -476,19 +519,113 @@ function setLayer(layer) {
   renderInspectorUI();
 }
 
-// Layer keyboard handling
-setupLayerKeyboard({
-  isEditing: () => {
-    const el = document.activeElement;
-    if (!el) return false;
-    const tag = el.tagName?.toLowerCase();
-    if (tag === 'input' || tag === 'textarea') return true;
-    if (el.isContentEditable) return true;
-    return false;
-  },
-  getLayer: () => currentLayer,
-  setLayer,
-  getMaxLayer: () => Math.max(0, (circuit?.layers?.length || 1) - 1),
+// Recompute propagation (e.g., when feature toggles affect visibility) and re-render panels/timeline/inspector
+function recomputePropagationAndRender() {
+  try {
+    if (!editorState) return;
+    const snapCircuit = circuit || editorState.copyOfCurAnnotatedCircuit();
+    const propagated = editorState._computePropagationCache(snapCircuit);
+    editorState.obs_val_draw_state.set(editorState.toSnapshot(snapCircuit, propagated));
+    timelineCtl.render();
+    renderAllPanels();
+    renderMarkersUI();
+    renderInspectorUI();
+  } catch {}
+}
+
+function shouldReloadOnFeature(name) {
+  // Internal policy: only specific features require a full recompute.
+  // terminalErrors affects the propagated frames content, so reload for it.
+  return name === 'terminalErrors';
+}
+
+// Unified keymap bindings (driven by settings).
+const keymap = createKeymap();
+// Commands
+const isEditing = () => {
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName?.toLowerCase();
+  if (tag === 'input' || tag === 'textarea') return true;
+  if (el.isContentEditable) return true;
+  return false;
+};
+// Register commands (bindings applied from settings after load)
+keymap.registerCommand('layer.prev', () => setLayer(currentLayer - 1), { when: () => !isEditing() && !!circuit });
+keymap.registerCommand('layer.next', () => setLayer(currentLayer + 1), { when: () => !isEditing() && !!circuit });
+keymap.registerCommand('layer.prev.fast', () => setLayer(currentLayer - 5), { when: () => !isEditing() && !!circuit });
+keymap.registerCommand('layer.next.fast', () => setLayer(currentLayer + 5), { when: () => !isEditing() && !!circuit });
+keymap.registerCommand('edit.undo', () => { const d = editorState?.undo?.(); if (d !== undefined) pushStatus(`Undid ${d || 'change'}`, 'info'); }, { when: () => !isEditing() && !!editorState });
+keymap.registerCommand('edit.redo', () => { const d = editorState?.redo?.(); if (d !== undefined) pushStatus(`Redid ${d || 'change'}`, 'info'); }, { when: () => !isEditing() && !!editorState });
+keymap.registerCommand('panel.zoom.in', () => setPanelZoom(panelZoom * 1.25), { when: () => !isEditing() });
+keymap.registerCommand('panel.zoom.out', () => setPanelZoom(panelZoom / 1.25), { when: () => !isEditing() });
+keymap.registerCommand('panel.zoom.reset', () => setPanelZoom(2), { when: () => !isEditing() });
+
+let appSettings = null;
+function applySettings() {
+  if (!appSettings) return;
+  try { setTerminalErrorsEnabled(!!appSettings?.features?.terminalErrors); } catch {}
+  try {
+    const cmds = appSettings?.keybindings?.commands || {};
+    for (const id of Object.keys(cmds)) {
+      const pats = Array.isArray(cmds[id]?.bindings) ? cmds[id].bindings : [];
+      keymap.setDefaultBindings(id, pats);
+    }
+  } catch {}
+}
+
+async function initSettingsAndKeymap() {
+  appSettings = await loadSettings();
+  applySettings();
+  keymap.attach();
+  // Expose for debugging/console edits
+  // @ts-ignore
+  window.__keymap = keymap;
+  // @ts-ignore
+  window.__settings = {
+    get: () => appSettings,
+    setKeybinding: (id, pats) => { if (!appSettings.keybindings.commands[id]) appSettings.keybindings.commands[id] = { name: id, bindings: [] }; appSettings.keybindings.commands[id].bindings = [...pats]; keymap.setDefaultBindings(id, pats); },
+    save: () => saveUserSettings(appSettings),
+    export: () => exportUserSettings(),
+    import: (obj) => { importUserSettings(obj); },
+  };
+}
+
+initSettingsAndKeymap().then(() => {
+  try {
+    setupSettingsUI({
+      containerEl: settingsBodyEl,
+      importBtn: settingsImportBtn,
+      exportBtn: settingsExportBtn,
+      saveBtn: settingsSaveBtn,
+      getSettings: () => appSettings,
+      onToggleFeature: (name, val) => {
+        appSettings.features[name] = !!val;
+        saveUserSettings(appSettings);
+        applySettings();
+        pushStatus('Saved settings', 'info');
+        if (shouldReloadOnFeature(name)) {
+          recomputePropagationAndRender();
+        }
+      },
+      onSaveKeybindings: (updatesMap) => {
+        // Apply all updates atomically
+        for (const [id, pats] of updatesMap.entries()) {
+          if (!appSettings.keybindings.commands[id]) appSettings.keybindings.commands[id] = { name: id, bindings: [] };
+          appSettings.keybindings.commands[id].bindings = [...pats];
+        }
+        saveUserSettings(appSettings);
+        applySettings();
+      },
+      onImportSettings: async (obj) => {
+        importUserSettings(obj);
+        appSettings = await loadSettings();
+        applySettings();
+      },
+      onExportSettings: () => exportUserSettings(),
+      pushStatus,
+    });
+  } catch {}
 });
 
 /** Render all panels. */
@@ -599,13 +736,13 @@ function ensureEditorState() {
   if (btnUndo) btnUndo.onclick = () => {
     try {
       const d = editorState.undo();
-      pushStatus(`Undid ${d || 'change'}`, 'info');
+      if (d !== undefined) pushStatus(`Undid ${d || 'change'}`, 'info');
     } catch {}
   };
   if (btnRedo) btnRedo.onclick = () => {
     try {
       const d = editorState.redo();
-      pushStatus(`Redid ${d || 'change'}`, 'info');
+      if (d !== undefined) pushStatus(`Redid ${d || 'change'}`, 'info');
     } catch {}
   };
   // Subscribe to revision changes: when a commit occurs, adopt the new text.

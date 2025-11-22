@@ -16,6 +16,7 @@
       --inspector-width: 320px;
       --timeline-width: 360px;
       --editor-width: 360px;
+      --settings-width: 320px;
     }
 
     * {
@@ -637,6 +638,23 @@
       border-radius: 2px;
       opacity: 0.8;
     }
+
+    /* Settings (global, rightmost) */
+    .settings { width: var(--settings-width); min-width: 0; border: none; border-radius: 0; background: #fff; display: flex; flex-direction: column; overflow: hidden; }
+    .settings-header { padding: 8px 10px; border-bottom: 1px solid var(--border); color: #57606a; font-weight: 600; height: 47px; min-height: 47px; max-height: 47px; flex: 0 0 47px; display: flex; align-items: center; justify-content: space-between; }
+    .settings-title { font-weight: 600; color: #57606a; }
+    .settings-body { flex: 1; position: relative; background: #fff; display: block; overflow: auto; padding: 8px 12px; }
+    .settings.collapsed { width: 0 !important; border: none; }
+    .settings-resizer { width: 6px; cursor: col-resize; position: relative; }
+    .settings-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 2px; width: 2px; background: var(--border); border-radius: 2px; opacity: 0.8; }
+
+    /* Consistent header button sizing across panels */
+    .markers-header .btn,
+    .inspector-header .btn,
+    .timeline-header .btn,
+    .editor-header .btn,
+    .settings-header .btn { padding: 2px 6px; font-weight: 400; }
+    .timeline-header .seg button { padding: 2px 6px; font-weight: 400; }
   </style>
 </head>
 
@@ -661,6 +679,7 @@
       <button class="btn" id="inspector-toggle-global">Show inspector</button>
       <button class="btn" id="editor-toggle">Show editor</button>
       <button id="timeline-toggle-global" class="btn">Hide timeline</button>
+      <button id="settings-toggle-global" class="btn" title="Toggle settings">⚙︎</button>
     </div>
   </header>
   <div class="subbar">
@@ -735,6 +754,19 @@
         <div class="editor-body">
           <textarea id="editor-text" spellcheck="false" placeholder="Type here..."></textarea>
         </div>
+      </div>
+      <div class="settings-resizer" id="settings-resizer" title="Drag to resize settings"></div>
+      <div class="settings" id="settings" data-lpignore="true">
+        <div class="settings-header">
+          <div class="settings-title">Settings</div>
+          <div class="right">
+            <button class="btn" id="settings-save-btn" title="Save settings" style="padding:2px 6px;">Save</button>
+            <button class="btn" id="settings-export-btn" title="Export settings" style="padding:2px 6px;">Export</button>
+            <button class="btn" id="settings-import-btn" title="Import settings" style="padding:2px 6px;">Import</button>
+            <button class="btn" id="settings-collapse-btn" title="Collapse settings" style="padding:2px 6px;">Hide</button>
+          </div>
+        </div>
+        <div class="settings-body" id="settings-body"></div>
       </div>
     </div>
   </main>

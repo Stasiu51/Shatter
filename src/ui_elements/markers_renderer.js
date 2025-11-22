@@ -94,8 +94,9 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
       // Box fill always white
       ctx.fillStyle = '#fff';
       ctx.fillRect(boxX, boxY, boxSize, boxSize);
-      // Border in black/grey
-      ctx.strokeStyle = '#444';
+      // Border in black/grey (do not change size when active)
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = active ? '#000' : '#888';
       ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxSize - 1, boxSize - 1);
       // Error bar inside the box, along the top edge
       if (hasErr) {
@@ -113,11 +114,11 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
           ctx.fillRect(cx - dx, cy - dy, wx, wy);
         } catch {}
       }
-      // Draw index number inside the box
+      // Draw index number inside the box (grey when inactive, black when active)
       try {
         const cx = boxX + Math.floor(boxSize / 2);
         const cy = boxY + Math.floor(boxSize / 2);
-        ctx.fillStyle = '#222';
+        ctx.fillStyle = active ? '#000' : '#888';
         ctx.font = 'bold 10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -147,7 +148,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
       }
 
     } catch (_) {
-      // empty row
+      // empty row: draw same-sized box with grey border to avoid size jumping
       const cssW2 = 28, cssH2 = 28;
       const dpr2 = Math.max(1, window.devicePixelRatio || 1);
       if (square.width !== Math.floor(cssW2 * dpr2) || square.height !== Math.floor(cssH2 * dpr2)) {
@@ -158,8 +159,24 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
       ctx.setTransform(1,0,0,1,0,0);
       ctx.clearRect(0,0, square.width, square.height);
       ctx.scale(dpr2, dpr2);
-      ctx.strokeStyle = '#ddd';
-      ctx.strokeRect(0.5,0.5, cssW2-1, cssH2-1);
+      const boxSize2 = Math.floor(Math.min(cssW2, cssH2) * 0.7);
+      const boxX2 = Math.floor((cssW2 - boxSize2) / 2);
+      const boxY2 = Math.floor((cssH2 - boxSize2) / 2);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(boxX2, boxY2, boxSize2, boxSize2);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#888';
+      ctx.strokeRect(boxX2 + 0.5, boxY2 + 0.5, boxSize2 - 1, boxSize2 - 1);
+      // Always render index number in fallback (inactive → grey)
+      try {
+        const cx2 = boxX2 + Math.floor(boxSize2 / 2);
+        const cy2 = boxY2 + Math.floor(boxSize2 / 2);
+        ctx.fillStyle = '#888';
+        ctx.font = 'bold 10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(i), cx2, cy2);
+      } catch {}
       btnD.disabled = true; btnD.style.opacity='0.5';
       btnO.disabled = true; btnO.style.opacity='0.5';
       // When compute fails, disable clear
