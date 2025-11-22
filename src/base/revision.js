@@ -35,8 +35,11 @@ class Revision {
             throw new Error(`Bad history: ${{history, index, isWorkingOnCommit}}`);
         }
 
-        /** @type {!Array.<*>} */
-        this.history = history;
+        /**
+         * Internal commit list of objects { state: any, desc?: string }
+         * @type {!Array.<{state:*, desc: (string|undefined)}>} 
+         */
+        this.history = history.map(e => (typeof e === 'object' && e && 'state' in e) ? e : { state: e, desc: undefined });
         /** @type {!int} */
         this.index = index;
         /** @type {!boolean} */
@@ -44,7 +47,7 @@ class Revision {
         /** @type {!ObservableSource} */
         this._changes = new ObservableSource();
         /** @type {!ObservableValue} */
-        this._latestActiveCommit = new ObservableValue(this.history[this.index]);
+        this._latestActiveCommit = new ObservableValue(this.history[this.index].state);
     }
 
     /**
@@ -65,17 +68,17 @@ class Revision {
      * Returns a snapshot of the current commit.
      * @returns {*}
      */
-    peekActiveCommit() {
-        return this._latestActiveCommit.get();
-    }
+    peekActiveCommit() { return this._latestActiveCommit.get(); }
+    /** @returns {string|undefined} */
+    peekActiveDescription() { return this.history[this.index]?.desc; }
+    /** @param {number} idx @returns {string|undefined} */
+    descriptionAt(idx) { return (idx >=0 && idx < this.history.length) ? this.history[idx]?.desc : undefined; }
 
     /**
      * Returns a cleared revision history, starting at the given state.
      * @param {*} state
      */
-    static startingAt(state) {
-        return new Revision([state], 0, false);
-    }
+    static startingAt(state, desc=undefined) { return new Revision([{ state, desc }], 0, false); }
 
     /**
      * @returns {!boolean}
@@ -96,8 +99,8 @@ class Revision {
      * @param {*} state
      * @returns {void}
      */
-    clear(state) {
-        this.history = [state];
+    clear(state, desc=undefined) {
+        this.history = [{ state, desc }];
         this.index = 0;
         this.isWorkingOnCommit = false;
         this._latestActiveCommit.set(state);
@@ -109,8 +112,8 @@ class Revision {
      * the previous state.
      * @returns {void}
      */
-    startedWorkingOnCommit(newCheckpoint) {
-        this.isWorkingOnCommit = newCheckpoint !== this.history[this.index];
+    startedWorkingOnCommit(newCheckpoint, _desc=undefined) {
+        this.isWorkingOnCommit = newCheckpoint !== this.history[this.index].state;
         this._changes.send(undefined);
     }
 
@@ -121,7 +124,7 @@ class Revision {
      */
     cancelCommitBeingWorkedOn() {
         this.isWorkingOnCommit = false;
-        let result = this.history[this.index];
+        let result = this.history[this.index].state;
         this._latestActiveCommit.set(result);
         this._changes.send(result);
         return result;
@@ -132,15 +135,15 @@ class Revision {
      * @param {*} newCheckpoint
      * @returns {void}
      */
-    commit(newCheckpoint) {
-        if (newCheckpoint === this.history[this.index]) {
+    commit(newCheckpoint, desc=undefined) {
+        if (newCheckpoint === this.history[this.index].state) {
             this.cancelCommitBeingWorkedOn();
             return;
         }
         this.isWorkingOnCommit = false;
         this.index += 1;
         this.history.splice(this.index, this.history.length - this.index);
-        this.history.push(newCheckpoint);
+        this.history.push({ state: newCheckpoint, desc });
         this._latestActiveCommit.set(newCheckpoint);
         this._changes.send(newCheckpoint);
     }
@@ -158,7 +161,7 @@ class Revision {
             this.index -= 1;
         }
         this.isWorkingOnCommit = false;
-        let result = this.history[this.index];
+        let result = this.history[this.index].state;
         this._latestActiveCommit.set(result);
         this._changes.send(result);
         return result;
@@ -174,7 +177,7 @@ class Revision {
         }
         this.index += 1;
         this.isWorkingOnCommit = false;
-        let result = this.history[this.index];
+        let result = this.history[this.index].state;
         this._latestActiveCommit.set(result);
         this._changes.send(result);
         return result;
@@ -188,7 +191,7 @@ class Revision {
             index: this.index,
             count: this.history.length,
             workingOnCommit: this.isWorkingOnCommit,
-            head: this.history[this.index]
+            head: this.history[this.index]?.state
         }) + ')';
     }
 
@@ -201,7 +204,7 @@ class Revision {
         return other instanceof Revision &&
             this.index === other.index &&
             this.isWorkingOnCommit === other.isWorkingOnCommit &&
-            equate(this.history, other.history);
+            equate(this.history.map(x=>x.state), other.history.map(x=>x.state));
     }
 }
 

@@ -83,6 +83,9 @@ class PropagatedPauliFrameLayer {
     }
 }
 
+// Internal toggle for adding terminal errors for leftover support.
+export let TERMINAL_ERRORS_ENABLED = true;
+
 class PropagatedPauliFrames {
     /**
      * @param {!Map<!int, !PropagatedPauliFrameLayer>} layers
@@ -185,6 +188,17 @@ class PropagatedPauliFrames {
                 result.id_layers.set(k, new PropagatedPauliFrameLayer(new Map(), errors, crossings));
             }
         }
+        // Terminal errors: if any support remains at the end, count as errors on those qubits.
+        try {
+            if (TERMINAL_ERRORS_ENABLED && bases && bases.size > 0) {
+                const errs = new Set();
+                for (const q of bases.keys()) errs.add(q);
+                const endKey = circuit.layers.length; // integer terminal step
+                if (!result.id_layers.has(endKey)) {
+                    result.id_layers.set(endKey, new PropagatedPauliFrameLayer(new Map(), errs, []));
+                }
+            }
+        } catch {}
         return result;
     }
 

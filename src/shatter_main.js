@@ -103,6 +103,14 @@ const { pushStatus } = createStatusLogger({
 });
 pushStatus('Ready.', 'info');
 
+// Expose logger to EditorState for info messages (e.g., marker toggles)
+function hookEditorLogger(es) {
+  if (!es) return;
+  try {
+    es.onInfo = (msg) => { try { pushStatus(String(msg || ''), 'info'); } catch {} };
+  } catch {}
+}
+
 
 /**
  * Dataflow state (text → annotated → editorState)
@@ -133,7 +141,7 @@ const nameCtl = setupNameEditor(nameEl, currentName, {
   },
 });
 
-// Overlay state (Milestone 4)
+// Overlay state
 const overlayState = {
   /** @type {Array<{name:string,z:number}>} */
   sheets: [],
@@ -367,7 +375,7 @@ function loadStimText(stimText) {
 
     // Init or update EditorState (source of interactive edits ⇒ text). Start fresh baseline.
     ensureEditorState();
-    editorState.rev.clear(currentText);
+    editorState.rev.clear(currentText, 'Loaded circuit');
     // Precompute propagation and push a snapshot immediately so first render uses cache.
     try {
       const propagated = editorState._computePropagationCache(circuit);
@@ -586,9 +594,20 @@ function ensureEditorState() {
   // Prefer first panel canvas; fallback to a throwaway canvas.
   const canvas = mgr.panels?.[0]?.canvas || document.createElement('canvas');
   editorState = new EditorState(canvas);
-  // Wire Undo/Redo buttons
-  if (btnUndo) btnUndo.onclick = () => { try { editorState.undo(); } catch {} };
-  if (btnRedo) btnRedo.onclick = () => { try { editorState.redo(); } catch {} };
+  hookEditorLogger(editorState);
+  // Wire Undo/Redo buttons; log via returned descriptions.
+  if (btnUndo) btnUndo.onclick = () => {
+    try {
+      const d = editorState.undo();
+      pushStatus(`Undid ${d || 'change'}`, 'info');
+    } catch {}
+  };
+  if (btnRedo) btnRedo.onclick = () => {
+    try {
+      const d = editorState.redo();
+      pushStatus(`Redid ${d || 'change'}`, 'info');
+    } catch {}
+  };
   // Subscribe to revision changes: when a commit occurs, adopt the new text.
   editorState.rev.changes().subscribe((maybeText) => {
     // Sync emitted text back into editor and top-level circuit.
@@ -614,6 +633,7 @@ function ensureEditorState() {
     } catch {
       editorState.obs_val_draw_state.set(editorState.toSnapshot(undefined));
     }
+    // Logging is handled at call sites (buttons / future shortcuts).
     // Update Undo/Redo availability
     try {
       if (btnUndo) btnUndo.disabled = editorState.rev.isAtBeginningOfHistory();

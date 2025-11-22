@@ -48,6 +48,8 @@ class EditorState {
         this.mouseDownX = /** @type {undefined|!number} */ undefined;
         this.mouseDownY = /** @type {undefined|!number} */ undefined;
         this.obs_val_draw_state = /** @type {!ObservableValue<StateSnapshot>} */ new ObservableValue(this.toSnapshot(undefined));
+        // Optional info logger callback injected by app shell (e.g., pushStatus)
+        this.onInfo = undefined;
     }
 
     flipTwoQubitGateOrderAtFocus(preview) {
@@ -157,11 +159,15 @@ class EditorState {
     }
 
     undo() {
+        const msg = this.rev.descriptionAt(this.rev.index) || undefined;
         this.rev.undo();
+        return msg;
     }
 
     redo() {
+        const msg = this.rev.descriptionAt(this.rev.index + 1) || undefined;
         this.rev.redo();
+        return msg;
     }
 
     /**
@@ -183,7 +189,9 @@ class EditorState {
         while (newAnnotatedCircuit.layers.length > 0 && newAnnotatedCircuit.layers[newAnnotatedCircuit.layers.length - 1].isEmpty()) {
             newAnnotatedCircuit.layers.pop();
         }
-        this.rev.commit(newAnnotatedCircuit.toStimCircuit());
+        const desc = this._pendingDesc;
+        this._pendingDesc = undefined;
+        this.rev.commit(newAnnotatedCircuit.toStimCircuit(), desc);
     }
 
     /**
@@ -264,6 +272,7 @@ class EditorState {
     }
 
     clearAnnotatedCircuit() {
+        this._pendingDesc = 'clear circuit';
         this.commit(new AnnotatedCircuit(new Float64Array([]), []));
     }
 
@@ -272,6 +281,7 @@ class EditorState {
         for (let layer of c.layers) {
             layer.markers = layer.markers.filter(e => e.gate.name !== 'MARKX' && e.gate.name !== 'MARKY' && e.gate.name !== 'MARKZ');
         }
+        this._pendingDesc = 'clear all markers';
         this.commit(c);
     }
 
@@ -281,6 +291,7 @@ class EditorState {
         for (let layer of c.layers) {
             layer.markers = layer.markers.filter(e => !( (e.gate.name === "MARKX" || e.gate.name === "MARKY" || e.gate.name === "MARKZ") && Math.round(e.args[0]) === Math.round(index) ));
         }
+        this._pendingDesc = `clear marker index ${index}`;
         this.commit(c);
     }
 
@@ -593,6 +604,11 @@ class EditorState {
 
     /** @private */
     _toggleMarkerOnQubits(preview, circuit, qids, gateName, markerIndex) {
+        // Compute before-propagation snapshot for this marker index at current layer.
+        let beforeFrames;
+        try {
+            beforeFrames = PropagatedPauliFrames.fromCircuit(circuit, markerIndex);
+        } catch {}
         const layer = circuit.layers[this.curLayer];
         for (const q of qids) {
             if (q === undefined || q === null) continue;
@@ -605,6 +621,48 @@ class EditorState {
                 layer.put(new Operation(gate, '', new Float32Array([markerIndex]), new Uint32Array([q])));
             }
         }
+        // Compute after-propagation snapshot for logging and emit info.
+        try {
+            if (!preview && typeof this.onInfo === 'function') {
+                const cur = this.curLayer;
+                const afterFrames = PropagatedPauliFrames.fromCircuit(circuit, markerIndex);
+                const beforeBases = beforeFrames ? beforeFrames.atLayer(cur + 0.5).bases : new Map();
+                const afterBases = afterFrames.atLayer(cur + 0.5).bases;
+                const basisList = ['X','Y','Z'];
+                const add = { X: 0, Y: 0, Z: 0 };
+                const rem = { X: 0, Y: 0, Z: 0 };
+                // Count removals (present before but not with same basis after)
+                for (const [q, b] of beforeBases.entries()) {
+                    const nb = afterBases.get(q);
+                    if (b && nb !== b) rem[b] += 1;
+                }
+                // Count additions (present after but not with same basis before)
+                for (const [q, b] of afterBases.entries()) {
+                    const pb = beforeBases.get(q);
+                    if (b && pb !== b) add[b] += 1;
+                }
+                const deltas = [];
+                for (const b of basisList) {
+                    const net = (add[b] || 0) - (rem[b] || 0);
+                    if (net !== 0) deltas.push(`${net > 0 ? '+' : '-'}${Math.abs(net)} ${b}`);
+                }
+                // Count total error events across all integer layers for this index
+                let errEvents = 0;
+                try {
+                    for (const layerKey of afterFrames.id_layers.keys()) {
+                        if (Math.floor(layerKey) === layerKey) {
+                            const l = afterFrames.id_layers.get(layerKey);
+                            if (l && l.errors) errEvents += l.errors.size;
+                        }
+                    }
+                } catch {}
+                const deltaTxt = deltas.length ? deltas.join(', ') : 'no support change';
+                const msg = `Toggled marker ${markerIndex} at step ${cur}: ${deltaTxt}. Now ${errEvents} errors in marker ${markerIndex}.`;
+                // Bake a short description into the upcoming commit so Undo/Redo are concise.
+                this._pendingDesc = 'toggle markers';
+                try { this.onInfo(msg); } catch {}
+            }
+        } catch {}
         this.commit_or_preview(circuit, preview);
     }
 
