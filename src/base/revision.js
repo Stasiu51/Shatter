@@ -149,6 +149,21 @@ class Revision {
     }
 
     /**
+     * Pushes a commit that keeps the same state but records a description.
+     * Useful for UI-only actions that should be undoable (e.g., focus changes).
+     * @param {string|undefined} desc
+     */
+    commitMeta(desc=undefined) {
+        const cur = this.history[this.index].state;
+        this.isWorkingOnCommit = false;
+        this.index += 1;
+        this.history.splice(this.index, this.history.length - this.index);
+        this.history.push({ state: cur, desc });
+        this._latestActiveCommit.set(cur);
+        this._changes.send(cur);
+    }
+
+    /**
      * Marks the previous state as the current state and returns it (or resets to the current state if
      * 'working on a commit' was indicated).
      * @returns {undefined|*} The new current state, or undefined if there's nothing to undo.

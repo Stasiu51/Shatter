@@ -48,6 +48,8 @@ class EditorState {
         this.mouseDownX = /** @type {undefined|!number} */ undefined;
         this.mouseDownY = /** @type {undefined|!number} */ undefined;
         this.obs_val_draw_state = /** @type {!ObservableValue<StateSnapshot>} */ new ObservableValue(this.toSnapshot(undefined));
+        // Map revision index -> snapshot of timelineSet (for undo/redo of focus changes)
+        this._timelineSetHistory = new Map();
         // Optional info logger callback injected by app shell (e.g., pushStatus)
         this.onInfo = undefined;
     }
@@ -146,6 +148,7 @@ class EditorState {
     deleteCurLayer(preview) {
         let c = this.copyOfCurAnnotatedCircuit();
         c.layers.splice(this.curLayer, 1);
+        if (!preview) this._pendingDesc = `Delete layer ${this.curLayer}`;
         this.commit_or_preview(c, preview);
     }
 
@@ -155,6 +158,7 @@ class EditorState {
     insertLayer(preview) {
         let c = this.copyOfCurAnnotatedCircuit();
         c.layers.splice(this.curLayer, 0, new Layer());
+        if (!preview) this._pendingDesc = `Insert layer ${this.curLayer}`;
         this.commit_or_preview(c, preview);
     }
 
@@ -196,6 +200,8 @@ class EditorState {
         const desc = this._pendingDesc;
         this._pendingDesc = undefined;
         this.rev.commit(newAnnotatedCircuit.toStimCircuit(), desc);
+        // Record UI state for this revision index
+        try { this._timelineSetHistory.set(this.rev.index, new Map(this.timelineSet.entries())); } catch {}
     }
 
     /**
@@ -206,6 +212,84 @@ class EditorState {
         this.rev.startedWorkingOnCommit(newAnnotatedCircuit.toStimCircuit());
         const propagated = this._computePropagationCache(newAnnotatedCircuit);
         this.obs_val_draw_state.set(this.toSnapshot(newAnnotatedCircuit, propagated));
+    }
+
+    /** Convert current selection (qubits, gates, connections, polygons) into a Set of qubit ids. */
+    get_selected_qubits() {
+        const snapSel = selectionStore.snapshot?.();
+        const c = this.copyOfCurAnnotatedCircuit();
+        const qids = new Set();
+        if (!snapSel || !snapSel.kind || !snapSel.selected || snapSel.selected.size === 0) return qids;
+        const addQid = (id) => { if (Number.isFinite(id)) qids.add(id); };
+        const addQids = (arr) => { for (const q of arr) addQid(q); };
+        if (snapSel.kind === 'qubit') {
+            for (const id of snapSel.selected) {
+                const parts = String(id || '').split(':');
+                if (parts[0] !== 'q') continue;
+                addQid(parseInt(parts[1]));
+            }
+        } else if (snapSel.kind === 'gate') {
+            for (const id of snapSel.selected) {
+                const tokens = String(id).split(':');
+                const layerIdx = parseInt(tokens[1]);
+                const first = parseInt(tokens[2]);
+                const op = c?.layers?.[layerIdx]?.id_ops?.get?.(first);
+                if (op && op.id_targets) addQids([...op.id_targets]);
+            }
+        } else if (snapSel.kind === 'connection') {
+            // Add both endpoints for each connection id
+            for (const id of snapSel.selected) {
+                const tokens = String(id).split(':');
+                const key = tokens[2] || '';
+                const [a, b] = key.split('-');
+                addQid(parseInt(a));
+                addQid(parseInt(b));
+            }
+        } else if (snapSel.kind === 'polygon') {
+            for (const id of snapSel.selected) {
+                const tokens = String(id).split(':');
+                const layerIdx = parseInt(tokens[1]);
+                const polyIndex = parseInt(tokens[2]);
+                const anns = c?.layers?.[layerIdx]?.annotations || [];
+                const poly = anns.find(a => a && a.kind === 'Polygon' && a.polyIndex === polyIndex);
+                const ids = Array.isArray(poly?.targets) ? poly.targets : [];
+                for (const q of ids) addQid(parseInt(q));
+            }
+        }
+        return qids;
+    }
+
+    /** Set timeline focus from selection; commit UI-only change with description. */
+    setTimelineFocusFromSelection() {
+        const c = this.copyOfCurAnnotatedCircuit();
+        const sel = this.get_selected_qubits();
+        if (!sel || sel.size === 0) return false;
+        const map = new Map();
+        for (const qid of sel) {
+            const q = c.qubits?.get?.(qid);
+            if (!q) continue;
+            const x = q.panelX, y = q.panelY;
+            const key = `${x},${y}`;
+            map.set(key, [x,y]);
+        }
+        this.timelineSet = map;
+        try { this.onInfo && this.onInfo(`Set focus on ${map.size} qubit${map.size===1?'':'s'}`); } catch {}
+        // Push a meta-only revision to make it undoable.
+        this.rev.commitMeta('Set timeline focus');
+        try { this._timelineSetHistory.set(this.rev.index, new Map(this.timelineSet.entries())); } catch {}
+        // Trigger a redraw snapshot reuse existing circuit/propagation
+        this.force_redraw();
+        return true;
+    }
+
+    clearTimelineFocus() {
+        const prevSize = this.timelineSet?.size || 0;
+        this.timelineSet = new Map();
+        try { this.onInfo && this.onInfo('Cleared focus'); } catch {}
+        this.rev.commitMeta('Clear timeline focus');
+        try { this._timelineSetHistory.set(this.rev.index, new Map()); } catch {}
+        this.force_redraw();
+        return prevSize > 0;
     }
 
     /**
@@ -553,55 +637,9 @@ class EditorState {
     toggleMarkerAtSelection(preview, gateName, markerIndex) {
         try {
             const c = this.copyOfCurAnnotatedCircuit();
-            const snapSel = selectionStore.snapshot();
-            if (!snapSel || !snapSel.kind || snapSel.selected.size === 0) return;
-            const qids = [];
-            const addQid = (id) => { if (Number.isFinite(id)) qids.push(id); };
-            const addQids = (arr) => { for (const q of arr) addQid(q); };
-            if (snapSel.kind === 'qubit') {
-                for (const id of snapSel.selected) {
-                    const parts = String(id || '').split(':');
-                    if (parts[0] !== 'q') continue;
-                    addQid(parseInt(parts[1]));
-                }
-            } else if (snapSel.kind === 'gate') {
-                for (const id of snapSel.selected) {
-                    const tokens = String(id).split(':');
-                    const layerIdx = parseInt(tokens[1]);
-                    const first = parseInt(tokens[2]);
-                    const op = c?.layers?.[layerIdx]?.id_ops?.get?.(first);
-                    if (op && op.id_targets) addQids([...op.id_targets]);
-                }
-            } else if (snapSel.kind === 'connection') {
-                const parity = new Map();
-                for (const id of snapSel.selected) {
-                    const tokens = String(id).split(':');
-                    const key = tokens[2] || '';
-                    const [a, b] = key.split('-');
-                    const q1 = parseInt(a), q2 = parseInt(b);
-                    if (Number.isFinite(q1)) parity.set(q1, (parity.get(q1) || 0) ^ 1);
-                    if (Number.isFinite(q2)) parity.set(q2, (parity.get(q2) || 0) ^ 1);
-                }
-                for (const [qid, bit] of parity.entries()) if (bit === 1) addQid(qid);
-            } else if (snapSel.kind === 'polygon') {
-                // Symmetric difference over the vertex sets of the selected polygons.
-                const parity = new Map();
-                for (const id of snapSel.selected) {
-                    const tokens = String(id).split(':');
-                    const layerIdx = parseInt(tokens[1]);
-                    const polyIndex = parseInt(tokens[2]);
-                    const anns = c?.layers?.[layerIdx]?.annotations || [];
-                    const poly = anns.find(a => a && a.kind === 'Polygon' && a.polyIndex === polyIndex);
-                    const ids = Array.isArray(poly?.targets) ? poly.targets : [];
-                    for (const q of ids) {
-                        const qid = parseInt(q);
-                        if (!Number.isFinite(qid)) continue;
-                        parity.set(qid, (parity.get(qid) || 0) ^ 1);
-                    }
-                }
-                for (const [qid, bit] of parity.entries()) if (bit === 1) addQid(qid);
-            }
-            if (qids.length === 0) return;
+            const qset = this.get_selected_qubits();
+            if (!qset || qset.size === 0) return;
+            const qids = [...qset.values()];
             this._toggleMarkerOnQubits(preview, c, qids, gateName, markerIndex);
         } catch {}
     }

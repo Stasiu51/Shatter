@@ -432,8 +432,8 @@
       border-radius: 2px;
       opacity: 0.8;
     }
-    /* Markers (global, fixed width, no resizer) */
-    .markers {
+    /* Toolbox (global, fixed width, no resizer) */
+    .toolbox {
       width: var(--markers-width);
       min-width: 0;
       border: none;
@@ -443,7 +443,7 @@
       flex-direction: column;
       overflow: hidden;
     }
-    .markers-header {
+    .toolbox-header {
       padding: 8px 10px;
       border-bottom: 1px solid var(--border);
       color: #57606a;
@@ -456,8 +456,8 @@
       align-items: center;
       justify-content: space-between;
     }
-    .markers-title { font-weight: 600; color: #57606a; }
-    .markers-body {
+    .toolbox-title { font-weight: 600; color: #57606a; }
+    .toolbox-body {
       flex: 1;
       display: flex;
       flex-direction: column;
@@ -467,14 +467,14 @@
       color: #24292f;
       overflow-y: auto;
     }
-    .markers.collapsed { width: 0 !important; border: none; }
-    .markers-border {
+    .toolbox.collapsed { width: 0 !important; border: none; display: none !important; }
+    .toolbox-border {
       width: 6px;
       cursor: default; /* not draggable; avoid resize cursor */
       position: relative;
     }
 
-    .markers-border::after {
+    .toolbox-border::after {
       content: "";
       position: absolute;
       top: 0;
@@ -551,10 +551,7 @@
       display: block;
     }
 
-    .timeline.collapsed {
-      width: 0 !important;
-      border: none;
-    }
+    .timeline.collapsed { width: 0 !important; border: none; display: none !important; }
 
     .timeline-header .right {
       float: right;
@@ -621,7 +618,7 @@
       padding: 8px;
       color: var(--text);
     }
-    .editor.collapsed { width: 0 !important; border: none; }
+    .editor.collapsed { width: 0 !important; border: none; display: none !important; }
     .editor-resizer {
       width: 6px;
       cursor: col-resize;
@@ -644,12 +641,12 @@
     .settings-header { padding: 8px 10px; border-bottom: 1px solid var(--border); color: #57606a; font-weight: 600; height: 47px; min-height: 47px; max-height: 47px; flex: 0 0 47px; display: flex; align-items: center; justify-content: space-between; }
     .settings-title { font-weight: 600; color: #57606a; }
     .settings-body { flex: 1; position: relative; background: #fff; display: block; overflow: auto; padding: 8px 12px; }
-    .settings.collapsed { width: 0 !important; border: none; }
+    .settings.collapsed { width: 0 !important; border: none; display: none !important; }
     .settings-resizer { width: 6px; cursor: col-resize; position: relative; }
     .settings-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 2px; width: 2px; background: var(--border); border-radius: 2px; opacity: 0.8; }
 
     /* Consistent header button sizing across panels */
-    .markers-header .btn,
+    .toolbox-header .btn,
     .inspector-header .btn,
     .timeline-header .btn,
     .editor-header .btn,
@@ -675,7 +672,7 @@
         <button id="panels-zoom-in" title="Zoom in" style="padding:2px 6px;">+</button>
       </div>
       <div class="spacer"></div>
-      <button class="btn" id="markers-toggle-global">Show markers</button>
+      <button class="btn" id="toolbox-toggle-global">Show toolbox</button>
       <button class="btn" id="inspector-toggle-global">Show inspector</button>
       <button class="btn" id="editor-toggle">Show editor</button>
       <button id="timeline-toggle-global" class="btn">Hide timeline</button>
@@ -691,22 +688,24 @@
     <button class="btn" id="btn-help">Help</button>
     <button class="btn" id="btn-undo" title="Undo (Ctrl/Cmd+Z)">Undo</button>
     <button class="btn" id="btn-redo" title="Redo (Shift+Ctrl/Cmd+Z)">Redo</button>
+    <button class="btn" id="btn-insert-layer" title="Insert layer (Mod+Insert)">Insert layer</button>
+    <button class="btn" id="btn-delete-layer" title="Delete layer (Mod+Delete)">Delete layer</button>
   </div>
   <main>
     <div class="workspace">
       <div class="panels-wrap">
         <div id="panels" class="layout-1"></div>
       </div>
-      <!-- Markers panel (fixed width) -->
-       <div class="markers-border" id="markers-border"></div>
-      <div class="markers" id="markers">
-        <div class="markers-header">
-          <div class="markers-title">Markers</div>
+      <!-- Toolbox panel (fixed width) -->
+       <div class="toolbox-border" id="toolbox-border"></div>
+      <div class="toolbox" id="toolbox">
+        <div class="toolbox-header">
+          <div class="toolbox-title">Toolbox</div>
           <div class="right">
-            <button id="markers-toggle" title="Collapse markers" class="btn" style="padding:2px 6px;">Hide</button>
+            <button id="toolbox-toggle" title="Collapse toolbox" class="btn" style="padding:2px 6px;">Hide</button>
           </div>
         </div>
-        <div class="markers-body" id="markers-body"></div>
+        <div class="toolbox-body" id="toolbox-body"></div>
       </div>
      <div class="inspector-resizer" id="inspector-resizer" title="Drag to resize inspector"></div>
       <div class="inspector" id="inspector" data-lpignore="true">
@@ -735,6 +734,7 @@
               <button id="timeline-zoom-reset" title="Reset zoom">Reset</button>
               <button id="timeline-zoom-in" title="Zoom in">+</button>
             </div>
+            <button id="timeline-focus-toggle" title="Set/clear focus" class="btn" style="padding:2px 6px;">Set Focus</button>
             <button id="timeline-toggle" title="Collapse/expand" class="btn" style="padding:2px 6px;">Hide</button>
           </span>
         </div>

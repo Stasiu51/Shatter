@@ -128,5 +128,6 @@ export function setupTimelineUI({
     setScrollY: (y) => { timelineScrollY = Math.max(0, y|0); localStorage.setItem('timelineScrollY', String(timelineScrollY)); render(); },
     getScrollY: () => timelineScrollY,
     setCollapsed: setTimelineCollapsed,
+    getCollapsed: () => timelineEl.classList.contains('collapsed'),
   };
 }

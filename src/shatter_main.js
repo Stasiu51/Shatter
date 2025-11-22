@@ -15,8 +15,8 @@ import { loadSettings, saveUserSettings, exportUserSettings, importUserSettings 
 import { setTerminalErrorsEnabled } from './circuit/propagated_pauli_frames.js';
 import { createSheetsDropdown } from './ui_elements/sheets_dropdown.js';
 import { setupTextEditorUI } from './ui_elements/text_editor_controller.js';
-import { setupMarkersUI } from './ui_elements/markers_controller.js';
-import { renderMarkers } from './ui_elements/markers_renderer.js';
+import { setupMarkersUI as setupToolboxUI } from './ui_elements/markers_controller.js';
+import { renderMarkers as renderToolbox } from './ui_elements/markers_renderer.js';
 import { setupSettingsUI } from './ui_elements/settings_controller.js';
 import { EditorState } from './editor/editor_state.js';
 import { selectionStore } from './editor/selection_store.js';
@@ -42,6 +42,7 @@ const resizer = document.getElementById('timeline-resizer');
 const toggle = document.getElementById('timeline-toggle');
 const toggleGlobal = document.getElementById('timeline-toggle-global');
 const timelineCanvas = document.getElementById('timeline-canvas');
+const timelineFocusBtn = document.getElementById('timeline-focus-toggle');
 const zoomInBtn = document.getElementById('timeline-zoom-in');
 const zoomOutBtn = document.getElementById('timeline-zoom-out');
 const zoomResetBtn = document.getElementById('timeline-zoom-reset');
@@ -59,6 +60,8 @@ const btnImport = document.getElementById('btn-import');
 const btnExport = document.getElementById('btn-export');
 const btnUndo = document.getElementById('btn-undo');
 const btnRedo = document.getElementById('btn-redo');
+const btnInsertLayer = document.getElementById('btn-insert-layer');
+const btnDeleteLayer = document.getElementById('btn-delete-layer');
 // Settings elements
 const settingsEl = document.getElementById('settings');
 const settingsResizerEl = document.getElementById('settings-resizer');
@@ -77,10 +80,10 @@ const inspectorResizerEl = document.getElementById('inspector-resizer');
 const inspectorToggleGlobalEl = document.getElementById('inspector-toggle-global');
 const inspectorToggleLocalEl = document.getElementById('inspector-collapse-btn');
 
-// Markers elements
-const markersEl = document.getElementById('markers');
-const markersToggleGlobalEl = document.getElementById('markers-toggle-global');
-const markersToggleLocalEl = document.getElementById('markers-toggle');
+// Toolbox elements
+const toolboxEl = document.getElementById('toolbox');
+const toolboxToggleGlobalEl = document.getElementById('toolbox-toggle-global');
+const toolboxToggleLocalEl = document.getElementById('toolbox-toggle');
 
 // Editor elements
 const editorEl = document.getElementById('editor');
@@ -198,14 +201,18 @@ const timelineCtl = setupTimelineUI({
       timelineScrollY = maxScrollCss;
       localStorage.setItem(LS_KEYS.timelineScrollY, String(timelineScrollY));
     }
-    renderTimelineCore({ canvas, circuit, currentLayer: curLayer, timelineZoom, timelineScrollY });
+    const tset = (editorState && editorState.timelineSet) ? editorState.timelineSet : new Map();
+    renderTimelineCore({ canvas, circuit, currentLayer: curLayer, timelineZoom, timelineScrollY, timelineSet: tset });
     updateLayerIndicator();
+    // Update focus button state when timeline renders/collapses
+    try { updateTimelineFocusButton(); } catch {}
   },
   onResizing: () => {
     renderAllPanels();
   },
   onResized: () => {
     renderAllPanels();
+    try { updateTimelineFocusButton(); } catch {}
   },
 });
 
@@ -228,19 +235,19 @@ if (inspectorEl && inspectorResizerEl) {
       // Keep adjacent content responsive
       renderAllPanels();
       timelineCtl.render();
-      renderMarkersUI();
+      renderToolboxUI();
       renderInspectorUI();
     },
     onResizing: () => {
       renderAllPanels();
       timelineCtl.render();
-      renderMarkersUI();
+      renderToolboxUI();
       renderInspectorUI();
     },
     onResized: () => {
       renderAllPanels();
       timelineCtl.render();
-      renderMarkersUI();
+      renderToolboxUI();
       renderInspectorUI();
     },
     updateToggleText: updateInspectorToggleText,
@@ -261,7 +268,7 @@ if (settingsEl && settingsResizerEl) {
     onCollapsedChanged: () => {
       renderAllPanels();
       timelineCtl.render();
-      renderMarkersUI();
+      renderToolboxUI();
       renderInspectorUI();
     },
     onResizing: () => {
@@ -310,40 +317,40 @@ const editorCtl = setupTextEditorUI({
   },
 });
 
-// Markers UI setup (fixed width, collapsible)
-let markersCtl = null;
-if (markersEl) {
-  markersCtl = setupMarkersUI({
-    markersEl,
-    toggleGlobalEl: markersToggleGlobalEl,
-    toggleLocalEl: markersToggleLocalEl,
-    onToggle: () => renderMarkersUI(),
+// Toolbox UI setup (fixed width, collapsible)
+let toolboxCtl = null;
+if (toolboxEl) {
+  toolboxCtl = setupToolboxUI({
+    markersEl: toolboxEl,
+    toggleGlobalEl: toolboxToggleGlobalEl,
+    toggleLocalEl: toolboxToggleLocalEl,
+    onToggle: () => renderToolboxUI(),
   });
 }
 
-let markersRenderScheduled = false;
-function renderMarkersUI() {
-  if (markersRenderScheduled) return;
-  markersRenderScheduled = true;
+let toolboxRenderScheduled = false;
+function renderToolboxUI() {
+  if (toolboxRenderScheduled) return;
+  toolboxRenderScheduled = true;
   requestAnimationFrame(() => {
-    markersRenderScheduled = false;
+    toolboxRenderScheduled = false;
     try {
-      const container = document.getElementById('markers-body');
-      if (!container || !markersEl || markersEl.classList.contains('collapsed')) return;
+      const container = document.getElementById('toolbox-body');
+      if (!container || !toolboxEl || toolboxEl.classList.contains('collapsed')) return;
       let canToggle = false;
       try {
         const snapSel = selectionStore.snapshot();
         canToggle = !!(snapSel && ['qubit','gate','connection','polygon'].includes(snapSel.kind) && snapSel.selected.size > 0);
       } catch {}
       const snap = editorState?.obs_val_draw_state.get?.();
-      renderMarkers({
+      renderToolbox({
         containerEl: container,
         circuit,
         currentLayer,
         propagated: snap?.propagatedFrames,
         canToggle,
-        onClearIndex: (idx) => { try { editorState?.clearMarkersIndex?.(idx); renderMarkersUI(); schedulePanelsRender(); } catch {} },
-        onToggleType: (gateName, idx) => { try { editorState?.toggleMarkerAtSelection?.(false, gateName, idx); renderMarkersUI(); schedulePanelsRender(); } catch {} },
+        onClearIndex: (idx) => { try { editorState?.clearMarkersIndex?.(idx); renderToolboxUI(); schedulePanelsRender(); } catch {} },
+        onToggleType: (gateName, idx) => { try { editorState?.toggleMarkerAtSelection?.(false, gateName, idx); renderToolboxUI(); schedulePanelsRender(); } catch {} },
       });
     } catch {}
   });
@@ -515,7 +522,7 @@ function setLayer(layer) {
   // Prune selection based on new layer visibility.
   reconcileSelectionVisibility();
   schedulePanelsRender();
-  renderMarkersUI();
+  renderToolboxUI();
   renderInspectorUI();
 }
 
@@ -528,7 +535,7 @@ function recomputePropagationAndRender() {
     editorState.obs_val_draw_state.set(editorState.toSnapshot(snapCircuit, propagated));
     timelineCtl.render();
     renderAllPanels();
-    renderMarkersUI();
+    renderToolboxUI();
     renderInspectorUI();
   } catch {}
 }
@@ -559,7 +566,9 @@ keymap.registerCommand('edit.undo', () => { const d = editorState?.undo?.(); if 
 keymap.registerCommand('edit.redo', () => { const d = editorState?.redo?.(); if (d !== undefined) pushStatus(`Redid ${d || 'change'}`, 'info'); }, { when: () => !isEditing() && !!editorState });
 keymap.registerCommand('panel.zoom.in', () => setPanelZoom(panelZoom * 1.25), { when: () => !isEditing() });
 keymap.registerCommand('panel.zoom.out', () => setPanelZoom(panelZoom / 1.25), { when: () => !isEditing() });
-keymap.registerCommand('panel.zoom.reset', () => setPanelZoom(2), { when: () => !isEditing() });
+  keymap.registerCommand('panel.zoom.reset', () => setPanelZoom(2), { when: () => !isEditing() });
+  keymap.registerCommand('layer.insert', () => { try { editorState?.insertLayer?.(false); } catch {} }, { when: () => !isEditing() && !!editorState });
+  keymap.registerCommand('layer.delete', () => { try { editorState?.deleteCurLayer?.(false); } catch {} }, { when: () => !isEditing() && !!editorState });
 
 let appSettings = null;
 function applySettings() {
@@ -617,6 +626,17 @@ initSettingsAndKeymap().then(() => {
         saveUserSettings(appSettings);
         applySettings();
       },
+      onSaveGeneral: (updatesObj) => {
+        // Shallow merge per section, create if missing
+        for (const sec of Object.keys(updatesObj || {})) {
+          appSettings[sec] = appSettings[sec] || {};
+          Object.assign(appSettings[sec], updatesObj[sec]);
+        }
+        saveUserSettings(appSettings);
+        applySettings();
+        // If appearance affects visuals (e.g., focusDim), re-render panels
+        schedulePanelsRender();
+      },
       onImportSettings: async (obj) => {
         importUserSettings(obj);
         appSettings = await loadSettings();
@@ -635,6 +655,7 @@ function renderAllPanels() {
   if (!snap) return;
 
   const dpr = Math.max(1, window.devicePixelRatio || 1);
+  const timelineCollapsed = !!timelineCtl.getCollapsed?.();
   for (let i = 0; i < mgr.panels.length; i++) {
     const p = mgr.panels[i];
     const canvas = p.canvas;
@@ -661,10 +682,10 @@ function renderAllPanels() {
     if (panelZoom && panelZoom !== 1) {
       ctx.save();
       ctx.scale(panelZoom, panelZoom);
-      drawPanel(ctx, snap, sheetsSel);
+      drawPanel(ctx, snap, sheetsSel, { timelineCollapsed, focusDim: (appSettings && appSettings.appearance && typeof appSettings.appearance.focusDim==='number') ? appSettings.appearance.focusDim : 0.5 });
       ctx.restore();
     } else {
-      drawPanel(ctx, snap, sheetsSel);
+      drawPanel(ctx, snap, sheetsSel, { timelineCollapsed, focusDim: (appSettings && appSettings.appearance && typeof appSettings.appearance.focusDim==='number') ? appSettings.appearance.focusDim : 0.5 });
     }
     // Bind mouse events once per canvas.
     if (!p._eventsBound) {
@@ -732,6 +753,9 @@ function ensureEditorState() {
   const canvas = mgr.panels?.[0]?.canvas || document.createElement('canvas');
   editorState = new EditorState(canvas);
   hookEditorLogger(editorState);
+  // Wire layer insert/delete buttons
+  if (btnInsertLayer) btnInsertLayer.onclick = () => { try { editorState?.insertLayer?.(false); } catch {} };
+  if (btnDeleteLayer) btnDeleteLayer.onclick = () => { try { editorState?.deleteCurLayer?.(false); } catch {} };
   // Wire Undo/Redo buttons; log via returned descriptions.
   if (btnUndo) btnUndo.onclick = () => {
     try {
@@ -754,6 +778,13 @@ function ensureEditorState() {
         const parsed = AnnotatedCircuit.parse(currentText);
         circuit = parsed?.circuit || null;
         currentText = parsed?.text ?? currentText;
+        // Restore timeline focus for this revision if recorded
+        try {
+          const hist = editorState?._timelineSetHistory;
+          if (hist && hist.has(editorState.rev.index)) {
+            editorState.timelineSet = new Map(hist.get(editorState.rev.index).entries());
+          }
+        } catch {}
         if (editorTextareaEl) {
           editorTextareaEl.value = currentText;
           setEditorDirty(false);
@@ -782,7 +813,7 @@ function ensureEditorState() {
     requestAnimationFrame(() => {
       renderAllPanels(ds);
       timelineCtl.render();
-      renderMarkersUI();
+      renderToolboxUI();
       renderInspectorUI();
     });
   });
@@ -809,7 +840,7 @@ function ensureEditorState() {
       }
     } catch {}
     schedulePanelsRender();
-    renderMarkersUI();
+    renderToolboxUI();
     renderInspectorUI();
   });
   return editorState;
@@ -1010,3 +1041,40 @@ function reconcileSelectionVisibility() {
     for (const p of mgr.panels) { if (p.sel?.setActive) p.sel.setActive(selectionStore.kind || 'gate'); }
   }
 }
+function updateTimelineFocusButton() {
+  if (!timelineFocusBtn) return;
+  const collapsed = !!timelineCtl.getCollapsed?.();
+  const hasFocus = !!(editorState?.timelineSet && editorState.timelineSet.size > 0);
+  if (collapsed) {
+    timelineFocusBtn.disabled = true;
+    timelineFocusBtn.textContent = 'Set Focus';
+    return;
+  }
+  if (hasFocus) {
+    timelineFocusBtn.disabled = false;
+    timelineFocusBtn.textContent = 'Clear Focus';
+  } else {
+    // Enable only if there is a selection
+    const sel = selectionStore.snapshot?.();
+    const hasSel = !!(sel && sel.selected && sel.selected.size > 0);
+    timelineFocusBtn.disabled = !hasSel;
+    timelineFocusBtn.textContent = 'Set Focus';
+  }
+}
+
+timelineFocusBtn?.addEventListener('click', () => {
+  const collapsed = !!timelineCtl.getCollapsed?.();
+  if (collapsed) return;
+  if (!editorState) return;
+  const hasFocus = !!(editorState.timelineSet && editorState.timelineSet.size > 0);
+  if (hasFocus) {
+    editorState.clearTimelineFocus();
+  } else {
+    editorState.setTimelineFocusFromSelection();
+  }
+  updateTimelineFocusButton();
+  schedulePanelsRender();
+});
+
+// Keep focus button state in sync with selection changes
+selectionStore.subscribe(() => { try { updateTimelineFocusButton(); } catch {} });

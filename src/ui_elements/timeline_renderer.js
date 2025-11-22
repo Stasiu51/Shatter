@@ -71,7 +71,7 @@ export function computeMaxScrollCSS(circuit, viewportCssHeight, timelineZoom, dp
   return Math.max(0, Math.floor(contentCss - viewportCssHeight));
 }
 
-export function renderTimeline({canvas, circuit, currentLayer, timelineZoom, timelineScrollY}) {
+export function renderTimeline({canvas, circuit, currentLayer, timelineZoom, timelineScrollY, timelineSet}) {
   if (!canvas || !circuit) return;
   const dpr = Math.max(1, window.devicePixelRatio || 1);
   const rect = canvas.getBoundingClientRect();
@@ -88,7 +88,7 @@ export function renderTimeline({canvas, circuit, currentLayer, timelineZoom, tim
     circuit,
     Math.max(0, Math.min(currentLayer, circuit.layers.length - 1)),
     new Map(),
-    new Map(),
+    timelineSet instanceof Map ? new Map(timelineSet.entries()) : new Map(),
     0, 0, undefined, undefined, []
   );
 

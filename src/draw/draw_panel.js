@@ -186,7 +186,7 @@ function setDefensiveDrawEnabled(val) {
  * @param {!function(q: !int): ![!number, !number]} qubitCoordsFunc
  * @param {!Set<string>} visibleSheetNames
  */
-function drawAnnotations(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
+function drawAnnotations(ctx, snap, qubitCoordsFunc, visibleSheetNames, focusDimmed) {
     // Find latest layer up to curLayer that has Polygon annotations.
     const layers = snap.circuit.layers;
     let last = -1;
@@ -220,12 +220,14 @@ function drawAnnotations(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
         beginPathPolygon(ctx, coords);
         if (fillStyle) {
             ctx.save();
+            if (focusDimmed) ctx.globalAlpha *= 0.7;
             ctx.fillStyle = fillStyle;
             ctx.fill();
             ctx.restore();
         }
         if (strokeStyle) {
             ctx.save();
+            if (focusDimmed) ctx.globalAlpha *= 0.7;
             ctx.strokeStyle = strokeStyle;
             ctx.lineWidth = 2;
             ctx.stroke();
@@ -241,7 +243,7 @@ function drawAnnotations(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
  * @param {!function(q: !int): ![!number, !number]} qubitCoordsFunc
  * @param {!Set<string>} visibleSheetNames
  */
-function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
+function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames, focusDimmed) {
     const layers = snap.circuit.layers;
     // Accumulate unique edges from all ConnSet annotations up to current layer.
     // Key edges by normalized pair "min-max" and keep style (colour) by last occurrence.
@@ -285,7 +287,7 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
                 continue;
             }
             // Draw using shared connector, honoring THICKNESS and DROOP, and color.
-            stroke_connector_to(
+            const params = [
                 ctx,
                 p1[0], p1[1], p2[0], p2[1],
                 {
@@ -293,7 +295,15 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames) {
                     droop: (typeof droop === 'number' && isFinite(droop)) ? droop : 0,
                     color: parseCssColor(colour) || '#b0b5ba',
                 }
-            );
+            ];
+            if (focusDimmed) {
+                ctx.save();
+                ctx.globalAlpha *= 0.7;
+                stroke_connector_to(...params);
+                ctx.restore();
+            } else {
+                stroke_connector_to(...params);
+            }
         }
     } finally {
         ctx.restore();
@@ -494,7 +504,11 @@ function drawPanel(ctx, snap, sheetsToDraw) {
         }
 
         // Draw annotation polygons under qubits.
-        drawAnnotations(ctx, snap, qubitDrawCoords, visibleSheetNames);
+        // Focus mode: polygons are always dimmed when focus is active and timeline is visible.
+        const _opts = arguments[3] || {};
+        const focusActive = !!(snap.timelineSet && snap.timelineSet.size > 0 && !_opts.timelineCollapsed);
+        const dimFactor = focusActive ? (typeof _opts.focusDim === 'number' ? _opts.focusDim : 0.5) : 1;
+        drawAnnotations(ctx, snap, qubitDrawCoords, visibleSheetNames, dimFactor);
 
         // Draw connection highlights (latest highlight layer), under connections.
         const hlLayer = findLatestHighlightLayerIndex(circuit, snap.curLayer);
@@ -505,11 +519,11 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             drawConnectionHighlights(ctx, snap, c2dCoordTransform, getPanelXY, visibleSheetNames, null, hlLayer);
         }
 
-        // Draw connections (under qubits, above polygons).
+        // Draw connections (under qubits, above polygons). Always dimmed in focus mode.
         if (embedding && embedding.type === 'TORUS') {
-            drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleSheetNames, embedding);
+            drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleSheetNames, embedding, dimFactor);
         } else {
-            drawConnections(ctx, snap, qubitDrawCoords, visibleSheetNames);
+            drawConnections(ctx, snap, qubitDrawCoords, visibleSheetNames, dimFactor);
         }
 
         // Draw qubit highlights (latest highlight layer), under qubit squares.
@@ -524,9 +538,14 @@ function drawPanel(ctx, snap, sheetsToDraw) {
                 const meta = circuit.qubits?.get?.(q);
                 // Fill with per-qubit colour if present; default white.
                 const fill = (meta && meta.colour) ? parseCssColor(meta.colour) : 'white';
+                const key = `${meta?.panelX},${meta?.panelY}`;
+                const dim = focusActive && !snap.timelineSet.has(key);
+                ctx.save();
+                if (dim) ctx.globalAlpha *= dimFactor;
                 ctx.fillStyle = fill || 'white';
                 ctx.fillRect(x - rad, y - rad, 2 * rad, 2 * rad);
                 ctx.strokeRect(x - rad, y - rad, 2 * rad, 2 * rad);
+                ctx.restore();
             }
         });
 
@@ -549,17 +568,37 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             if (!isOpVisible(op)) continue;
             if (op.gate.name === 'POLYGON') continue;
 
+            // Dim gate if not entirely on focused qubits.
+            let gateDim = false;
+            if (focusActive) {
+                try {
+                    gateDim = !op.id_targets.every(q => {
+                        const meta = circuit.qubits?.get?.(q);
+                        if (!meta) return false;
+                        const k = `${meta.panelX},${meta.panelY}`;
+                        return snap.timelineSet.has(k);
+                    });
+                } catch {}
+            }
             if (op.gate.name && op.gate.name.startsWith('MPP:')) {
                 // Custom MPP drawing that reuses connection line logic (toroidal aware),
                 // instead of relying on Crumble's single-segment connector.
                 if (embedding && embedding.type === 'TORUS') {
+                    if (gateDim) ctx.save(), ctx.globalAlpha *= dimFactor;
                     drawMppConnectorsTorus(ctx, op, c2dCoordTransform, getPanelXY, embedding, isQubitVisible);
+                    if (gateDim) ctx.restore();
                 } else {
+                    if (gateDim) ctx.save(), ctx.globalAlpha *= dimFactor;
                     drawMppConnectorsPlane(ctx, op, qubitDrawCoords, isQubitVisible);
+                    if (gateDim) ctx.restore();
                 }
+                if (gateDim) ctx.save(), ctx.globalAlpha *= dimFactor;
                 drawMppGlyphs(ctx, op, qubitDrawCoords);
+                if (gateDim) ctx.restore();
             } else {
+                if (gateDim) ctx.save(), ctx.globalAlpha *= dimFactor;
                 op.id_draw(qubitDrawCoords, ctx);
+                if (gateDim) ctx.restore();
             }
         }
 
@@ -877,7 +916,7 @@ function torusSegmentsBetween(p1, p2, Lx, Ly) {
     }
 }
 
-function drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleSheetNames, embedding) {
+function drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleSheetNames, embedding, focusDimmed) {
     const layers = snap.circuit.layers;
     const edgeMap = new Map(); // key => {q1,q2, colour, thickness, droop}
     for (let r = 0; r <= snap.curLayer && r < layers.length; r++) {
@@ -918,15 +957,16 @@ function drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleS
             for (const [[sx, sy], [tx, ty]] of segs) {
                 const [dx1, dy1] = c2dCoordTransform(sx, sy);
                 const [dx2, dy2] = c2dCoordTransform(tx, ty);
-                stroke_connector_to(
-                    ctx,
-                    dx1, dy1, dx2, dy2,
-                    {
-                        thickness: (typeof thickness === 'number' && isFinite(thickness)) ? thickness : 4,
-                        droop: (typeof droop === 'number' && isFinite(droop)) ? droop : 0,
-                        color: parseCssColor(colour) || '#b0b5ba',
-                    }
-                );
+                const params = [ctx, dx1, dy1, dx2, dy2, {
+                    thickness: (typeof thickness === 'number' && isFinite(thickness)) ? thickness : 4,
+                    droop: (typeof droop === 'number' && isFinite(droop)) ? droop : 0,
+                    color: parseCssColor(colour) || '#b0b5ba',
+                }];
+                if (focusDimmed) {
+                    ctx.save(); ctx.globalAlpha *= 0.7; stroke_connector_to(...params); ctx.restore();
+                } else {
+                    stroke_connector_to(...params);
+                }
             }
         }
     } finally {

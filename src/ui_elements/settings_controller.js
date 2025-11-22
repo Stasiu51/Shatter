@@ -21,6 +21,7 @@ export function setupSettingsUI(opts) {
     getSettings,
     onToggleFeature,
     onSaveKeybindings, // (allBindingsMap) => { id -> patterns[] }
+    onSaveGeneral, // (updatesObject) => void, shallow/recursive application
     onImportSettings, // async
     onExportSettings, // returns object
     pushStatus = () => {},
@@ -92,19 +93,57 @@ export function setupSettingsUI(opts) {
     keysWrap.appendChild(table);
 
     containerEl.appendChild(featuresWrap);
+
+    // Generic sections for all other setting groups (auto-render)
+    const IGNORED_SECTIONS = new Set(['features', 'keybindings']);
+    const sections = Object.keys(s).filter(k => !IGNORED_SECTIONS.has(k));
+    const GENERAL_LABELS = {
+      'appearance.focusDim': 'Focus dimming (0..1)'
+    };
+    for (const sec of sections) {
+      const val = s[sec];
+      if (!val || typeof val !== 'object') continue;
+      const wrap = el('div', { class: 'settings-section' });
+      wrap.appendChild(el('h3', { text: sec[0].toUpperCase() + sec.slice(1) }));
+      for (const k of Object.keys(val)) {
+        const v = val[k];
+        const path = `${sec}.${k}`;
+        const row1 = el('div', { class: 'kb-row' });
+        const nameText = GENERAL_LABELS[path] || (k[0].toUpperCase() + k.slice(1));
+        row1.appendChild(el('div', { class: 'kb-name', text: nameText }));
+        wrap.appendChild(row1);
+        const row2 = el('div', { class: 'kb-row' });
+        let input;
+        if (typeof v === 'boolean') {
+          input = el('input', { type: 'checkbox', class: 'gen-input', style: 'margin-top:2px;' });
+          input.checked = !!v;
+        } else if (typeof v === 'number') {
+          input = el('input', { type: 'number', class: 'gen-input', value: String(v), step: '0.01', style: 'width:200px;' });
+        } else {
+          input = el('input', { type: 'text', class: 'gen-input', value: String(v), style: 'width:260px;' });
+        }
+        input.dataset.path = path;
+        input.addEventListener('input', () => setDirty(true));
+        row2.appendChild(input);
+        wrap.appendChild(row2);
+      }
+      containerEl.appendChild(wrap);
+    }
+
     containerEl.appendChild(keysWrap);
   }
 
-  // Save all keybindings
+  // Save all settings (keybindings + generic groups)
   try {
     if (saveBtn) saveBtn.onclick = () => {
       const s = getSettings();
       if (!s) return;
-      const inputs = containerEl.querySelectorAll('input.kb-input');
       let anyError = false;
-      for (const i of inputs) i.style.borderColor = '';
-      const updates = new Map();
-      for (const i of inputs) {
+      // Keybindings
+      const kbInputs = containerEl.querySelectorAll('input.kb-input');
+      for (const i of kbInputs) i.style.borderColor = '';
+      const kbUpdates = new Map();
+      for (const i of kbInputs) {
         const id = i.dataset.cmdId;
         const name = s.keybindings?.commands?.[id]?.name || id;
         const raw = (i.value || '').trim();
@@ -115,7 +154,6 @@ export function setupSettingsUI(opts) {
           continue;
         }
         const pats = raw.split(',').map(v => v.trim()).filter(Boolean);
-        // Basic validation: require at least one non-mod token per pattern.
         const modSet = new Set(['mod','ctrl','control','alt','option','shift','meta','cmd','command']);
         const invalid = pats.some(p => {
           const parts = p.split('+').map(t=>t.trim().toLowerCase()).filter(Boolean);
@@ -128,10 +166,45 @@ export function setupSettingsUI(opts) {
           anyError = true;
           continue;
         }
-        updates.set(id, pats);
+        kbUpdates.set(id, pats);
+      }
+      // Generic settings
+      const genInputs = containerEl.querySelectorAll('input.gen-input');
+      const genUpdates = {};
+      for (const i of genInputs) {
+        i.style.borderColor = '';
+        const path = i.dataset.path || '';
+        const parts = path.split('.');
+        if (parts.length < 2) continue;
+        const sec = parts[0], key = parts[1];
+        if (!genUpdates[sec]) genUpdates[sec] = {};
+        if (i.type === 'checkbox') {
+          genUpdates[sec][key] = !!i.checked;
+        } else if (i.type === 'number') {
+          const v = parseFloat(i.value);
+          if (!Number.isFinite(v)) { i.style.borderColor = '#d1242f'; pushStatus(`Setting ${sec}.${key} invalid`, 'error'); anyError = true; continue; }
+          genUpdates[sec][key] = v;
+        } else {
+          genUpdates[sec][key] = i.value;
+        }
+      }
+      // Specific constraint: appearance.focusDim in [0,1]
+      if (genUpdates.appearance && genUpdates.appearance.focusDim !== undefined) {
+        const v = genUpdates.appearance.focusDim;
+        if (!(v >= 0 && v <= 1)) {
+          const bad = containerEl.querySelector('input.gen-input[data-path="appearance.focusDim"]');
+          if (bad) bad.style.borderColor = '#d1242f';
+          pushStatus('Setting appearance.focusDim must be between 0 and 1', 'error');
+          anyError = true;
+        }
       }
       if (anyError) return;
-      try { onSaveKeybindings?.(updates); setDirty(false); pushStatus('Settings updated', 'info'); } catch {}
+      try {
+        if (onSaveKeybindings) onSaveKeybindings(kbUpdates);
+        if (onSaveGeneral) onSaveGeneral(genUpdates);
+        setDirty(false);
+        pushStatus('Settings updated', 'info');
+      } catch {}
     };
   } catch {}
 

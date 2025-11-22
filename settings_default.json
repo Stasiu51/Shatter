@@ -2,6 +2,9 @@
   "features": {
     "terminalErrors": true
   },
+  "appearance": {
+    "focusDim": 0.5
+  },
   "keybindings": {
     "commands": {
       "layer.prev": { "name": "Previous layer", "bindings": ["Q", "ArrowLeft"] },
@@ -13,6 +16,9 @@
       "panel.zoom.in": { "name": "Panel zoom in", "bindings": ["Mod+="] },
       "panel.zoom.out": { "name": "Panel zoom out", "bindings": ["Mod+-"] },
       "panel.zoom.reset": { "name": "Panel zoom reset", "bindings": ["Mod+0"] }
+      ,
+      "layer.insert": { "name": "Insert layer", "bindings": ["Mod+Insert"] },
+      "layer.delete": { "name": "Delete layer", "bindings": ["Mod+Delete"] }
     }
   }
 }

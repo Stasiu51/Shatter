@@ -74,6 +74,11 @@ async function loadSettings() {
     delete final.features.reload_on_change;
     saveUserToLocalStorage(final);
   }
+  // Ensure appearance shape
+  final.appearance = final.appearance || {};
+  if (typeof final.appearance.focusDim !== 'number' || !(final.appearance.focusDim >= 0) || !(final.appearance.focusDim <= 1)) {
+    final.appearance.focusDim = 0.5;
+  }
   return final;
 }
 

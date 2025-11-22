@@ -4,12 +4,12 @@ export function setupMarkersUI({
   toggleLocalEl,
   onToggle, // optional callback after toggling collapsed state
 }) {
-  const LS_KEY = 'markersCollapsed';
+  const LS_KEY = 'toolboxCollapsed';
   const collapsed = localStorage.getItem(LS_KEY) === '1';
   if (collapsed) markersEl.classList.add('collapsed');
 
   const updateToggleText = (c) => {
-    if (toggleGlobalEl) toggleGlobalEl.textContent = c ? 'Show markers' : 'Hide markers';
+    if (toggleGlobalEl) toggleGlobalEl.textContent = c ? 'Show toolbox' : 'Hide toolbox';
     if (toggleLocalEl) toggleLocalEl.textContent = c ? 'Show' : 'Hide';
   };
   updateToggleText(collapsed);
