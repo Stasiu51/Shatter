@@ -5,6 +5,8 @@
   --bg: #ffffff;
   /* Surfaces (panels/canvases) background; default links to --bg */
   --surface-bg: var(--bg);
+  /* Canvas post-processing filter (e.g., invert for dark themes). */
+  --canvas-filter: none;
   --muted: #f6f8fa;
   --accent: #4b6a88;  /* muted blue */
   --danger: #b04a4a;  /* muted red */

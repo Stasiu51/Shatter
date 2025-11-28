@@ -21,7 +21,8 @@
   --seg-btn-bg-active: rgba(0, 255, 102, 0.10);
 
   /* Surfaces */
-  --surface-bg: #9c9c9c;
+  --surface-bg: #000000;
+  --canvas-filter: invert(1) hue-rotate(180deg);
 
   /* Fonts */
   --font-ui: "League Mono", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;

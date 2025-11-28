@@ -269,6 +269,12 @@
       width: 100%;
       height: 100%;
       display: block;
+      filter: var(--canvas-filter, none);
+    }
+
+    /* Apply optional canvas filter to the timeline as well */
+    #timeline-canvas {
+      filter: var(--canvas-filter, none);
     }
 
     /* Selection widget */
