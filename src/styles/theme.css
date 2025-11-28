@@ -1,0 +1,107 @@
+:root {
+  /* Base colors */
+  --border: #696969;
+  --text: #24292f;
+  --bg: #ffffff;
+  --muted: #f6f8fa;
+  --accent: #0969da;
+  --danger: #d1242f;
+
+  /* Header shades (darkest at top). Edit these to retheme headers. */
+  --hdr-top: #ababab;    /* overall top header */
+  --hdr-mid: #c0bdc4;    /* toolbar header (import/export/etc.) */
+  --hdr-panel: #cdc5cf;  /* individual panel headers */
+
+  /* Button styling */
+  --radius-btn: 6px;                 /* button & segmented control corner radius */
+  --btn-border-color: var(--border); /* border color for buttons */
+  --btn-bg: rgba(255, 255, 255, 0.15);         /* normal buttons */
+  --btn-bg-active: rgba(255, 255, 255, 0.30);  /* highlighted/active variant */
+  --seg-btn-bg: rgba(255, 255, 255, 0.10);     /* segmented control buttons */
+  --seg-btn-bg-active: rgba(255, 255, 255, 0.30);
+
+  /* Fonts */
+  /* Default UI + editor font now League Mono (falls back gracefully) */
+  --font-ui: "League Mono", "Ostrich Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --font-mono: "League Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  /* Display font for headings */
+  --font-display: "League Mono", var(--font-ui);
+  --font-display-weight: 300; /* 300=Light, 400=Regular, 500=Medium, 700=Bold, 900=Black */
+  --font-ui-weight: 300;      /* default UI weight (Light) */
+
+  /* Base font size for UI */
+  --font-size-base: 14px;
+
+  /* Panels: toolbox width */
+  --markers-width: 160px; /* adjust to make the toolbox wider/narrower */
+}
+
+/* Ostrich Sans removed; using League Mono */
+
+/* Apply display font to headings (optional). Controlled by --font-display. */
+h1,
+.panel-title,
+.timeline-title,
+.settings-title,
+.toolbox-title,
+.inspector-title {
+  font-family: var(--font-display, var(--font-ui));
+  font-weight: var(--font-display-weight, 700);
+}
+
+/* Apply default UI weight globally */
+body { font-weight: var(--font-ui-weight, 500); }
+
+/*
+ * Self-hosted font (optional): League Mono from The League of Moveable Type
+ * Place WOFF files in src/assets/fonts/league-mono/ and update the src URLs if filenames differ.
+ * Common names:
+ *   - LeagueMono-Regular.woff  (400)
+ *   - LeagueMono-Bold.woff     (700)
+ *   - LeagueMono-Light.woff    (300)  [optional]
+ *   - LeagueMono-Medium.woff   (500)  [optional]
+ */
+@font-face {
+  font-family: "League Mono";
+  src: url("../assets/fonts/LeagueMono-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "League Mono";
+  src: url("../assets/fonts/LeagueMono-Medium.woff") format("woff");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "League Mono";
+  src: url("../assets/fonts/LeagueMono-Bold.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "League Mono";
+  src: url("../assets/fonts/LeagueMono-SemiBold.woff") format("woff");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "League Mono";
+  src: url("../assets/fonts/LeagueMono-Light.woff") format("woff");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
+How to customize
+----------------
+- Change header tones: --hdr-top, --hdr-mid, --hdr-panel
+- Change button translucency: --btn-bg, --btn-bg-active, --seg-btn-bg, --seg-btn-bg-active
+- Change button roundness: --radius-btn
+- Border color uses --btn-border-color (defaults to --border)
+*/

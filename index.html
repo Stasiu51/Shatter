@@ -17,6 +17,10 @@
       --timeline-width: 360px;
       --editor-width: 360px;
       --settings-width: 320px;
+      /* Header shades (darkest at top). Adjust these to change tones. */
+      --hdr-top: #e6eaef;    /* overall top header */
+      --hdr-mid: #eef1f4;    /* toolbar header (import/export/etc.) */
+      --hdr-panel: #f7f9fb;  /* individual panel headers */
     }
 
     * {
@@ -29,7 +33,8 @@
     }
 
     body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-family: var(--font-ui, system-ui, -apple-system, Segoe UI, Roboto, sans-serif);
+      font-size: var(--font-size-base, 14px);
       margin: 0;
       color: var(--text);
       background: var(--bg);
@@ -46,14 +51,14 @@
       border-bottom: 1px solid var(--border);
       position: sticky;
       top: 0;
-      background: var(--bg);
+      background: var(--hdr-top);
       z-index: 10;
     }
 
     h1 {
       font-size: 16px;
       margin: 0 12px 0 0;
-      font-weight: 600;
+      font-weight: 600; /* use semibold for Shatter title */
     }
     .title-wrap { display: flex; flex-direction: column; gap: 2px; }
     .subtitle { font-size: 12px; font-weight: 400; color: #6e7781; margin-top: 2px; }
@@ -72,9 +77,9 @@
 
     .btn {
       padding: 0 8px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: #fff;
+      border: 1px solid var(--btn-border-color);
+      border-radius: var(--radius-btn);
+      background: var(--btn-bg) !important;
       cursor: pointer;
       font: inherit;
       display: inline-flex;
@@ -88,15 +93,15 @@
 
     .seg {
       display: inline-flex;
-      border: 1px solid var(--border);
-      border-radius: 6px;
+      border: 1px solid var(--btn-border-color);
+      border-radius: var(--radius-btn);
       overflow: hidden;
     }
 
     .seg button {
       padding: 0 8px;
       border: 0;
-      background: #fff;
+      background: var(--seg-btn-bg) !important;
       cursor: pointer;
       font: inherit;
       display: inline-flex;
@@ -113,7 +118,7 @@
     }
 
     .seg button.active {
-      background: var(--muted);
+      background: var(--seg-btn-bg-active) !important;
       font-weight: 600;
     }
 
@@ -123,7 +128,7 @@
       align-items: center;
       padding: 8px 16px;
       border-bottom: 1px solid var(--border);
-      background: var(--bg);
+      background: var(--hdr-mid);
     }
 
     .subbar .label {
@@ -239,6 +244,7 @@
       overflow: visible;
       position: relative;
       z-index: 1;
+      background: var(--hdr-panel);
     }
 
     .panel-header> :first-child {
@@ -386,6 +392,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      background: var(--hdr-panel);
     }
 
     .inspector-left {
@@ -471,6 +478,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      background: var(--hdr-panel);
     }
     .toolbox-title { font-weight: 600; color: #57606a; }
     .toolbox-body {
@@ -527,6 +535,7 @@
       justify-content: space-between;
       /* enable container queries for compact layer text */
       container-type: inline-size;
+      background: var(--hdr-panel);
     }
 
     .timeline-left {
@@ -547,7 +556,7 @@
     }
     .timeline-header .layer-info .full { display: inline; }
     .timeline-header .layer-info .compact { display: none; }
-    @container (max-width: 550px) {
+    @container (max-width: 570px) {
       .timeline-header .layer-info .full { display: none; }
       .timeline-header .layer-info .compact { display: inline; }
     }
@@ -614,6 +623,7 @@
       gap: 8px;
       padding: 8px 10px;
       border-bottom: 1px solid var(--border);
+      background: var(--hdr-panel);
     }
     .editor-title { font-weight: 600; color: #57606a; }
     .editor-body {
@@ -628,7 +638,7 @@
       resize: none;
       border: 0;
       outline: none;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
       font-size: 12px;
       line-height: 1.4;
       padding: 8px;
@@ -654,7 +664,7 @@
 
     /* Settings (global, rightmost) */
     .settings { width: var(--settings-width); min-width: 0; border: none; border-radius: 0; background: #fff; display: flex; flex-direction: column; overflow: hidden; }
-    .settings-header { padding: 8px 10px; border-bottom: 1px solid var(--border); color: #57606a; font-weight: 600; height: 47px; min-height: 47px; max-height: 47px; flex: 0 0 47px; display: flex; align-items: center; justify-content: space-between; }
+    .settings-header { padding: 8px 10px; border-bottom: 1px solid var(--border); color: #57606a; font-weight: 600; height: 47px; min-height: 47px; max-height: 47px; flex: 0 0 47px; display: flex; align-items: center; justify-content: space-between; background: var(--hdr-panel); }
     .settings-title { font-weight: 600; color: #57606a; }
     .settings-body { flex: 1; position: relative; background: #fff; display: block; overflow: auto; padding: 8px 12px; }
     .settings.collapsed { width: 0 !important; border: none; display: none !important; }
@@ -676,10 +686,13 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      background: rgba(255, 255, 255, 0.15) !important;
       white-space: nowrap;
       flex: 0 0 auto;
     }
   </style>
+  <!-- Theme overrides (colors, transparencies, radii) -->
+  <link rel="stylesheet" href="./src/styles/theme.css">
 </head>
 
 <body>
@@ -752,7 +765,7 @@
 
       </div> 
       <div class="timeline-resizer" id="timeline-resizer" title="Drag to resize timeline"></div>
-      <div class="timeline" id="timeline" data-min-width="440">
+      <div class="timeline" id="timeline" data-min-width="460">
         <div class="timeline-header">
           <div class="timeline-left">
             <div class="timeline-title">Timeline</div>
@@ -786,7 +799,7 @@
         </div>
       </div>
       <div class="settings-resizer" id="settings-resizer" title="Drag to resize settings"></div>
-      <div class="settings" id="settings" data-lpignore="true" data-min-width="330">
+      <div class="settings" id="settings" data-lpignore="true" data-min-width="400">
         <div class="settings-header">
           <div class="settings-title">Settings</div>
           <div class="right">
