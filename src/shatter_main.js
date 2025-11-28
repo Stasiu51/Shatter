@@ -184,7 +184,7 @@ renderPanelSheetsOptions();
     'boring': './src/styles/theme.css',
     'purple-charcoal': './src/styles/theme-legacy.css',
     'seventies': './src/styles/theme-seventies.css',
-    'hacker': './src/styles/theme-hacker.css',
+    'quantum-hacker-bro': './src/styles/theme-hacker.css',
   };
   const apply = (name) => {
     const href = map[name] || map['default'];
@@ -195,6 +195,7 @@ renderPanelSheetsOptions();
   // Migrate old stored values
   if (cur === 'default') cur = 'boring';
   if (cur === 'legacy') cur = 'purple-charcoal';
+  if (cur === 'hacker') cur = 'quantum-hacker-bro';
   if (themeSelectEl.value !== cur) themeSelectEl.value = cur;
   apply(cur);
   themeSelectEl.addEventListener('change', () => apply(themeSelectEl.value));

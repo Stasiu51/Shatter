@@ -64,6 +64,13 @@ h1,
   border-color: var(--btn-border-color) !important;
 }
 
+/* Editor textarea: black background with green text */
+#editor-text {
+  background: #000000 !important;
+  color: var(--text) !important;
+  caret-color: var(--text) !important;
+}
+
 /* League Mono faces */
 @font-face {
   font-family: "League Mono";
