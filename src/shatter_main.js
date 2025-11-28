@@ -58,6 +58,7 @@ const statusTextRight = document.getElementById('status-text-right');
 const statusDotRight = document.getElementById('status-dot-right');
 const btnImport = document.getElementById('btn-import');
 const btnExport = document.getElementById('btn-export');
+const btnCopyUrl = document.getElementById('btn-copy-url');
 const btnUndo = document.getElementById('btn-undo');
 const btnRedo = document.getElementById('btn-redo');
 const btnInsertLayer = document.getElementById('btn-insert-layer');
@@ -520,6 +521,32 @@ btnExport?.addEventListener('click', () => {
   pushStatus(`Exported "${currentName}.stim" (${text.length} chars).`, 'info');
 });
 
+// Copy URL (ensures URL hash reflects current circuit before copying)
+btnCopyUrl?.addEventListener('click', async () => {
+  try { writeHashFromCircuit(currentText || ''); } catch {}
+  const url = window.location.href;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+      pushStatus('Copied URL to clipboard.', 'info');
+    } else {
+      // Fallback for non-secure contexts
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      pushStatus('Copied URL to clipboard.', 'info');
+    }
+  } catch (e) {
+    try { console.error(e); } catch {}
+    pushStatus('Copy failed. You can copy from the address bar.', 'warning');
+  }
+});
+
 
 /** Update timeline layer indicator text. */
 function updateLayerIndicator() {
@@ -699,6 +726,25 @@ initSettingsAndKeymap().then(() => {
   } catch {}
 });
 
+// Load from URL hash on startup and when navigating history
+(function initCircuitFromHash() {
+  try {
+    const m = parseHashParams();
+    const v = m.get('circuit');
+    if (typeof v === 'string' && v.length > 0) {
+      loadStimText(v);
+      pushStatus('Loaded circuit from URL.', 'info');
+    }
+  } catch {}
+  window.addEventListener('popstate', () => {
+    try {
+      const m = parseHashParams();
+      const v = m.get('circuit');
+      loadStimText(v || '');
+    } catch {}
+  });
+})();
+
 /** Render all panels. */
 function renderAllPanels() {
   if (!circuit) return;
@@ -866,6 +912,8 @@ function ensureEditorState() {
       timelineCtl.render();
       renderToolboxUI();
       renderInspectorUI();
+      // Update URL hash with the latest circuit text
+      try { if (typeof currentText === 'string') writeHashFromCircuit(currentText); } catch {}
     });
   });
   // Redraw panels and inspector on selection changes; mirror qubit selections into EditorState.focusedSet
