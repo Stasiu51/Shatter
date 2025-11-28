@@ -68,7 +68,14 @@ export function setupTimelineUI({
   window.addEventListener('mousemove', (e) => {
     if (!dragging) return;
     const dx = e.clientX - startX;
-    const newW = Math.min(Math.max(startW - dx, 200), Math.max(260, Math.floor(window.innerWidth * 0.8)));
+    // Determine min width: prefer data-min-width on element, else 200.
+    let minW = 200;
+    try {
+      const attr = timelineEl?.dataset?.minWidth;
+      const parsed = attr ? parseInt(attr, 10) : NaN;
+      if (Number.isFinite(parsed) && parsed > 0) minW = parsed;
+    } catch {}
+    const newW = Math.min(Math.max(startW - dx, Math.max(100, minW)), Math.max(260, Math.floor(window.innerWidth * 0.8)));
     rootStyle.setProperty('--timeline-width', newW + 'px');
     render();
     onResizing?.();

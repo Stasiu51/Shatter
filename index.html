@@ -55,6 +55,8 @@
       margin: 0 12px 0 0;
       font-weight: 600;
     }
+    .title-wrap { display: flex; flex-direction: column; gap: 2px; }
+    .subtitle { font-size: 12px; font-weight: 400; color: #6e7781; margin-top: 2px; }
 
     .toolbar {
       display: flex;
@@ -69,12 +71,19 @@
     }
 
     .btn {
-      padding: 6px 10px;
+      padding: 0 8px;
       border: 1px solid var(--border);
       border-radius: 6px;
       background: #fff;
       cursor: pointer;
       font: inherit;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 28px;
+      width: auto; /* content-sized width */
+      white-space: nowrap;
+      flex: 0 0 auto; /* don’t grow/shrink */
     }
 
     .seg {
@@ -85,11 +94,18 @@
     }
 
     .seg button {
-      padding: 6px 10px;
+      padding: 0 8px;
       border: 0;
       background: #fff;
       cursor: pointer;
       font: inherit;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 28px;
+      width: auto; /* content-sized */
+      white-space: nowrap;
+      flex: 0 0 auto;
     }
 
     .seg button+button {
@@ -650,14 +666,28 @@
     .inspector-header .btn,
     .timeline-header .btn,
     .editor-header .btn,
-    .settings-header .btn { padding: 2px 6px; font-weight: 400; }
-    .timeline-header .seg button { padding: 2px 6px; font-weight: 400; }
+    .settings-header .btn { font-weight: 400; }
+    .timeline-header .seg button { font-weight: 400; }
+
+    /* Sheets dropdown button fixed size */
+    .sheets-dd-button {
+      height: 28px !important;
+      width: auto !important;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
   </style>
 </head>
 
 <body>
   <header>
-    <h1>Shatter</h1>
+    <div class="title-wrap">
+      <h1>Shatter (WIP)</h1>
+      <div class="subtitle">Based on <a href="https://algassert.com/crumble" target="_blank" rel="noopener noreferrer">Crumble</a></div>
+    </div>
     <div class="toolbar">
       <span>Layout:</span>
       <div class="seg" id="layout-seg">
@@ -708,7 +738,7 @@
         <div class="toolbox-body" id="toolbox-body"></div>
       </div>
      <div class="inspector-resizer" id="inspector-resizer" title="Drag to resize inspector"></div>
-      <div class="inspector" id="inspector" data-lpignore="true">
+      <div class="inspector" id="inspector" data-lpignore="true" data-min-width="250">
         <div class="inspector-header">
           <div class="inspector-left">
             <div class="inspector-title">Inspector</div>
@@ -722,7 +752,7 @@
 
       </div> 
       <div class="timeline-resizer" id="timeline-resizer" title="Drag to resize timeline"></div>
-      <div class="timeline" id="timeline">
+      <div class="timeline" id="timeline" data-min-width="360">
         <div class="timeline-header">
           <div class="timeline-left">
             <div class="timeline-title">Timeline</div>
@@ -742,7 +772,7 @@
 
       </div>
       <div class="editor-resizer" id="editor-resizer" title="Drag to resize editor"></div>
-      <div class="editor" id="editor">
+      <div class="editor" id="editor" data-min-width="360">
 
         <div class="editor-header">
           <div class="editor-title">Editor</div>
@@ -756,7 +786,7 @@
         </div>
       </div>
       <div class="settings-resizer" id="settings-resizer" title="Drag to resize settings"></div>
-      <div class="settings" id="settings" data-lpignore="true">
+      <div class="settings" id="settings" data-lpignore="true" data-min-width="330">
         <div class="settings-header">
           <div class="settings-title">Settings</div>
           <div class="right">

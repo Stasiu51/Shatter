@@ -13,6 +13,8 @@ export function setupTextEditorUI({
   rootStyle,
   onResizing,       // optional: re-render panels/timeline during drag
   onResized,        // optional: re-render panels/timeline after drag
+  minWidthPx,       // optional: minimum width clamp (overridden by data-min-width)
+  defaultCollapsed, // optional: default collapsed on first load
 }) {
   // Initialize label according to state.
   const updateToggleText = (collapsed) => {
@@ -28,6 +30,8 @@ export function setupTextEditorUI({
     lsWidthKey: 'editorWidth',
     lsCollapsedKey: 'editorCollapsed',
     defaultWidthPx: 360,
+    minWidthPx: typeof minWidthPx === 'number' ? minWidthPx : 200,
+    defaultCollapsed: !!defaultCollapsed,
     toggleEls: [toggleGlobalEl, toggleLocalEl],
     onCollapsedChanged: (c) => {
       updateToggleText(c);
@@ -53,4 +57,3 @@ export function setupTextEditorUI({
     getWidthPx: paneCtl.getWidthPx,
   };
 }
-

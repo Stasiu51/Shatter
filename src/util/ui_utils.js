@@ -15,6 +15,7 @@
  * @param {string} opts.lsWidthKey - localStorage key for width.
  * @param {string} opts.lsCollapsedKey - localStorage key for collapsed state.
  * @param {number} [opts.defaultWidthPx=360] - Default width when resetting/dblclick.
+ * @param {number} [opts.minWidthPx=200] - Minimum width clamp. Overridden by paneEl.dataset.minWidth if present.
  * @param {HTMLElement[]} [opts.toggleEls] - Elements that toggle collapsed state on click.
  * @param {function(boolean):void} [opts.onCollapsedChanged] - Called when collapsed changes.
  * @param {function():void} [opts.onResizing] - Called during drag to allow external re-rendering.
@@ -30,6 +31,8 @@ export function setupResizablePane(opts) {
     lsWidthKey,
     lsCollapsedKey,
     defaultWidthPx = 360,
+    minWidthPx = 200,
+    defaultCollapsed = false,
     toggleEls = [],
     onCollapsedChanged,
     onResizing,
@@ -43,7 +46,10 @@ export function setupResizablePane(opts) {
 
   // Initial collapsed/width
   const savedCollapsed = localStorage.getItem(lsCollapsedKey);
-  if (savedCollapsed === '1') paneEl.classList.add('collapsed');
+  let startCollapsed = false;
+  if (savedCollapsed === '1') startCollapsed = true;
+  else if (savedCollapsed === null || savedCollapsed === undefined) startCollapsed = !!defaultCollapsed;
+  if (startCollapsed) paneEl.classList.add('collapsed');
   const savedWidth = localStorage.getItem(lsWidthKey);
   if (savedWidth && !paneEl.classList.contains('collapsed')) {
     rootStyle.setProperty(cssVar, savedWidth + 'px');
@@ -75,7 +81,14 @@ export function setupResizablePane(opts) {
     if (!dragging) return;
     const dx = e.clientX - startX;
     // Move right shrinks the pane; move left grows the pane.
-    const newW = Math.min(Math.max(startW - dx, 200), Math.max(260, Math.floor(window.innerWidth * 0.8)));
+    // Determine minimum width: prefer explicit data-min-width on the pane, then opts.minWidthPx, then fallback 200.
+    let minW = minWidthPx;
+    try {
+      const attr = paneEl?.dataset?.minWidth;
+      const parsed = attr ? parseInt(attr, 10) : NaN;
+      if (Number.isFinite(parsed) && parsed > 0) minW = parsed;
+    } catch {}
+    const newW = Math.min(Math.max(startW - dx, Math.max(100, minW)), Math.max(260, Math.floor(window.innerWidth * 0.8)));
     rootStyle.setProperty(cssVar, newW + 'px');
     onResizing?.();
   });
@@ -106,4 +119,3 @@ export function setupResizablePane(opts) {
     getWidthPx: () => parseInt(getComputedStyle(document.documentElement).getPropertyValue(cssVar)),
   };
 }
-

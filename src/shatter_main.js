@@ -230,6 +230,7 @@ if (inspectorEl && inspectorResizerEl) {
     lsWidthKey: 'inspectorWidth',
     lsCollapsedKey: 'inspectorCollapsed',
     defaultWidthPx: 320,
+    defaultCollapsed: true,
     toggleEls: [inspectorToggleGlobalEl, inspectorToggleLocalEl].filter(Boolean),
     onCollapsedChanged: () => {
       // Keep adjacent content responsive
@@ -264,6 +265,7 @@ if (settingsEl && settingsResizerEl) {
     lsWidthKey: 'settingsWidth',
     lsCollapsedKey: 'settingsCollapsed',
     defaultWidthPx: 320,
+    defaultCollapsed: true,
     toggleEls: [settingsToggleGlobalEl, settingsToggleLocalEl].filter(Boolean),
     onCollapsedChanged: () => {
       renderAllPanels();
@@ -306,6 +308,7 @@ const editorCtl = setupTextEditorUI({
   toggleLocalEl: editorToggleLocalEl,
   textareaEl: editorTextareaEl,
   rootStyle,
+  defaultCollapsed: true,
   onResizing: () => {
     // Keep adjacent content responsive while dragging
     renderAllPanels();
