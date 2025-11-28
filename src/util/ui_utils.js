@@ -51,17 +51,42 @@ export function setupResizablePane(opts) {
   else if (savedCollapsed === null || savedCollapsed === undefined) startCollapsed = !!defaultCollapsed;
   if (startCollapsed) paneEl.classList.add('collapsed');
   const savedWidth = localStorage.getItem(lsWidthKey);
-  if (savedWidth && !paneEl.classList.contains('collapsed')) {
+  if (savedWidth) {
+    // Apply saved width even when collapsed so un-collapsing uses a sane value.
     rootStyle.setProperty(cssVar, savedWidth + 'px');
   }
   resizerEl.style.display = paneEl.classList.contains('collapsed') ? 'none' : '';
   updateToggleText?.(paneEl.classList.contains('collapsed'));
+
+  // Helper: determine desired minimum width from data-min-width or option.
+  const getMinW = () => {
+    let minW = minWidthPx;
+    try {
+      const attr = paneEl?.dataset?.minWidth;
+      const parsed = attr ? parseInt(attr, 10) : NaN;
+      if (Number.isFinite(parsed) && parsed > 0) minW = parsed;
+    } catch {}
+    return Math.max(100, minW);
+  };
+
+  // Ensure CSS var width is at least the minimum when starting uncollapsed.
+  const ensureAtLeastMinWidth = () => {
+    const minW = getMinW();
+    let cur = parseInt(getComputedStyle(document.documentElement).getPropertyValue(cssVar));
+    if (!Number.isFinite(cur) || cur <= 0) cur = defaultWidthPx;
+    if (cur < minW) {
+      rootStyle.setProperty(cssVar, String(Math.max(minW, defaultWidthPx)) + 'px');
+    }
+  };
+  if (!paneEl.classList.contains('collapsed')) ensureAtLeastMinWidth();
 
   function setCollapsed(collapsed) {
     paneEl.classList.toggle('collapsed', collapsed);
     localStorage.setItem(lsCollapsedKey, collapsed ? '1' : '0');
     resizerEl.style.display = collapsed ? 'none' : '';
     updateToggleText?.(collapsed);
+    // When un-collapsing, snap width up to at least the minimum to avoid jumpy headers.
+    if (!collapsed) ensureAtLeastMinWidth();
     onCollapsedChanged?.(collapsed);
   }
 

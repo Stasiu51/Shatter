@@ -507,8 +507,17 @@ function updateLayerIndicator() {
   const last = Math.max(0, circuit.layers.length - 1);
   const f = el.querySelector('.full');
   const c = el.querySelector('.compact');
-  const fullTxt = `Layer ${currentLayer}/${last}. Use Q/E to move.`;
-  const compactTxt = `${currentLayer}/${last}`;
+  const getFirstBinding = (id, fallback) => {
+    try {
+      const b = appSettings?.keybindings?.commands?.[id]?.bindings;
+      if (Array.isArray(b) && b.length > 0) return String(b[0]);
+    } catch {}
+    return fallback;
+  };
+  const prevKey = getFirstBinding('layer.prev', 'Q');
+  const nextKey = getFirstBinding('layer.next', 'E');
+  const fullTxt = `Layer ${currentLayer}/${last}. Use ${prevKey}/${nextKey} to move.`;
+  const compactTxt = `${currentLayer}/${last} (${prevKey}/${nextKey})`;
   if (f) f.textContent = fullTxt; else el.textContent = fullTxt;
   if (c) c.textContent = compactTxt;
 }
@@ -630,6 +639,10 @@ initSettingsAndKeymap().then(() => {
         }
         saveUserSettings(appSettings);
         applySettings();
+        // Reflect changes immediately (e.g., layer indicator keybinds)
+        try { timelineCtl.render(); } catch {}
+        try { updateLayerIndicator(); } catch {}
+        try { schedulePanelsRender(); } catch {}
       },
       onSaveGeneral: (updatesObj) => {
         // Shallow merge per section, create if missing
@@ -640,12 +653,17 @@ initSettingsAndKeymap().then(() => {
         saveUserSettings(appSettings);
         applySettings();
         // If appearance affects visuals (e.g., focusDim), re-render panels
-        schedulePanelsRender();
+        try { schedulePanelsRender(); } catch {}
+        try { timelineCtl.render(); } catch {}
+        try { updateLayerIndicator(); } catch {}
       },
       onImportSettings: async (obj) => {
         importUserSettings(obj);
         appSettings = await loadSettings();
         applySettings();
+        try { schedulePanelsRender(); } catch {}
+        try { timelineCtl.render(); } catch {}
+        try { updateLayerIndicator(); } catch {}
       },
       onExportSettings: () => exportUserSettings(),
       pushStatus,

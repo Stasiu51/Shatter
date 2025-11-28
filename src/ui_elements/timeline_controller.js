@@ -29,12 +29,28 @@ export function setupTimelineUI({
   const savedCollapsed = localStorage.getItem('timelineCollapsed');
   if (savedCollapsed === '1') timelineEl.classList.add('collapsed');
   const savedWidth = localStorage.getItem('timelineWidth');
-  if (savedWidth && !timelineEl.classList.contains('collapsed')) {
+  if (savedWidth) {
     rootStyle.setProperty('--timeline-width', savedWidth + 'px');
   }
   resizerEl.style.display = timelineEl.classList.contains('collapsed') ? 'none' : '';
   if (toggleGlobalEl) toggleGlobalEl.textContent = timelineEl.classList.contains('collapsed') ? 'Show timeline' : 'Hide timeline';
   if (toggleEl) toggleEl.textContent = timelineEl.classList.contains('collapsed') ? 'Show' : 'Hide';
+
+  // Ensure at least the minimum width on initial load when visible to avoid snapping.
+  try {
+    if (!timelineEl.classList.contains('collapsed')) {
+      let minW = 200;
+      const attr = timelineEl?.dataset?.minWidth;
+      const parsed = attr ? parseInt(attr, 10) : NaN;
+      if (Number.isFinite(parsed) && parsed > 0) minW = parsed;
+      const cur = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--timeline-width'));
+      const fallback = 360;
+      const target = Math.max(minW, Number.isFinite(cur) && cur > 0 ? cur : fallback);
+      if (!Number.isFinite(cur) || cur < minW) {
+        rootStyle.setProperty('--timeline-width', target + 'px');
+      }
+    }
+  } catch {}
 
   function render() {
     if (timelineEl.classList.contains('collapsed')) return;
@@ -53,6 +69,20 @@ export function setupTimelineUI({
     resizerEl.style.display = collapsed ? 'none' : '';
     if (toggleGlobalEl) toggleGlobalEl.textContent = collapsed ? 'Show timeline' : 'Hide timeline';
     if (toggleEl) toggleEl.textContent = collapsed ? 'Show' : 'Hide';
+    if (!collapsed) {
+      // Snap to at least the min width when un-collapsing to avoid jumpy layout.
+      try {
+        let minW = 200;
+        const attr = timelineEl?.dataset?.minWidth;
+        const parsed = attr ? parseInt(attr, 10) : NaN;
+        if (Number.isFinite(parsed) && parsed > 0) minW = parsed;
+        const cur = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--timeline-width'));
+        const target = Math.max(minW, Number.isFinite(cur) && cur > 0 ? cur : 360);
+        if (!Number.isFinite(cur) || cur < minW) {
+          rootStyle.setProperty('--timeline-width', target + 'px');
+        }
+      } catch {}
+    }
     onResized();
   }
 
