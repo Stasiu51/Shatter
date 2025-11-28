@@ -1,0 +1,4 @@
+# Ignore root docs and vendored crumble snapshot
+/AGENTS.md
+/SPEC.md
+/stim_crumble/
