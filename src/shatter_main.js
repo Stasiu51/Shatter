@@ -99,6 +99,8 @@ const editorTextareaEl = document.getElementById('editor-text');
 
 const rootStyle = document.documentElement.style;
 
+// URL hash updates are coupled to text updates only (same content as editor)
+
 /** Clamp number into [lo, hi]. */
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -456,6 +458,7 @@ function loadStimText(stimText) {
     if (editorTextareaEl) {
       editorTextareaEl.value = currentText;
       setEditorDirty(false);
+      try { writeHashFromCircuit(currentText); } catch {}
     }
 
     // Init or update EditorState (source of interactive edits ⇒ text). Start fresh baseline.
@@ -892,6 +895,7 @@ function ensureEditorState() {
         if (editorTextareaEl) {
           editorTextareaEl.value = currentText;
           setEditorDirty(false);
+          try { writeHashFromCircuit(currentText); } catch {}
         }
       } catch (e) {
         pushStatus(`Parse error: ${e?.message || e}`, 'error');
@@ -919,8 +923,6 @@ function ensureEditorState() {
       timelineCtl.render();
       renderToolboxUI();
       renderInspectorUI();
-      // Update URL hash with the latest circuit text
-      try { if (typeof currentText === 'string') writeHashFromCircuit(currentText); } catch {}
     });
   });
   // Redraw panels and inspector on selection changes; mirror qubit selections into EditorState.focusedSet

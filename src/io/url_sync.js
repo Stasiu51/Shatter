@@ -19,7 +19,9 @@ export function encodeCircuitToHash(text) {
     .replaceAll('DETECTOR', 'DT')
     .replaceAll('OBSERVABLE_INCLUDE', 'OI')
     .replaceAll(', ', ',')
-    .replaceAll(') ', ')')
+    // NOTE: Do not strip the space after ')' because overlay directives like
+    // '... EDGES=(... ) SHEET=...' require a space separator. Crumble strips
+    // ") ", but we intentionally keep it.
     .replaceAll(' ', '_')
     .replaceAll('\n', ';');
   if (s.includes('%') || s.includes('&')) s = encodeURIComponent(s);
@@ -56,4 +58,3 @@ export function writeHashFromCircuit(text) {
     history.replaceState(null, '', hash);
   } catch {}
 }
-
