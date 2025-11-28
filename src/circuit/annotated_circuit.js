@@ -936,11 +936,16 @@ export class AnnotatedCircuit {
       lines.splice(lineNo + index, 0, line);
     });
 
-    // Put the pragmas back. Most other replacements remain.
-    text = lines.join("\n").replaceAll(';', '\n').
-      replaceAll('ERR', '#!pragma ERR').
-      replaceAll('MARK', '#!pragma MARK').
-      replaceAll('POLYGON', '#!pragma POLYGON');
+    // Put the pragmas back at start-of-line only to avoid duplicating existing '#!pragma'.
+    // Use regex with start-of-line anchors and word boundaries.
+    {
+      let t = lines.join("\n").replaceAll(';', '\n');
+      t = t
+        .replace(/(^|\n)ERR\b/g, '$1#!pragma ERR')
+        .replace(/(^|\n)MARK\b/g, '$1#!pragma MARK')
+        .replace(/(^|\n)POLYGON\b/g, '$1#!pragma POLYGON');
+      text = t;
+    }
     return { circuit, diagnostics, text };
   }
 

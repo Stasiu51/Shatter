@@ -21,6 +21,7 @@ import { setupSettingsUI } from './ui_elements/settings_controller.js';
 import { EditorState } from './editor/editor_state.js';
 import { selectionStore } from './editor/selection_store.js';
 import { hitTestAt } from './draw/hit_test.js';
+import { parseHashParams, writeHashFromCircuit, encodeCircuitToHash } from './io/url_sync.js';
 
 const panelsEl = document.getElementById('panels');
 const mgr = new PanelManager(panelsEl);
@@ -523,8 +524,12 @@ btnExport?.addEventListener('click', () => {
 
 // Copy URL (ensures URL hash reflects current circuit before copying)
 btnCopyUrl?.addEventListener('click', async () => {
-  try { writeHashFromCircuit(currentText || ''); } catch {}
-  const url = window.location.href;
+  let url = window.location.href;
+  try {
+    const hash = encodeCircuitToHash(currentText || '');
+    // Build full URL manually to avoid any async replaceState timing.
+    url = window.location.origin + window.location.pathname + hash;
+  } catch {}
   try {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(url);
@@ -726,24 +731,7 @@ initSettingsAndKeymap().then(() => {
   } catch {}
 });
 
-// Load from URL hash on startup and when navigating history
-(function initCircuitFromHash() {
-  try {
-    const m = parseHashParams();
-    const v = m.get('circuit');
-    if (typeof v === 'string' && v.length > 0) {
-      loadStimText(v);
-      pushStatus('Loaded circuit from URL.', 'info');
-    }
-  } catch {}
-  window.addEventListener('popstate', () => {
-    try {
-      const m = parseHashParams();
-      const v = m.get('circuit');
-      loadStimText(v || '');
-    } catch {}
-  });
-})();
+// (moved below editor initialization to avoid TDZ on editorReloadBtn)
 
 /** Render all panels. */
 function renderAllPanels() {
@@ -843,6 +831,25 @@ editorReloadBtn?.addEventListener('click', () => {
   if (newText === (currentText || '')) return;
   loadStimText(newText);
 });
+
+// Load from URL hash on startup and when navigating history
+(function initCircuitFromHash() {
+  try {
+    const m = parseHashParams();
+    const v = m.get('circuit');
+    if (typeof v === 'string' && v.length > 0) {
+      loadStimText(v);
+      pushStatus('Loaded circuit from URL.', 'info');
+    }
+  } catch {}
+  window.addEventListener('popstate', () => {
+    try {
+      const m = parseHashParams();
+      const v = m.get('circuit');
+      loadStimText(v || '');
+    } catch {}
+  });
+})();
 
 function ensureEditorState() {
   if (editorState) return editorState;

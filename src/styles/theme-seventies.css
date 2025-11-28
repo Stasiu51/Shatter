@@ -23,6 +23,7 @@
 
   /* Surfaces */
   --surface-bg: 	#ffd5a6;       /* same cream for panels/canvases */
+  --canvas-filter: hue-rotate(50deg);
 
   /* Fonts (match default theme) */
   --font-ui: "League Mono", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
