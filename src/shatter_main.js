@@ -343,6 +343,7 @@ function renderToolboxUI() {
         canToggle = !!(snapSel && ['qubit','gate','connection','polygon'].includes(snapSel.kind) && snapSel.selected.size > 0);
       } catch {}
       const snap = editorState?.obs_val_draw_state.get?.();
+      // Render marker rows first
       renderToolbox({
         containerEl: container,
         circuit,
@@ -352,6 +353,7 @@ function renderToolboxUI() {
         onClearIndex: (idx) => { try { editorState?.clearMarkersIndex?.(idx); renderToolboxUI(); schedulePanelsRender(); } catch {} },
         onToggleType: (gateName, idx) => { try { editorState?.toggleMarkerAtSelection?.(false, gateName, idx); renderToolboxUI(); schedulePanelsRender(); } catch {} },
       });
+      // No toolbox grid appended (using only marker rows for now).
     } catch {}
   });
 }

@@ -196,4 +196,5 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
       }
     }
   }
+
 }
