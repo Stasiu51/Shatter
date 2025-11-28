@@ -1,21 +1,21 @@
 :root {
   /* Base colors */
-  --border: #696969;
+  --border: #cfd4da;
   --text: #24292f;
   --bg: #ffffff;
   --muted: #f6f8fa;
-  --accent: #0969da;
-  --danger: #d1242f;
+  --accent: #4b6a88;  /* muted blue */
+  --danger: #b04a4a;  /* muted red */
 
   /* Header shades (darkest at top). Edit these to retheme headers. */
-  --hdr-top: #ababab;    /* overall top header */
-  --hdr-mid: #c0bdc4;    /* toolbar header (import/export/etc.) */
-  --hdr-panel: #cdc5cf;  /* individual panel headers */
+  --hdr-top: #e9ecef;    /* overall top header */
+  --hdr-mid: #f1f3f5;    /* toolbar header (import/export/etc.) */
+  --hdr-panel: #f8f9fb;  /* individual panel headers */
 
   /* Button styling */
   --radius-btn: 6px;                 /* button & segmented control corner radius */
   --btn-border-color: var(--border); /* border color for buttons */
-  --btn-bg: rgba(255, 255, 255, 0.15);         /* normal buttons */
+  --btn-bg: rgba(255, 255, 255, 0.15);         /* normal buttons (transparent) */
   --btn-bg-active: rgba(255, 255, 255, 0.30);  /* highlighted/active variant */
   --seg-btn-bg: rgba(255, 255, 255, 0.10);     /* segmented control buttons */
   --seg-btn-bg-active: rgba(255, 255, 255, 0.30);
@@ -44,7 +44,8 @@ h1,
 .timeline-title,
 .settings-title,
 .toolbox-title,
-.inspector-title {
+.inspector-title,
+.editor-title {
   font-family: var(--font-display, var(--font-ui));
   font-weight: var(--font-display-weight, 700);
 }

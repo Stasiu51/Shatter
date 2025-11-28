@@ -62,6 +62,9 @@ const btnUndo = document.getElementById('btn-undo');
 const btnRedo = document.getElementById('btn-redo');
 const btnInsertLayer = document.getElementById('btn-insert-layer');
 const btnDeleteLayer = document.getElementById('btn-delete-layer');
+// Theme elements
+const themeLinkEl = document.getElementById('theme-link');
+const themeSelectEl = document.getElementById('theme-select');
 // Settings elements
 const settingsEl = document.getElementById('settings');
 const settingsResizerEl = document.getElementById('settings-resizer');
@@ -172,6 +175,28 @@ const getSheetsSafe = () => (overlayState.sheets?.length ? overlayState.sheets :
 
 // Initialize per-panel sheets UI immediately so the initial layout is correct
 renderPanelSheetsOptions();
+
+// Theme switching
+(function initThemeSelector(){
+  if (!themeLinkEl || !themeSelectEl) return;
+  const LS_THEME_KEY = 'appThemeName';
+  const map = {
+    'boring': './src/styles/theme.css',
+    'purple-charcoal': './src/styles/theme-legacy.css',
+  };
+  const apply = (name) => {
+    const href = map[name] || map['default'];
+    themeLinkEl.href = href;
+    localStorage.setItem(LS_THEME_KEY, name);
+  };
+  let cur = localStorage.getItem(LS_THEME_KEY) || 'boring';
+  // Migrate old stored values
+  if (cur === 'default') cur = 'boring';
+  if (cur === 'legacy') cur = 'purple-charcoal';
+  if (themeSelectEl.value !== cur) themeSelectEl.value = cur;
+  apply(cur);
+  themeSelectEl.addEventListener('change', () => apply(themeSelectEl.value));
+})();
 
 // Timeline UI setup and rendering glue
 const timelineCtl = setupTimelineUI({

@@ -31,15 +31,15 @@ function rowEl() {
   const btnX = mkBtn('X');
   const btnY = mkBtn('Y');
   const btnZ = mkBtn('Z');
-  // Basis button colors
-  btnX.style.background = 'red'; btnX.style.color = '#fff';
-  btnY.style.background = 'green'; btnY.style.color = '#fff';
-  btnZ.style.background = 'blue'; btnZ.style.color = '#fff';
+  // Softer basis button colors (pastel tones)
+  btnX.style.background = '#f6b3b3'; btnX.style.color = '#111';
+  btnY.style.background = '#b9e6c9'; btnY.style.color = '#111';
+  btnZ.style.background = '#bcd7ff'; btnZ.style.color = '#111';
   const cells = [btnCl, btnO, btnD, btnX, btnY, btnZ];
   cells.forEach((b, idx) => {
     const col = idx % 3; const rowi = Math.floor(idx / 3);
-    if (col < 2) b.style.borderRight = '1px solid #e5e7eb';
-    if (rowi < 1) b.style.borderBottom = '1px solid #e5e7eb';
+    if (col < 2) b.style.borderRight = '1px solid #dee2e6';
+    if (rowi < 1) b.style.borderBottom = '1px solid #dee2e6';
     grid.appendChild(b);
   });
   row.append(square, grid);

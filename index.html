@@ -79,7 +79,7 @@
       padding: 0 8px;
       border: 1px solid var(--btn-border-color);
       border-radius: var(--radius-btn);
-      background: var(--btn-bg) !important;
+      background: var(--btn-bg);
       cursor: pointer;
       font: inherit;
       display: inline-flex;
@@ -101,7 +101,7 @@
     .seg button {
       padding: 0 8px;
       border: 0;
-      background: var(--seg-btn-bg) !important;
+      background: var(--seg-btn-bg);
       cursor: pointer;
       font: inherit;
       display: inline-flex;
@@ -118,7 +118,7 @@
     }
 
     .seg button.active {
-      background: var(--seg-btn-bg-active) !important;
+      background: var(--seg-btn-bg-active);
       font-weight: 600;
     }
 
@@ -625,7 +625,7 @@
       border-bottom: 1px solid var(--border);
       background: var(--hdr-panel);
     }
-    .editor-title { font-weight: 600; color: #57606a; }
+    .editor-title { font-weight: inherit; color: #57606a; }
     .editor-body {
       flex: 1;
       display: flex;
@@ -686,13 +686,13 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      background: rgba(255, 255, 255, 0.15) !important;
+      background: var(--btn-bg);
       white-space: nowrap;
       flex: 0 0 auto;
     }
   </style>
   <!-- Theme overrides (colors, transparencies, radii) -->
-  <link rel="stylesheet" href="./src/styles/theme.css">
+  <link id="theme-link" rel="stylesheet" href="./src/styles/theme.css">
 </head>
 
 <body>
@@ -714,6 +714,12 @@
         <button id="panels-zoom-reset" title="Reset zoom" style="padding:2px 6px;">Reset</button>
         <button id="panels-zoom-in" title="Zoom in" style="padding:2px 6px;">+</button>
       </div>
+      <!-- Theme selector -->
+      <label for="theme-select" style="margin-left:8px;">Theme:</label>
+      <select id="theme-select" style="height:28px; padding:0 6px; border:1px solid var(--btn-border-color); border-radius: var(--radius-btn); background: var(--btn-bg); font: inherit; color: var(--text);">
+        <option value="boring">Boring</option>
+        <option value="purple-charcoal">Purple Charcoal</option>
+      </select>
       <div class="spacer"></div>
       <button class="btn" id="toolbox-toggle-global">Show toolbox</button>
       <button class="btn" id="inspector-toggle-global">Show inspector</button>

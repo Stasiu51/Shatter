@@ -1,0 +1,70 @@
+:root {
+  /* Base colors (mirror default) */
+  --border: #6c7176;
+  --text: #24292f;
+  --bg: #ffffff;
+  --muted: #005dbb;
+  --accent: #4b6a88;
+  --danger: #b04a4a;
+
+  /* Header shades (mirror default) */
+  --hdr-top: #706870;
+  --hdr-mid: #a9a3ab;
+  --hdr-panel: #c6b6d2;
+
+  /* Button styling (transparent) */
+  --radius-btn: 6px;
+  --btn-border-color: var(--border);
+  --btn-bg: rgba(255, 255, 255, 0.15);
+  --btn-bg-active: rgba(255, 255, 255, 0.30);
+  --seg-btn-bg: rgba(255, 255, 255, 0.10);
+  --seg-btn-bg-active: rgba(255, 255, 255, 0.30);
+
+  /* Fonts */
+  --font-ui: "League Mono", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --font-mono: "League Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-display: "League Mono", var(--font-ui);
+  --font-display-weight: 300;
+  --font-ui-weight: 300;
+
+  /* Layout sizes */
+  --markers-width: 160px;
+  --font-size-base: 14px;
+}
+
+/* Self-hosted League Mono faces (same as default theme) */
+@font-face {
+  font-family: "League Mono";
+  src: url("../assets/fonts/LeagueMono-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "League Mono";
+  src: url("../assets/fonts/LeagueMono-Medium.woff") format("woff");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "League Mono";
+  src: url("../assets/fonts/LeagueMono-SemiBold.woff") format("woff");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "League Mono";
+  src: url("../assets/fonts/LeagueMono-Bold.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "League Mono";
+  src: url("../assets/fonts/LeagueMono-Light.woff") format("woff");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
