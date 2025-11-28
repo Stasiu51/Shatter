@@ -183,6 +183,8 @@ renderPanelSheetsOptions();
   const map = {
     'boring': './src/styles/theme.css',
     'purple-charcoal': './src/styles/theme-legacy.css',
+    'seventies': './src/styles/theme-seventies.css',
+    'hacker': './src/styles/theme-hacker.css',
   };
   const apply = (name) => {
     const href = map[name] || map['default'];

@@ -1,39 +1,69 @@
 :root {
-  /* Base colors (mirror default) */
-  --border: #6c7176;
-  --text: #24292f;
-  --bg: #edebee;
-  --surface-bg: var(--bg);
-  --muted: #76808a;
-  --accent: #4b6a88;
-  --danger: #b04a4a;
+  /* H@CK3R: black surfaces, bright green text and borders */
+  --border: #00ff66;
+  --text: #00ff66;
+  --bg: #000000;
+  --muted: #000000;
+  --accent: #00ff66;
+  --danger: #00ff66;
 
-  /* Header shades (mirror default) */
-  --hdr-top: #706870;
-  --hdr-mid: #a9a3ab;
-  --hdr-panel: #c6b6d2;
+  /* Headers all black */
+  --hdr-top: #000000;
+  --hdr-mid: #000000;
+  --hdr-panel: #000000;
 
-  /* Button styling (transparent) */
-  --radius-btn: 6px;
+  /* Buttons: keep transparent so black shows through; green borders outline */
+  --radius-btn: 1px;
   --btn-border-color: var(--border);
-  --btn-bg: rgba(255, 255, 255, 0.15);
-  --btn-bg-active: rgba(255, 255, 255, 0.30);
-  --seg-btn-bg: rgba(255, 255, 255, 0.10);
-  --seg-btn-bg-active: rgba(255, 255, 255, 0.30);
+  --btn-bg: rgba(0, 0, 0, 0.0);
+  --btn-bg-active: rgba(0, 255, 102, 0.10);
+  --seg-btn-bg: rgba(0, 0, 0, 0.0);
+  --seg-btn-bg-active: rgba(0, 255, 102, 0.10);
+
+  /* Surfaces */
+  --surface-bg: #9c9c9c;
 
   /* Fonts */
   --font-ui: "League Mono", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   --font-mono: "League Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --font-display: "League Mono", var(--font-ui);
-  --font-display-weight: 300;
-  --font-ui-weight: 300;
+  --font-display-weight: 600;
+  --font-ui-weight: 400;
 
-  /* Layout sizes */
+  /* Layout */
   --markers-width: 160px;
   --font-size-base: 14px;
 }
 
-/* Self-hosted League Mono faces (same as default theme) */
+/* Force all key text to the bright green theme color */
+body,
+h1,
+.panel-title,
+.timeline-title,
+.settings-title,
+.toolbox-title,
+.inspector-title,
+.editor-title,
+.subbar .label,
+.toolbox-body,
+.inspector-body,
+.timeline-header .layer-info,
+#statusbar,
+#status-left,
+#status-right,
+.timeline-left {
+  color: var(--text) !important;
+}
+
+/* Button text in bright green */
+.btn,
+.seg button,
+.sheets-dd-button {
+  color: var(--text) !important;
+  border-color: var(--btn-border-color) !important;
+}
+
+/* League Mono faces */
 @font-face {
   font-family: "League Mono";
   src: url("../assets/fonts/LeagueMono-Regular.woff") format("woff");

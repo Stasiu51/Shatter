@@ -3,6 +3,8 @@
   --border: #cfd4da;
   --text: #24292f;
   --bg: #ffffff;
+  /* Surfaces (panels/canvases) background; default links to --bg */
+  --surface-bg: var(--bg);
   --muted: #f6f8fa;
   --accent: #4b6a88;  /* muted blue */
   --danger: #b04a4a;  /* muted red */

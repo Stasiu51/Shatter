@@ -1,39 +1,42 @@
 :root {
-  /* Base colors (mirror default) */
-  --border: #6c7176;
-  --text: #24292f;
-  --bg: #edebee;
-  --surface-bg: var(--bg);
-  --muted: #76808a;
-  --accent: #4b6a88;
-  --danger: #b04a4a;
+  /* Seventies palette (provided):
+     #75c8ae (teal), #5a3d2b (brown), #ffecb4 (cream), #e5771e (orange), #f4a127 (amber) */
+  --border: #000000;           /* teal border */
+  --text: #5a3d2b;             /* rich brown text */
+  --bg: #e5e5e5;               /* cream background */
+  --muted: #ffecb4;            /* use cream as muted */
+  --accent: #e5771e;           /* orange accent */
+  --danger: #f4a127;           /* amber as attention color */
 
-  /* Header shades (mirror default) */
-  --hdr-top: #706870;
-  --hdr-mid: #a9a3ab;
-  --hdr-panel: #c6b6d2;
+  /* Headers (darkest at top using the warm tones) */
+  --hdr-top: #6aa04e;          /* amber */
+  --hdr-mid: #f26249;          /* orange */
+  --hdr-panel: #75c8ae;        /* cream */
 
-  /* Button styling (transparent) */
-  --radius-btn: 6px;
+  /* Buttons (transparent to let header tones show through) */
+  --radius-btn: 14px;
   --btn-border-color: var(--border);
   --btn-bg: rgba(255, 255, 255, 0.15);
   --btn-bg-active: rgba(255, 255, 255, 0.30);
   --seg-btn-bg: rgba(255, 255, 255, 0.10);
   --seg-btn-bg-active: rgba(255, 255, 255, 0.30);
 
-  /* Fonts */
+  /* Surfaces */
+  --surface-bg: 	#ffd5a6;       /* same cream for panels/canvases */
+
+  /* Fonts (match default theme) */
   --font-ui: "League Mono", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   --font-mono: "League Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --font-display: "League Mono", var(--font-ui);
-  --font-display-weight: 300;
-  --font-ui-weight: 300;
+  --font-display-weight: 300;   /* light headings by default */
+  --font-ui-weight: 300;        /* light UI text */
 
-  /* Layout sizes */
+  /* Layout */
   --markers-width: 160px;
   --font-size-base: 14px;
 }
 
-/* Self-hosted League Mono faces (same as default theme) */
+/* League Mono faces (self-hosted) */
 @font-face {
   font-family: "League Mono";
   src: url("../assets/fonts/LeagueMono-Regular.woff") format("woff");
