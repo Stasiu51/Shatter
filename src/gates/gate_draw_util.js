@@ -1,4 +1,5 @@
 import {pitch, rad} from "../draw/config.js"
+import { getGateStyle } from "../draw/gate_style.js";
 
 /**
  * @param {!CanvasRenderingContext2D} ctx
@@ -266,11 +267,25 @@ function stroke_connector_to(ctx, x1, y1, x2, y2, opts) {
 function draw_connector(ctx, x1, y1, x2, y2) {
     const prevW = ctx.lineWidth;
     const prevS = ctx.strokeStyle;
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'black';
-    stroke_connector_to(ctx, x1, y1, x2, y2);
-    ctx.strokeStyle = prevS;
-    ctx.lineWidth = prevW;
+    // Base style
+    let color = 'black';
+    let thickness = 2;
+    // Apply global gate style if present
+    try {
+        const s = getGateStyle();
+        if (typeof s.colour === 'string' && s.colour.length) color = s.colour;
+        if (typeof s.thickness === 'number' && isFinite(s.thickness)) thickness = s.thickness;
+        ctx.lineWidth = thickness;
+        ctx.strokeStyle = color;
+        stroke_connector_to(ctx, x1, y1, x2, y2, {
+            droop: (typeof s.droop === 'number' && isFinite(s.droop)) ? s.droop : undefined,
+            color,
+            thickness,
+        });
+    } finally {
+        ctx.strokeStyle = prevS;
+        ctx.lineWidth = prevW;
+    }
 }
 
 export {

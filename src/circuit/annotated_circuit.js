@@ -247,6 +247,8 @@ export class AnnotatedCircuit {
     this.qubits = new Map();
     /** @type {{type:'PLANE'|'TORUS', Lx?:number, Ly?:number}} */
     this.embedding = { type: 'PLANE' };
+    /** @type {{droop?:number, colour?:string}} */
+    this.gateStyle = {};
   }
 
   /** @param {string} text */
@@ -351,6 +353,18 @@ export class AnnotatedCircuit {
         } else {
           diag(embedding_invalid(lineNo, `Unknown TYPE=${type}`));
         }
+        return;
+      }
+      if (kind === 'GATESTYLE') {
+        // Global connector style for gates: DROOP=<num> COLOUR=<css>
+        const droop = getNum(KVs, 'DROOP', undefined);
+        const colour = getStr(KVs, 'COLOUR', undefined);
+        const thickness = getNum(KVs, 'THICKNESS', undefined);
+        const style = {};
+        if (Number.isFinite(droop)) style.droop = droop;
+        if (typeof colour === 'string' && colour.length) style.colour = colour;
+        if (Number.isFinite(thickness)) style.thickness = thickness;
+        circuit.gateStyle = style;
         return;
       }
       if (kind === 'QUBIT') {
@@ -1072,6 +1086,8 @@ export class AnnotatedCircuit {
     out.sheets = new Map(this.sheets);
     // Copy embedding (shallow is fine for our shape)
     out.embedding = this.embedding ? { ...this.embedding } : { type: 'PLANE' };
+    // Copy gate style (shallow)
+    try { out.gateStyle = this.gateStyle ? { ...this.gateStyle } : {}; } catch { out.gateStyle = {}; }
     // Clone and transform qubit_coords
     out.qubit_coords = new Map();
     for (const [id, [sx, sy]] of this.qubit_coords.entries()) {
@@ -1102,6 +1118,7 @@ export class AnnotatedCircuit {
     out.qubitCoordData = new Float64Array([...this.qubitCoordData, ...extraCoordData]);
     out.sheets = new Map(this.sheets);
     out.embedding = this.embedding ? { ...this.embedding } : { type: 'PLANE' };
+    try { out.gateStyle = this.gateStyle ? { ...this.gateStyle } : {}; } catch { out.gateStyle = {}; }
     // Copy qubit_coords and qubits as-is
     out.qubit_coords = new Map(this.qubit_coords);
     out.qubits = new Map([...this.qubits.entries()].map(([id, q]) => [id, q.copy()]));
@@ -1271,6 +1288,15 @@ export class AnnotatedCircuit {
           out.push(`##! EMBEDDING TYPE=PLANE`);
         }
       }
+    } catch {}
+    // Emit global gate style directive if present (after EMBEDDING/SHEET headers).
+    try {
+      const gs = this.gateStyle || {};
+      const parts = ['##! GATESTYLE'];
+      if (typeof gs.droop === 'number' && isFinite(gs.droop)) parts.push(`DROOP=${gs.droop}`);
+      if (typeof gs.colour === 'string' && gs.colour.length) parts.push(`COLOUR=${gs.colour}`);
+      if (typeof gs.thickness === 'number' && isFinite(gs.thickness)) parts.push(`THICKNESS=${gs.thickness}`);
+      if (parts.length > 1) out.push(parts.join(' '));
     } catch {}
     // Emit optional per-qubit overlay annotations (##! QUBIT ...) followed by QUBIT_COORDS with original ids.
     for (let i = 0; i < packedQubitCoords.length; i++) {

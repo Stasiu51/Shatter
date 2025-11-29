@@ -10,7 +10,7 @@ Status labels used below:
 ## 1) Overview
 
 - Zero‑backend, browser‑only. Shatter reads a Stim file and optional overlay directives, renders panels and a timeline, and simulates Pauli mark propagation using Crumble’s primitives.
-- Overlays are comment lines starting with `##!`, optionally paired with the immediately following Crumble pragma `#!pragma ...` (e.g. POLYGON, MARK, ERR). Pairing preserves compatibility with Crumble.
+- Overlays are comment lines starting with `##!`, optionally paired with the immediately following Crumble pragma `#!pragma ...` (e.g. POLYGON, MARK, ERR). Pairing preserves compatibility with Crumble. Pragmas are accepted with or without a space (e.g. `#! pragma POLYGON`).
 - Attachment rule (anchored overlays): Some overlay lines (e.g. `##! QUBIT` without an explicit `Q=`) attach to the very next crumble instruction of the right kind (e.g. `QUBIT_COORDS`). If the next non‑trivia line is the wrong kind, a diagnostic is emitted.
 - Layers vs. sheets: “Layers” are circuit time steps (Stim `TICK`s). “Sheets” are Shatter’s Z‑stacked visual planes for panel filtering.
 
@@ -56,14 +56,14 @@ Syntax:
 ##! CONN SET SHEET=<name> EDGES=(q1-q2, q3-q4, ...)
     [COLOUR=<css>] [DROOP=<float>] [DEFECTIVE=<bool>] [TEXT="..."] [MOUSEOVER="..."]
 ```
-- Declares straight connections between qubit id pairs on the given sheet.
+- Declares connections between qubit id pairs on the given sheet.
 - Visibility: depends only on the connection’s `SHEET` (endpoints’ sheets are ignored).
 - Draw order: above polygons, under qubits.
 - Style:
-  - Implemented: color (default light grey), width slightly thicker than gate lines.
-  - Planned: droop (curved rendering), defective (dash/alpha), text/hover labels.
+  - Implemented: `COLOUR`, `THICKNESS`, and `DROOP` (curved rendering). Defaults: color light grey, thickness 4, droop 0 (straight).
+  - Planned: `DEFECTIVE`, text/hover labels.
 
-Status: Implemented (basic straight lines + sheet filtering). Enhancements Planned.
+Status: Implemented (sheet filtering + colour/thickness/droop). Enhancements Planned.
 
 ## 5) Polygons
 
@@ -91,11 +91,12 @@ Diagnostics:
 Syntax:
 ```
 ##! HIGHLIGHT TARGET=GATE [COLOR=<css>]
+##! HIGHLIGHT TARGET=QUBIT QUBITS=<id,id,...> [COLOR=<css>]
 ```
-- Anchors to the next gate (non‑marker) instruction and records a `GateHighlight` annotation for that op (gate name + targets).
-- Visibility: highlights are Planned for draw in both panel and timeline (overlay styling).
+- `TARGET=GATE`: Anchors to the next gate (non‑marker) instruction and records a `GateHighlight` annotation for that op (gate name + targets). Draw of gate highlights is Planned.
+- `TARGET=QUBIT`: Immediate qubit underlay highlight on the current layer for the listed ids; drawn in panels (under qubit squares).
 
-Status: Partially (anchoring implemented; not drawn yet).
+Status: Partially. Qubit highlights are drawn in panels; gate highlights are parsed/anchored but not yet drawn.
 
 Diagnostics:
 - HL001: had no gate to attach to.
@@ -113,6 +114,20 @@ Crumble pragmas are part of Stim parsing and remain as operations:
 - Sheet filtering: per‑qubit marker rectangles/errors are suppressed on panels for qubits not visible on the selected sheets.
 
 Status: Implemented (propagation + draw; filtered per panel).
+
+## 7.1) Gate connector global style
+
+Syntax:
+```
+##! GATESTYLE [DROOP=<float>] [COLOUR=<css>] [THICKNESS=<number>]
+```
+- Applies globally to gate-drawn connectors (lines between qubits drawn by gates). Does not affect `##! CONN SET` overlays.
+- DROOP scales the bezier “droop” used on longer spans (0 disables curvature, >0 increases; default preserves legacy curve).
+- COLOUR sets connector stroke color (e.g., `black`, `#00AA88`).
+- THICKNESS sets connector stroke width in panel/timeline (default 2).
+- Last-write-wins across multiple directives.
+
+Status: Implemented (panel and timeline). MPP and standard two‑qubit gates respect this style.
 
 ## 8) Repeat & attachment behavior
 
@@ -135,16 +150,18 @@ Diagnostics (selection):
 - Crossings (Pauli mark crossings at two‑qubit gates): derived from the gate and drawn only when that gate is visible in the panel; drawn after gates.
 - Connections: drawn when the connection’s `SHEET` is visible, regardless of qubit endpoints’ sheets.
 - Polygons: drawn when the polygon’s `SHEET` is visible.
+- Torus connectors: for embedding TORUS, connectors for MPP and standard two‑qubit gates (CX/CY/CZ, SWAP/ISWAP/CXSWAP/CZSWAP, MXX/MYY/MZZ, √XX/√YY/√ZZ, II) render using shortest‑path seam‑aware segments.
 
 ## 10) Timeline: global view
 
 - Shows the full circuit over time; no sheet filtering.
 - Polygons: injected into the snapshot as temporary POLYGON markers so the existing timeline marker path draws them; all polygon sets appear at their respective layer columns.
 - Propagation overlays: bases (bars), errors, crossings drawn similar to Crumble’s viewer.
+- Gate connectors obey `##! GATESTYLE` (droop/colour) in timeline rendering as well.
 
-## 11) Embedding & Layout (Planned)
+## 11) Embedding & Layout
 
-- EMBEDDING TYPE=PLANE | TORUS (LX,LY) | CYLINDER | MOBIUS (Planned semantics):
+- EMBEDDING TYPE=PLANE | TORUS (LX,LY) | CYLINDER | MOBIUS (CYLINDER/MOBIUS Planned):
 ```
 ##! EMBEDDING TYPE=PLANE
 ##! EMBEDDING TYPE=TORUS LX=<int> LY=<int>
@@ -153,12 +170,18 @@ Diagnostics (selection):
 ```
 ##! LAYOUT Q=0..15 SHEET=<name> MAP=GRID DX=... DY=... ORIGIN=(x,y)
 ```
-Status: Planned. Parsing not implemented; draw not implemented.
+Status: Layout helpers Planned.
 
 ## 12) Pairing & round‑tripping
 
 - On load: Shatter reads Stim text, Crumble pragmas, and `##!` overlay directives. Polygon annotations are paired with their `#!pragma POLYGON` fill color.
-- On save: Stim text is written from the circuit; `##!` overlay lines will be retained/updated in the future (Planned). Today, save/export writes the Stim text (no overlay re‑emit), but we synthesize `##! POLY` headers in memory when needed for Crumble interop.
+- On save (`toStimCircuit`): Emits Stim text plus overlay lines for:
+  - `##! SHEET` declarations (excluding implicit DEFAULT),
+  - `##! EMBEDDING` (PLANE or TORUS with LX/LY),
+  - `##! GATESTYLE` when present (DROOP/COLOUR),
+  - per‑qubit overlays `##! QUBIT` (when non‑default metadata exists),
+  - `##! CONN SET` overlays,
+  - `##! POLY` headers paired with `#!pragma POLYGON(...)` bodies.
 
 ## 13) Diagnostics (summary)
 
@@ -210,3 +233,8 @@ CX 0 1
 ---
 
 Questions or gaps? Please open an issue with a minimal Stim sample and note whether the problem occurs in a panel, the global timeline, or both.
+Gate connector style:
+```
+##! GATESTYLE DROOP=0.25 COLOUR=#00AA88
+CX 0 1
+```

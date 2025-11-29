@@ -3,6 +3,7 @@ import { parseStim, stringifyStim, pickAndReadFile, downloadText } from './io/im
 import { AnnotatedCircuit } from './circuit/annotated_circuit.js';
 import { renderTimeline as renderTimelineCore, computeMaxScrollCSS } from './ui_elements/timeline_renderer.js';
 import { drawPanel } from './draw/draw_panel.js'
+import { setGateStyle } from './draw/gate_style.js';
 import { torusSegmentsBetween } from './draw/draw_panel.js'
 import { setupTimelineUI } from './ui_elements/timeline_controller.js';
 import { setupResizablePane } from './util/ui_utils.js';
@@ -441,6 +442,7 @@ function loadStimText(stimText) {
     const parsed = AnnotatedCircuit.parse(currentText);
     circuit = parsed?.circuit || null;
     currentText = parsed?.text ?? currentText; // normalized text from parser
+    try { setGateStyle(circuit?.gateStyle || {}); } catch {}
     currentLayer = 0;
 
     // Push diagnostics (common for import/reload)
@@ -893,6 +895,7 @@ function ensureEditorState() {
         const parsed = AnnotatedCircuit.parse(currentText);
         circuit = parsed?.circuit || null;
         currentText = parsed?.text ?? currentText;
+        try { setGateStyle(circuit?.gateStyle || {}); } catch {}
         // Restore timeline focus for this revision if recorded
         try {
           const hist = editorState?._timelineSetHistory;

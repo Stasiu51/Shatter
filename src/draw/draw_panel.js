@@ -2,6 +2,7 @@ import {pitch, rad, OFFSET_X, OFFSET_Y} from "./config.js"
 import {marker_placement} from "../gates/gateset_markers.js";
 import {PropagatedPauliFrames} from "../circuit/propagated_pauli_frames.js";
 import {stroke_connector_to, draw_x_control, draw_y_control, draw_z_control, draw_swap_control, draw_iswap_control, draw_xswap_control, draw_zswap_control} from "../gates/gate_draw_util.js"
+import { getGateStyle } from "../draw/gate_style.js";
 import {beginPathPolygon} from './draw_util.js';
 import { parseCssColor } from '../util/color.js';
 import { selectionStore } from '../editor/selection_store.js';
@@ -572,19 +573,23 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             'II','SQRT_XX','SQRT_XX_DAG','SQRT_YY','SQRT_YY_DAG','SQRT_ZZ','SQRT_ZZ_DAG',
         ]);
 
-        function drawConnectorSegmentsTorus(q1, q2, color = 'black', thickness = 2) {
+        function drawConnectorSegmentsTorus(q1, q2, color = 'black', baseThickness = 2) {
             const p1 = getPanelXY(q1);
             const p2 = getPanelXY(q2);
             const segs = torusSegmentsBetween(p1, p2, embedding.Lx, embedding.Ly);
             const prevW = ctx.lineWidth;
             const prevS = ctx.strokeStyle;
             ctx.lineCap = 'round';
+            const s = getGateStyle();
+            const droop = (typeof s.droop === 'number' && isFinite(s.droop)) ? s.droop : undefined;
+            const styledColor = (typeof s.colour === 'string' && s.colour.length) ? s.colour : color;
+            const thickness = (typeof s.thickness === 'number' && isFinite(s.thickness)) ? s.thickness : baseThickness;
+            ctx.strokeStyle = styledColor;
             ctx.lineWidth = thickness;
-            ctx.strokeStyle = color;
             for (const [[sx, sy], [tx, ty]] of segs) {
                 const [dx1, dy1] = c2dCoordTransform(sx, sy);
                 const [dx2, dy2] = c2dCoordTransform(tx, ty);
-                stroke_connector_to(ctx, dx1, dy1, dx2, dy2);
+                stroke_connector_to(ctx, dx1, dy1, dx2, dy2, { droop, color: styledColor, thickness });
             }
             ctx.strokeStyle = prevS;
             ctx.lineWidth = prevW;
@@ -1104,7 +1109,7 @@ function drawMppGlyphs(ctx, op, coordFunc) {
     } catch (_) { /* ignore draw failures */ }
 }
 
-function drawMppConnectorsPlane(ctx, op, coordFunc, isQubitVisible) {
+        function drawMppConnectorsPlane(ctx, op, coordFunc, isQubitVisible) {
     // Connect successive targets with the same style used for connectors.
     // Skip segments where endpoints are not visible on this panel.
     ctx.save();
@@ -1112,57 +1117,65 @@ function drawMppConnectorsPlane(ctx, op, coordFunc, isQubitVisible) {
         ctx.lineCap = 'round';
         const prevW = ctx.lineWidth;
         ctx.lineWidth = 2;
-        ctx.strokeStyle = 'black';
-        let prev = null;
-        for (let k = 0; k < op.id_targets.length; k++) {
-            const q = op.id_targets[k];
-            if (typeof isQubitVisible === 'function' && !isQubitVisible(q)) {
-                prev = null;
-                continue;
+            const s = getGateStyle();
+            const styledColor = (typeof s.colour === 'string' && s.colour.length) ? s.colour : 'black';
+            const droop = (typeof s.droop === 'number' && isFinite(s.droop)) ? s.droop : undefined;
+            const thickness = (typeof s.thickness === 'number' && isFinite(s.thickness)) ? s.thickness : 2;
+            ctx.strokeStyle = styledColor;
+            let prev = null;
+            for (let k = 0; k < op.id_targets.length; k++) {
+                const q = op.id_targets[k];
+                if (typeof isQubitVisible === 'function' && !isQubitVisible(q)) {
+                    prev = null;
+                    continue;
+                }
+                const [x, y] = coordFunc(q);
+                if (prev) {
+                    const [px, py] = prev;
+                    stroke_connector_to(ctx, px, py, x, y, { droop, color: styledColor, thickness });
+                }
+                prev = [x, y];
             }
-            const [x, y] = coordFunc(q);
-            if (prev) {
-                const [px, py] = prev;
-                stroke_connector_to(ctx, px, py, x, y);
-            }
-            prev = [x, y];
+            ctx.lineWidth = prevW;
+        } finally {
+            ctx.restore();
         }
-        ctx.lineWidth = prevW;
-    } finally {
-        ctx.restore();
-    }
-}
+        }
 
-function drawMppConnectorsTorus(ctx, op, c2dCoordTransform, getPanelXY, embedding, isQubitVisible) {
+        function drawMppConnectorsTorus(ctx, op, c2dCoordTransform, getPanelXY, embedding, isQubitVisible) {
     // Split segments across torus seams like connections do.
     ctx.save();
     try {
         ctx.lineCap = 'round';
         const prevW = ctx.lineWidth;
         ctx.lineWidth = 2;
-        ctx.strokeStyle = 'black';
-        let prev = null;
-        for (let k = 0; k < op.id_targets.length; k++) {
-            const q = op.id_targets[k];
-            if (typeof isQubitVisible === 'function' && !isQubitVisible(q)) {
-                prev = null;
-                continue;
-            }
-            const p = getPanelXY(q);
-            if (prev) {
-                const segs = torusSegmentsBetween(prev, p, embedding.Lx, embedding.Ly);
-                for (const [[sx, sy], [tx, ty]] of segs) {
-                    const [dx1, dy1] = c2dCoordTransform(sx, sy);
-                    const [dx2, dy2] = c2dCoordTransform(tx, ty);
-                    stroke_connector_to(ctx, dx1, dy1, dx2, dy2);
+            const s = getGateStyle();
+            const styledColor = (typeof s.colour === 'string' && s.colour.length) ? s.colour : 'black';
+            const droop = (typeof s.droop === 'number' && isFinite(s.droop)) ? s.droop : undefined;
+            const thickness = (typeof s.thickness === 'number' && isFinite(s.thickness)) ? s.thickness : 2;
+            ctx.strokeStyle = styledColor;
+            let prev = null;
+            for (let k = 0; k < op.id_targets.length; k++) {
+                const q = op.id_targets[k];
+                if (typeof isQubitVisible === 'function' && !isQubitVisible(q)) {
+                    prev = null;
+                    continue;
                 }
+                const p = getPanelXY(q);
+                if (prev) {
+                    const segs = torusSegmentsBetween(prev, p, embedding.Lx, embedding.Ly);
+                    for (const [[sx, sy], [tx, ty]] of segs) {
+                        const [dx1, dy1] = c2dCoordTransform(sx, sy);
+                        const [dx2, dy2] = c2dCoordTransform(tx, ty);
+                        stroke_connector_to(ctx, dx1, dy1, dx2, dy2, { droop, color: styledColor, thickness });
+                    }
+                }
+                prev = p;
             }
-            prev = p;
+            ctx.lineWidth = prevW;
+        } finally {
+            ctx.restore();
         }
-        ctx.lineWidth = prevW;
-    } finally {
-        ctx.restore();
-    }
-}
+        }
 
 export {xyToPos, drawPanel, setDefensiveDrawEnabled, OFFSET_X, OFFSET_Y, torusSegmentsBetween}
