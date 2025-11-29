@@ -22,7 +22,12 @@
   --seg-btn-bg-active: rgba(255, 255, 255, 0.30);
 
   /* Surfaces */
-  --surface-bg: 	#ffd5a6;       /* same cream for panels/canvases */
+  --surface-bg: 	#ffd5a6;       /* warm panel/canvas base */
+  /* Per-panel backgrounds: all panels use the same cream */
+  --panel-bg-1: var(--surface-bg);
+  --panel-bg-2: var(--surface-bg);
+  --panel-bg-3: var(--surface-bg);
+  --panel-bg-4: var(--surface-bg);
   --canvas-filter: hue-rotate(50deg);
 
   /* Fonts (match default theme) */
@@ -73,3 +78,32 @@
   font-style: normal;
   font-display: swap;
 }
+
+/* Display font for Seventies logo */
+@font-face {
+  font-family: "Super Dream";
+  src: url("../assets/fonts/SuperDream-ax3vE.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Use Super Dream for the Shatter logo in the overall header */
+header h1 {
+  font-family: "Super Dream", var(--font-display, var(--font-ui));
+  letter-spacing: 0.5px;
+}
+/* Funky toolbar (subbar) accents */
+header { background: linear-gradient(90deg, #f26249 0%, #f4a127 50%, #75c8ae 100%); }
+.subbar { background: #f26249; }
+
+/* Panel headers use the theme panel header color */
+.toolbox-header,
+.inspector-header,
+.editor-header,
+.timeline-header,
+.settings-header { background: var(--hdr-panel); color: var(--text); }
+
+/* Body surfaces use the same cream as the main circuit panel */
+.settings-body { background: var(--surface-bg); }
+.inspector { background: var(--surface-bg); }

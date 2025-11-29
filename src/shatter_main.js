@@ -191,10 +191,22 @@ renderPanelSheetsOptions();
     'seventies': './src/styles/theme-seventies.css',
     'quantum-hacker-bro': './src/styles/theme-hacker.css',
   };
+  const setHeaderTitleForTheme = (name) => {
+    try {
+      const h = document.querySelector('header h1');
+      if (!h) return;
+      if (name === 'quantum-hacker-bro') {
+        h.textContent = 'SH@TT3R (W1P)';
+      } else {
+        h.textContent = 'Shatter (WIP)';
+      }
+    } catch {}
+  };
   const apply = (name) => {
     const href = map[name] || map['default'];
     themeLinkEl.href = href;
     localStorage.setItem(LS_THEME_KEY, name);
+    setHeaderTitleForTheme(name);
   };
   let cur = localStorage.getItem(LS_THEME_KEY) || 'boring';
   // Migrate old stored values

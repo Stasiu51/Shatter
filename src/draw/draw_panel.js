@@ -210,29 +210,15 @@ function drawAnnotations(ctx, snap, qubitCoordsFunc, visibleSheetNames, focusDim
         const coords = [];
         try {
             for (const q of ids) coords.push(qubitCoordsFunc(q));
-        } catch (_) {
-            // Missing coords; skip this polygon.
-            continue;
-        }
-        // Determine fill/stroke styles, reusing shared color parsing.
+        } catch (_) { continue; }
         const fillStyle = (a.fill && a.fill !== 'none') ? parseCssColor(a.fill) : null;
         const strokeStyle = (a.stroke && a.stroke !== 'none') ? parseCssColor(a.stroke) : null;
-
         beginPathPolygon(ctx, coords);
         if (fillStyle) {
-            ctx.save();
-            if (focusDimmed) ctx.globalAlpha *= 0.7;
-            ctx.fillStyle = fillStyle;
-            ctx.fill();
-            ctx.restore();
+            ctx.save(); if (focusDimmed) ctx.globalAlpha *= 0.7; ctx.fillStyle = fillStyle; ctx.fill(); ctx.restore();
         }
         if (strokeStyle) {
-            ctx.save();
-            if (focusDimmed) ctx.globalAlpha *= 0.7;
-            ctx.strokeStyle = strokeStyle;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.restore();
+            ctx.save(); if (focusDimmed) ctx.globalAlpha *= 0.7; ctx.strokeStyle = strokeStyle; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
         }
     }
 }

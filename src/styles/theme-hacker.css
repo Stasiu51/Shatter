@@ -56,6 +56,8 @@ h1,
   color: var(--text) !important;
 }
 
+/* Title text is set programmatically for this theme (no pseudo content). */
+
 /* Button text in bright green */
 .btn,
 .seg button,

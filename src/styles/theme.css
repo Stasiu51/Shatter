@@ -5,6 +5,11 @@
   --bg: #ffffff;
   /* Surfaces (panels/canvases) background; default links to --bg */
   --surface-bg: var(--bg);
+  /* Optional per-panel backgrounds (fallback to --surface-bg) */
+  --panel-bg-1: var(--surface-bg);
+  --panel-bg-2: var(--surface-bg);
+  --panel-bg-3: var(--surface-bg);
+  --panel-bg-4: var(--surface-bg);
   /* Canvas post-processing filter (e.g., invert for dark themes). */
   --canvas-filter: none;
   --muted: #f6f8fa;
@@ -110,3 +115,12 @@ How to customize
 - Change button roundness: --radius-btn
 - Border color uses --btn-border-color (defaults to --border)
 */
+/* Per-panel background colors via CSS variables */
+#panels .panel:nth-child(1) { background: var(--panel-bg-1, var(--surface-bg)); }
+#panels .panel:nth-child(1) .panel-body { background: var(--panel-bg-1, var(--surface-bg)); }
+#panels .panel:nth-child(2) { background: var(--panel-bg-2, var(--surface-bg)); }
+#panels .panel:nth-child(2) .panel-body { background: var(--panel-bg-2, var(--surface-bg)); }
+#panels .panel:nth-child(3) { background: var(--panel-bg-3, var(--surface-bg)); }
+#panels .panel:nth-child(3) .panel-body { background: var(--panel-bg-3, var(--surface-bg)); }
+#panels .panel:nth-child(4) { background: var(--panel-bg-4, var(--surface-bg)); }
+#panels .panel:nth-child(4) .panel-body { background: var(--panel-bg-4, var(--surface-bg)); }
