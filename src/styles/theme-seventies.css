@@ -93,9 +93,7 @@ header h1 {
   font-family: "Super Dream", var(--font-display, var(--font-ui));
   letter-spacing: 0.5px;
 }
-/* Funky toolbar (subbar) accents */
-header { background: linear-gradient(90deg, #f26249 0%, #f4a127 50%, #75c8ae 100%); }
-.subbar { background: #f26249; }
+/* Headers use theme variables (no gradient overrides) */
 
 /* Panel headers use the theme panel header color */
 .toolbox-header,
@@ -107,3 +105,6 @@ header { background: linear-gradient(90deg, #f26249 0%, #f4a127 50%, #75c8ae 100
 /* Body surfaces use the same cream as the main circuit panel */
 .settings-body { background: var(--surface-bg); }
 .inspector { background: var(--surface-bg); }
+.editor { background: var(--surface-bg); }
+.editor-body { background: var(--surface-bg); }
+#editor-text { background: var(--surface-bg); }
