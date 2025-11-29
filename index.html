@@ -672,7 +672,12 @@
     .settings { width: var(--settings-width); min-width: 0; border: none; border-radius: 0; background: var(--surface-bg, #fff); display: flex; flex-direction: column; overflow: hidden; }
     .settings-header { padding: 8px 10px; border-bottom: 1px solid var(--border); color: #57606a; font-weight: 600; height: 47px; min-height: 47px; max-height: 47px; flex: 0 0 47px; display: flex; align-items: center; justify-content: space-between; background: var(--hdr-panel); }
     .settings-title { font-weight: 600; color: #57606a; }
-    .settings-body { flex: 1; position: relative; background: var(--surface-bg, #fff); display: block; overflow: auto; padding: 8px 12px; }
+    .settings-body { flex: 1; position: relative; background: var(--surface-bg, #fff); display: block; overflow: auto; padding: 10px 14px; }
+    .settings-body input,
+    .settings-body textarea,
+    .settings-body select { font: inherit; font-family: var(--font-ui, system-ui, -apple-system, Segoe UI, Roboto, sans-serif); }
+    .settings-section { margin-bottom: 14px; }
+    .settings-row, .kb-row { margin: 6px 0; }
     .settings.collapsed { width: 0 !important; border: none; display: none !important; }
     .settings-resizer { width: 6px; cursor: col-resize; position: relative; }
     .settings-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 2px; width: 2px; background: var(--border); border-radius: 2px; opacity: 0.8; }
@@ -724,8 +729,8 @@
       <label for="theme-select" style="margin-left:8px;">Theme:</label>
       <select id="theme-select" style="height:28px; padding:0 6px; border:1px solid var(--btn-border-color); border-radius: var(--radius-btn); background: var(--btn-bg); font: inherit; color: var(--text);">
         <option value="boring">Boring</option>
-        <option value="purple-charcoal">Purple Charcoal</option>
-        <option value="seventies">Seventies</option>
+        <option value="purple-charcoal">Marginally Less So</option>
+        <option value="seventies">Groovy</option>
         <option value="quantum-hacker-bro">QU4NTu₼ H@CK3R BR0</option>
       </select>
       <div class="spacer"></div>

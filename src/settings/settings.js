@@ -77,7 +77,7 @@ async function loadSettings() {
   // Ensure appearance shape
   final.appearance = final.appearance || {};
   if (typeof final.appearance.focusDim !== 'number' || !(final.appearance.focusDim >= 0) || !(final.appearance.focusDim <= 1)) {
-    final.appearance.focusDim = 0.5;
+    final.appearance.focusDim = 0.2;
   }
   return final;
 }

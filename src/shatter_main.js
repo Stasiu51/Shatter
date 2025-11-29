@@ -792,10 +792,10 @@ function renderAllPanels() {
     if (panelZoom && panelZoom !== 1) {
       ctx.save();
       ctx.scale(panelZoom, panelZoom);
-      drawPanel(ctx, snap, sheetsSel, { timelineCollapsed, focusDim: (appSettings && appSettings.appearance && typeof appSettings.appearance.focusDim==='number') ? appSettings.appearance.focusDim : 0.5 });
+      drawPanel(ctx, snap, sheetsSel, { timelineCollapsed, focusDim: (appSettings && appSettings.appearance && typeof appSettings.appearance.focusDim==='number') ? appSettings.appearance.focusDim : 0.2 });
       ctx.restore();
     } else {
-      drawPanel(ctx, snap, sheetsSel, { timelineCollapsed, focusDim: (appSettings && appSettings.appearance && typeof appSettings.appearance.focusDim==='number') ? appSettings.appearance.focusDim : 0.5 });
+      drawPanel(ctx, snap, sheetsSel, { timelineCollapsed, focusDim: (appSettings && appSettings.appearance && typeof appSettings.appearance.focusDim==='number') ? appSettings.appearance.focusDim : 0.2 });
     }
     // Bind mouse events once per canvas.
     if (!p._eventsBound) {
