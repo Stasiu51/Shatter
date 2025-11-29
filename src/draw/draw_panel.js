@@ -1,7 +1,7 @@
 import {pitch, rad, OFFSET_X, OFFSET_Y} from "./config.js"
 import {marker_placement} from "../gates/gateset_markers.js";
 import {PropagatedPauliFrames} from "../circuit/propagated_pauli_frames.js";
-import {stroke_connector_to} from "../gates/gate_draw_util.js"
+import {stroke_connector_to, draw_x_control, draw_y_control, draw_z_control, draw_swap_control, draw_iswap_control, draw_xswap_control, draw_zswap_control} from "../gates/gate_draw_util.js"
 import {beginPathPolygon} from './draw_util.js';
 import { parseCssColor } from '../util/color.js';
 import { selectionStore } from '../editor/selection_store.js';
@@ -564,6 +564,78 @@ function drawPanel(ctx, snap, sheetsToDraw) {
             return false;
         };
 
+        // Gates that visually include a connector between two targets.
+        const CONNECTOR_GATES = new Set([
+            'CX','CY','CZ','XCX','XCY','YCY',
+            'SWAP','ISWAP','ISWAP_DAG','CXSWAP','CZSWAP',
+            'MXX','MYY','MZZ',
+            'II','SQRT_XX','SQRT_XX_DAG','SQRT_YY','SQRT_YY_DAG','SQRT_ZZ','SQRT_ZZ_DAG',
+        ]);
+
+        function drawConnectorSegmentsTorus(q1, q2, color = 'black', thickness = 2) {
+            const p1 = getPanelXY(q1);
+            const p2 = getPanelXY(q2);
+            const segs = torusSegmentsBetween(p1, p2, embedding.Lx, embedding.Ly);
+            const prevW = ctx.lineWidth;
+            const prevS = ctx.strokeStyle;
+            ctx.lineCap = 'round';
+            ctx.lineWidth = thickness;
+            ctx.strokeStyle = color;
+            for (const [[sx, sy], [tx, ty]] of segs) {
+                const [dx1, dy1] = c2dCoordTransform(sx, sy);
+                const [dx2, dy2] = c2dCoordTransform(tx, ty);
+                stroke_connector_to(ctx, dx1, dy1, dx2, dy2);
+            }
+            ctx.strokeStyle = prevS;
+            ctx.lineWidth = prevW;
+        }
+
+        function drawGlyphSquaresWithLabel(q1, q2, fillStyle, label1, label2) {
+            const pts = [q1, q2].map(qubitDrawCoords);
+            for (let i = 0; i < pts.length; i++) {
+                const [x, y] = pts[i];
+                ctx.fillStyle = fillStyle;
+                ctx.fillRect(x - rad, y - rad, rad*2, rad*2);
+                ctx.strokeStyle = 'black';
+                ctx.strokeRect(x - rad, y - rad, rad*2, rad*2);
+                ctx.fillStyle = 'black';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = 'bold 12pt monospace';
+                const txt = i === 0 ? label1 : (label2 ?? label1);
+                ctx.fillText(txt, x, y);
+            }
+        }
+
+        function drawGateGlyphsByName(name, q1, q2) {
+            const [x1, y1] = qubitDrawCoords(q1);
+            const [x2, y2] = qubitDrawCoords(q2);
+            switch (name) {
+                case 'CX': draw_z_control(ctx, x1, y1); draw_x_control(ctx, x2, y2); break;
+                case 'CY': draw_z_control(ctx, x1, y1); draw_y_control(ctx, x2, y2); break;
+                case 'XCX': draw_x_control(ctx, x1, y1); draw_x_control(ctx, x2, y2); break;
+                case 'XCY': draw_x_control(ctx, x1, y1); draw_y_control(ctx, x2, y2); break;
+                case 'YCY': draw_y_control(ctx, x1, y1); draw_y_control(ctx, x2, y2); break;
+                case 'CZ': draw_z_control(ctx, x1, y1); draw_z_control(ctx, x2, y2); break;
+                case 'SWAP': draw_swap_control(ctx, x1, y1); draw_swap_control(ctx, x2, y2); break;
+                case 'ISWAP':
+                case 'ISWAP_DAG': draw_iswap_control(ctx, x1, y1); draw_iswap_control(ctx, x2, y2); break;
+                case 'CXSWAP': draw_zswap_control(ctx, x1, y1); draw_xswap_control(ctx, x2, y2); break;
+                case 'CZSWAP': draw_zswap_control(ctx, x1, y1); draw_zswap_control(ctx, x2, y2); break;
+                case 'MXX': drawGlyphSquaresWithLabel(q1, q2, 'gray', 'MXX'); break;
+                case 'MYY': drawGlyphSquaresWithLabel(q1, q2, 'gray', 'MYY'); break;
+                case 'MZZ': drawGlyphSquaresWithLabel(q1, q2, 'gray', 'MZZ'); break;
+                case 'II': drawGlyphSquaresWithLabel(q1, q2, 'white', 'II'); break;
+                case 'SQRT_XX': drawGlyphSquaresWithLabel(q1, q2, 'yellow', '√XX'); break;
+                case 'SQRT_XX_DAG': drawGlyphSquaresWithLabel(q1, q2, 'yellow', '√XX†'); break;
+                case 'SQRT_YY': drawGlyphSquaresWithLabel(q1, q2, 'yellow', '√YY'); break;
+                case 'SQRT_YY_DAG': drawGlyphSquaresWithLabel(q1, q2, 'yellow', '√YY†'); break;
+                case 'SQRT_ZZ': drawGlyphSquaresWithLabel(q1, q2, 'yellow', '√ZZ'); break;
+                case 'SQRT_ZZ_DAG': drawGlyphSquaresWithLabel(q1, q2, 'yellow', '√ZZ†'); break;
+                default: break;
+            }
+        }
+
         for (let op of circuit.layers[snap.curLayer].iter_gates_and_markers()) {
             if (!isOpVisible(op)) continue;
             if (op.gate.name === 'POLYGON') continue;
@@ -580,7 +652,15 @@ function drawPanel(ctx, snap, sheetsToDraw) {
                     });
                 } catch {}
             }
-            if (op.gate.name && op.gate.name.startsWith('MPP:')) {
+            if (embedding && embedding.type === 'TORUS' && CONNECTOR_GATES.has(op.gate.name) && op.id_targets?.length === 2) {
+                const [q1, q2] = [op.id_targets[0], op.id_targets[1]];
+                if (isQubitVisible(q1) || isQubitVisible(q2)) {
+                    if (gateDim) { ctx.save(); ctx.globalAlpha *= dimFactor; }
+                    drawConnectorSegmentsTorus(q1, q2, 'black', 2);
+                    drawGateGlyphsByName(op.gate.name, q1, q2);
+                    if (gateDim) ctx.restore();
+                }
+            } else if (op.gate.name && op.gate.name.startsWith('MPP:')) {
                 // Custom MPP drawing that reuses connection line logic (toroidal aware),
                 // instead of relying on Crumble's single-segment connector.
                 if (embedding && embedding.type === 'TORUS') {
