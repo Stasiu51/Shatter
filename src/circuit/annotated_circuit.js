@@ -479,7 +479,15 @@ export class AnnotatedCircuit {
       }
 
       if (kind === 'POLY') {
-        // Store header info; body will arrive via next POLYGON(...) crumble.
+        // Style declaration vs instance header:
+        // Style form:  ##! POLY STYLE NAME=... COLOUR=...
+        // Instance form: ##! POLY SHEET=... STROKE=... FILL=(r,g,b,a)  (expects an immediate POLYGON pragma)
+        if (KVs.has('STYLE')) {
+          // Accept style declarations without requiring a following POLYGON.
+          // Optionally record style info in future; for now, ignore.
+          return;
+        }
+        // Instance header: store metadata; expect POLYGON(...) next.
         const sheet = getStr(KVs, 'SHEET', 'DEFAULT');
         const stroke = getStr(KVs, 'STROKE', 'none');
         const hdrLine = lineNo;
@@ -841,11 +849,15 @@ export class AnnotatedCircuit {
 
 
     // const lines = text.split(/\r?\n/);
-    const lines = text.replaceAll(';', '\n').
-      replaceAll('#!pragma ERR', 'ERR').
-      replaceAll('#!pragma MARK', 'MARK').
-      replaceAll('#!pragma POLYGON', 'POLYGON').
-      replaceAll('_', ' ').
+    // Normalize text from URL form back to plain text first, then strip pragma prefixes.
+    // 1) Convert '_' back to spaces (URL compact form).
+    // 2) Normalize pragmas: accept both "#!pragma" and "#! pragma" (with optional whitespace), case-insensitively.
+    const lines = text.replaceAll(';', '\n')
+      .replaceAll('_', ' ')
+      .replace(/#!\s*pragma\s+ERR/ig, 'ERR')
+      .replace(/#!\s*pragma\s+MARK/ig, 'MARK')
+      .replace(/#!\s*pragma\s+POLYGON/ig, 'POLYGON')
+      .
       replaceAll('Q(', 'QUBIT_COORDS(').
       replaceAll('DT', 'DETECTOR').
       replaceAll('OI', 'OBSERVABLE_INCLUDE').
@@ -937,13 +949,13 @@ export class AnnotatedCircuit {
     });
 
     // Put the pragmas back at start-of-line only to avoid duplicating existing '#!pragma'.
-    // Use regex with start-of-line anchors and word boundaries.
+    // Use regex with start-of-line anchors and word boundaries; force canonical form.
     {
       let t = lines.join("\n").replaceAll(';', '\n');
       t = t
-        .replace(/(^|\n)ERR\b/g, '$1#!pragma ERR')
-        .replace(/(^|\n)MARK\b/g, '$1#!pragma MARK')
-        .replace(/(^|\n)POLYGON\b/g, '$1#!pragma POLYGON');
+        .replace(/(^|\n)ERR\b/gi, '$1#!pragma ERR')
+        .replace(/(^|\n)MARK\b/gi, '$1#!pragma MARK')
+        .replace(/(^|\n)POLYGON\b/gi, '$1#!pragma POLYGON');
       text = t;
     }
     return { circuit, diagnostics, text };
@@ -1328,12 +1340,16 @@ export class AnnotatedCircuit {
             const sheetName = a.sheet || 'DEFAULT';
             const stroke = a.stroke ?? 'none';
             const fill = a.fill ?? '(0,0,0,0.2)';
-            out.push(`##! POLY SHEET=${sheetName} STROKE=${stroke} FILL=${fill}`);
-            // Paired pragma for Crumble interop
+            // Compute args/ids first; only emit header if there are vertices.
             try {
               const args = String(fill).replace(/[()]/g, '');
-              const ids = (Array.isArray(a.targets) ? a.targets : []).map(v=>parseInt(v)).filter(Number.isFinite);
-              out.push(`#!pragma POLYGON(${args}) ${ids.join(' ')}`);
+              const ids = (Array.isArray(a.targets) ? a.targets : [])
+                .map(v => parseInt(v))
+                .filter(Number.isFinite);
+              if (ids.length > 0) {
+                out.push(`##! POLY SHEET=${sheetName} STROKE=${stroke} FILL=${fill}`);
+                out.push(`#!pragma POLYGON(${args}) ${ids.join(' ')}`);
+              }
             } catch {}
           } else if (a.kind === 'QubitHighlight') {
             // Re-emit simple qubit highlight overlays.

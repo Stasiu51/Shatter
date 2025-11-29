@@ -529,7 +529,15 @@ btnExport?.addEventListener('click', () => {
 btnCopyUrl?.addEventListener('click', async () => {
   let url = window.location.href;
   try {
-    const hash = encodeCircuitToHash(currentText || '');
+    // Prefer a fresh toStimCircuit serialization to ensure overlays (POLY/POLYGON) are paired.
+    let textForUrl = currentText || '';
+    try {
+      if (editorState) {
+        const c = editorState.copyOfCurAnnotatedCircuit();
+        textForUrl = c.toStimCircuit();
+      }
+    } catch {}
+    const hash = encodeCircuitToHash(textForUrl || '');
     // Build full URL manually to avoid any async replaceState timing.
     url = window.location.origin + window.location.pathname + hash;
   } catch {}
