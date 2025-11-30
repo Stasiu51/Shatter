@@ -3,9 +3,11 @@
 > *"All this chitter-chatter, chitter-chatter, chitter-chatter 'bout
 > shmatta, shmatta, shmatta."*
 
-Shatter is a visualiser for quantum circuits that is based on [Crumble](https://algassert.com/crumble). 
+Shatter is a visualiser/editor for quantum circuits that is based on [Crumble](https://algassert.com/crumble). 
 
-It expands on the rendering capabilities of Crumble by adding multiple panels and the ability to render different components of the quantum circuit to 'sheets' which can be toggled per-panel. It also adds the ability to render edges between qubits, and additional styling options for gates and qubits. It inherits the ability to render Pauli marks from Crumble. In the future, I may develop Shatter into a full-blown editor.
+It expands on the rendering capabilities of Crumble by adding multiple panels and the ability to render different components of the quantum circuit to 'sheets' which can be toggled per-panel. It also adds the ability to render edges between qubits, and additional styling options for gates and qubits. It inherits the ability to render Pauli marks from Crumble, as well as its key-chord system for adding gates. Note that unlike in crumble, the gate specifier key(s) must be held before the Pauli specifier key (x/y/z), and thereafter all keys can be released.
+
+*TODO*: Implement conversion between marks and detectors/observables.
 
 *Attribution:* the source code of Shatter is inextricable from that of Crumble. I have variously vendored and modified the files available under an Apache license [here](https://github.com/quantumlib/Stim/blob/main/glue/crumble/).
 
