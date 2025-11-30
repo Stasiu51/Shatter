@@ -1,6 +1,17 @@
 import { PropagatedPauliFrames } from '../circuit/propagated_pauli_frames.js';
 import { marker_placement } from '../gates/gateset_markers.js';
 import { rad } from '../draw/config.js';
+import { renderPolygonsPalette } from './polygons_palette.js';
+import { renderEdgesPalette } from './edges_palette.js';
+
+// Persist collapsed state of the Pauli Marks subpanel across redraws/sessions.
+const LS_MARKS_COLLAPSED = 'toolboxMarksCollapsed.v1';
+function loadMarksCollapsed() {
+  try { return localStorage.getItem(LS_MARKS_COLLAPSED) === '1'; } catch { return false; }
+}
+function saveMarksCollapsed(v) {
+  try { localStorage.setItem(LS_MARKS_COLLAPSED, v ? '1' : '0'); } catch {}
+}
 
 function basisColor(basisSet) {
   const set = new Set(basisSet);
@@ -79,6 +90,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
   marksToggle.style.background = 'transparent';
   marksToggle.style.cursor = 'pointer';
   marksToggle.style.fontSize = '14px';
+  marksToggle.style.color = 'var(--text)';
   marksHeader.append(document.createElement('span'), hdrMarks, marksToggle);
   containerEl.appendChild(marksHeader);
   const marksContent = document.createElement('div');
@@ -375,13 +387,30 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
     gatesContainer.appendChild(makePillRow(t, idx));
   });
 
-  // Wire collapsible marks panel
-  let marksCollapsed = false;
+  // Polygons palette
+  const polyContainer = document.createElement('div');
+  polyContainer.style.width = '100%';
+  polyContainer.style.maxWidth = '320px';
+  containerEl.appendChild(polyContainer);
+  renderPolygonsPalette({ containerEl: polyContainer, circuit });
+
+  // Edges palette
+  const edgeContainer = document.createElement('div');
+  edgeContainer.style.width = '100%';
+  edgeContainer.style.maxWidth = '320px';
+  containerEl.appendChild(edgeContainer);
+  renderEdgesPalette({ containerEl: edgeContainer, circuit });
+
+  // Wire collapsible marks panel (persisted)
+  let marksCollapsed = loadMarksCollapsed();
   const setMarksCollapsed = (c) => {
     marksCollapsed = !!c;
     marksContent.style.display = marksCollapsed ? 'none' : 'flex';
     marksToggle.textContent = marksCollapsed ? '▸' : '▾';
+    saveMarksCollapsed(marksCollapsed);
   };
   marksToggle.addEventListener('click', () => setMarksCollapsed(!marksCollapsed));
+  // Apply initial state
+  setMarksCollapsed(marksCollapsed);
 
 }
