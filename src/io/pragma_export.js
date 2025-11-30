@@ -6,15 +6,13 @@
 //   - ERR ...      -> #!pragma ERR ...
 //   - MARK..., MARKX..., MARKY..., MARKZ... -> #!pragma MARK...
 //
-// Accepts either a Circuit (uses toStimCircuit) or a raw string.
-import {Circuit} from '../../stim_crumble/circuit/circuit.js';
+// Accepts either an object with toStimCircuit() or a raw string.
 
 export function toPragmaStim(input) {
-  const text = input instanceof Circuit ? input.toStimCircuit() : String(input || '');
+  const text = (input && typeof input.toStimCircuit === 'function') ? input.toStimCircuit() : String(input || '');
   // Insert '#!pragma ' before known pseudo-ops at the start of a line.
   return text
     .replace(/(^|\n)(POLYGON)/g, '$1#!pragma $2')
     .replace(/(^|\n)(ERR)/g, '$1#!pragma $2')
     .replace(/(^|\n)(MARK)/g, '$1#!pragma $2');
 }
-

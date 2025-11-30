@@ -1,30 +1,13 @@
 // Minimal import/export helpers for Stim circuits (browser-side, ESM).
-// Uses the vendored Crumble Circuit for parsing/printing.
+// Uses our AnnotatedCircuit for parsing/printing.
 
-import {Circuit} from '../../stim_crumble/circuit/circuit.js';
+import {AnnotatedCircuit} from '../circuit/annotated_circuit.js';
 import {toPragmaStim} from './pragma_export.js';
 
 export function parseStim(text) {
-  // Parse via Crumble to validate and normalize, capturing warnings emitted via console.warn.
-  const warnings = [];
-  const prevWarn = console.warn;
-  try {
-    console.warn = (msg, ...rest) => {
-      try {
-        const s = String(msg) + (rest.length ? ' ' + rest.map(String).join(' ') : '');
-        warnings.push(s);
-      } catch {
-        // ignore formatting failures
-      }
-      // Still forward to the real console for dev visibility.
-      prevWarn.call(console, msg, ...rest);
-    };
-    const circuit = Circuit.fromStimCircuit(text || '');
-    const normalized = circuit.toStimCircuit();
-    return {circuit, text: normalized, warnings};
-  } finally {
-    console.warn = prevWarn;
-  }
+  // Parse via AnnotatedCircuit to validate and normalize.
+  const parsed = AnnotatedCircuit.parse(text || '');
+  return { circuit: parsed.circuit, text: parsed.text, diagnostics: parsed.diagnostics || [] };
 }
 
 export function stringifyStim(circuit) {
