@@ -24,6 +24,7 @@ import { GATE_MAP } from './gates/gateset.js';
 import { Operation } from './circuit/operation.js';
 import { setupSettingsUI } from './ui_elements/settings_controller.js';
 import { pitch, OFFSET_X, OFFSET_Y, rad } from './draw/config.js';
+import { draw_x_control, draw_y_control, draw_z_control, draw_swap_control, draw_iswap_control, draw_xswap_control, draw_zswap_control } from './gates/gate_draw_util.js';
 import { EditorState } from './editor/editor_state.js';
 import { selectionStore } from './editor/selection_store.js';
 import { hitTestAt } from './draw/hit_test.js';
@@ -1298,22 +1299,61 @@ function drawGatePlacementOverlay(ctx, circuit, sheetsSel) {
     circuit.qubitCoordData[2 * q] * pitch - OFFSET_X,
     circuit.qubitCoordData[2 * q + 1] * pitch - OFFSET_Y,
   ];
-  const fillBox = (q, a=0.3) => {
-    if (!vis(q)) return;
+  const drawFirstGlyphAt = (gateId, q, a=0.5) => {
+    if (q == null || !vis(q)) return;
     const [x,y] = qubitDrawCoords(q);
     ctx.save();
     ctx.globalAlpha *= a;
-    ctx.fillStyle = '#ffd54f';
-    ctx.fillRect(x - rad, y - rad, 2*rad, 2*rad);
+    if (gateId === 'CX' || gateId === 'CY' || gateId === 'CZ') draw_z_control(ctx, x, y);
+    else if (gateId === 'XCX' || gateId === 'XCY') draw_x_control(ctx, x, y);
+    else if (gateId === 'YCY') draw_y_control(ctx, x, y);
+    else if (gateId === 'SWAP') draw_swap_control(ctx, x, y);
+    else if (gateId === 'ISWAP' || gateId === 'ISWAP_DAG') draw_iswap_control(ctx, x, y);
+    else if (gateId === 'CXSWAP') draw_zswap_control(ctx, x, y);
+    else if (gateId === 'CZSWAP') draw_zswap_control(ctx, x, y);
+    else if (gateId === 'MXX' || gateId === 'MYY' || gateId === 'MZZ') {
+      // simple square with 'M' as interim hint
+      ctx.fillStyle = 'gray';
+      ctx.fillRect(x - rad, y - rad, 2*rad, 2*rad);
+      ctx.strokeStyle = 'black';
+      ctx.strokeRect(x - rad, y - rad, 2*rad, 2*rad);
+      ctx.fillStyle = 'black';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText('M', x, y);
+    } else {
+      // default subtle highlight
+      ctx.fillStyle = '#ffd54f';
+      ctx.fillRect(x - rad, y - rad, 2*rad, 2*rad);
+      ctx.strokeStyle = '#c48f00';
+      ctx.strokeRect(x - rad, y - rad, 2*rad, 2*rad);
+    }
     ctx.restore();
   };
-  if (ov.mode === 'two_first') {
-    if (ov.hoverQubit != null) fillBox(ov.hoverQubit, 0.25);
-  } else if (ov.mode === 'two_second') {
-    if (ov.firstQubit != null) fillBox(ov.firstQubit, 0.3);
-    if (ov.hoverQubit != null) fillBox(ov.hoverQubit, 0.25);
+  const drawMppGlyphAt = (basis, q, a=0.5) => {
+    if (q == null || !vis(q)) return;
+    const [x,y] = qubitDrawCoords(q);
+    ctx.save();
+    ctx.globalAlpha *= a;
+    ctx.fillStyle = 'gray';
+    ctx.fillRect(x - rad, y - rad, 2*rad, 2*rad);
+    ctx.strokeStyle = 'black';
+    ctx.strokeRect(x - rad, y - rad, 2*rad, 2*rad);
+    ctx.fillStyle = 'black';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText((basis||'X')[0], x, y - 2);
+    ctx.font = '8px monospace';
+    ctx.fillText('MPP', x, y + 7);
+    ctx.restore();
+  };
+  if (ov.mode === 'two_second') {
+    drawFirstGlyphAt(ov.gateId, ov.firstQubit, 0.6);
   } else if (ov.mode === 'multi') {
-    for (const q of ov.multiQubits || []) fillBox(q, 0.3);
+    const basis = (ov.gateId && ov.gateId.startsWith('MPP:')) ? ov.gateId.substring(4) : 'X';
+    for (const q of ov.multiQubits || []) drawMppGlyphAt(basis, q, 0.55);
   }
 }
 
