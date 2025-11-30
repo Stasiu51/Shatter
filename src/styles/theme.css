@@ -42,7 +42,7 @@
   --font-size-base: 14px;
 
   /* Panels: toolbox width */
-  --markers-width: 160px; /* adjust to make the toolbox wider/narrower */
+  --markers-width: 170px; /* adjust to make the toolbox wider/narrower */
 }
 
 /* Ostrich Sans removed; using League Mono */

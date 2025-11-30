@@ -49,9 +49,49 @@ function rowEl() {
 export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType }) {
   if (!containerEl) return;
   containerEl.innerHTML='';
+  // Center the toolbox contents.
+  try {
+    containerEl.style.display = 'flex';
+    containerEl.style.flexDirection = 'column';
+    containerEl.style.alignItems = 'center';
+    containerEl.style.gap = '4px';
+  } catch {}
+
+  // Collapsible sub-panel for Pauli Marks with arrow toggle (top-right)
+  const marksHeader = document.createElement('div');
+  marksHeader.style.display = 'flex';
+  marksHeader.style.alignItems = 'center';
+  marksHeader.style.justifyContent = 'space-between';
+  marksHeader.style.width = '100%';
+  marksHeader.style.maxWidth = '320px';
+  const hdrMarks = document.createElement('div');
+  hdrMarks.textContent = 'Pauli Marks';
+  hdrMarks.style.fontWeight = '600';
+  hdrMarks.style.fontSize = '12px';
+  hdrMarks.style.color = 'var(--text)';
+  hdrMarks.style.textAlign = 'center';
+  hdrMarks.style.flex = '1';
+  const marksToggle = document.createElement('button');
+  marksToggle.type = 'button';
+  marksToggle.textContent = '▾';
+  marksToggle.title = 'Show/Hide marks';
+  marksToggle.style.border = '0';
+  marksToggle.style.background = 'transparent';
+  marksToggle.style.cursor = 'pointer';
+  marksToggle.style.fontSize = '14px';
+  marksHeader.append(document.createElement('span'), hdrMarks, marksToggle);
+  containerEl.appendChild(marksHeader);
+  const marksContent = document.createElement('div');
+  marksContent.style.display = 'flex';
+  marksContent.style.flexDirection = 'column';
+  marksContent.style.alignItems = 'center';
+  marksContent.style.gap = '2px';
+  containerEl.appendChild(marksContent);
   for (let i=0;i<10;i++) {
     const { row, square, btnCl, btnO, btnD, btnX, btnY, btnZ } = rowEl();
-    containerEl.appendChild(row);
+    // Tighten row vertical padding.
+    row.style.padding = '0';
+    marksContent.appendChild(row);
     // No second row; controls are in the compact grid
 
     try {
@@ -196,5 +236,152 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
       }
     }
   }
+
+  // Spacer then Gates header (placeholder for future gate controls)
+  const spacer = document.createElement('div');
+  spacer.style.height = '6px';
+  containerEl.appendChild(spacer);
+  const hdrGates = document.createElement('div');
+  hdrGates.textContent = 'Gates';
+  hdrGates.style.fontWeight = '600';
+  hdrGates.style.fontSize = '12px';
+  hdrGates.style.color = 'var(--text)';
+  hdrGates.style.textAlign = 'center';
+  containerEl.appendChild(hdrGates);
+  const gatesContainer = document.createElement('div');
+  gatesContainer.style.display = 'flex';
+  gatesContainer.style.flexDirection = 'column';
+  gatesContainer.style.alignItems = 'center';
+  gatesContainer.style.gap = '4px';
+  gatesContainer.style.width = '100%';
+  containerEl.appendChild(gatesContainer);
+
+  // Gate pillbox rows (columns 1-9 of Crumble toolbox)
+  const gateRows = [
+    'Hadamard',
+    'S',
+    'Reset',
+    'Measure',
+    'Measure Reset',
+    'Controlled-Pauli',
+    'Controlled-Swap',
+    'SC',
+    'Measure Pauli Product',
+  ];
+
+  // Labels inside each gate cell, taken from stim_crumble/keyboard/toolbox.js (columns 0..8).
+  const X_LABELS = ['H_YZ', 'S_X',    'RX', 'MX', 'MRX', 'CX', 'CXSWAP', '√XX', 'M_XX'];
+  const Y_LABELS = ['H',    'S_Y',    'RY', 'MY', 'MRY', 'CY', 'SWAP',   '√YY', 'M_YY'];
+  const Z_LABELS = ['H_XY', 'S',      'R',  'M',  'MR',  'CZ', 'CZSWAP', '√ZZ', 'M_ZZ'];
+
+  const CELL_SIZE = 20; // CSS px (compact to fit narrow toolbox)
+
+  function drawGateCell(canvas, label) {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const css = CELL_SIZE;
+    const w = Math.floor(css * dpr), h = Math.floor(css * dpr);
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    canvas.style.width = css + 'px';
+    canvas.style.height = css + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.scale(dpr, dpr);
+    // Square with darker grey fill like Crumble toolbox
+    ctx.fillStyle = '#aaa';
+    ctx.fillRect(0.5, 0.5, css - 1, css - 1);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#000';
+    ctx.strokeRect(0.5, 0.5, css - 1, css - 1);
+    // Label
+    ctx.fillStyle = '#000';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const cx = css / 2, cy = css / 2;
+    // Font scaling rules
+    let scale = 1.0;
+    if (label && /SWAP/.test(label)) scale = 0.6;           // Controlled-Swap
+    else if (label && /^MR/.test(label)) scale = 0.8;        // Measure Reset
+    else if (label && label.startsWith('√')) scale = 0.8;    // SC (sqrt pairs)
+    const baseMain = 11 * scale;
+    const baseMainSub = 10 * scale;
+    const baseSub = 8 * scale;
+    const offMain = -3 * scale;
+    const offSub = 5 * scale;
+    if (label.indexOf('_') !== -1) {
+      const [main, sub] = label.split('_');
+      ctx.font = `bold ${baseMainSub}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+      ctx.fillText(main, cx, cy + offMain);
+      ctx.font = `${baseSub}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+      ctx.fillText(sub, cx, cy + offSub);
+    } else {
+      ctx.font = `bold ${baseMain}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+      ctx.fillText(label, cx, cy);
+    }
+  }
+
+  function makePillRow(title, colIndex) {
+    const wrap = document.createElement('div');
+    wrap.style.position = 'relative';
+    wrap.style.display = 'flex';
+    wrap.style.alignItems = 'center';
+    wrap.style.justifyContent = 'space-between';
+    wrap.style.width = '100%';
+    wrap.style.maxWidth = '320px';
+    wrap.style.border = '0';
+    wrap.style.borderRadius = '0';
+    wrap.style.padding = '0';
+    wrap.style.margin = '3px 0';
+    wrap.style.background = 'transparent';
+    // Allow variable row height for multi-line titles.
+
+    const label = document.createElement('div');
+    label.textContent = title;
+    label.style.position = 'relative';
+    label.style.top = '0';
+    label.style.left = '0';
+    label.style.fontSize = '10px';
+    label.style.color = 'var(--text)';
+    // Fix label width to align buttons column; allow wrapping within this width.
+    label.style.minWidth = '70px';
+    label.style.maxWidth = '70px';
+    label.style.whiteSpace = 'normal';
+    label.style.overflow = 'visible';
+    wrap.appendChild(label);
+
+    const btns = document.createElement('div');
+    btns.style.display = 'flex';
+    btns.style.gap = '4px';
+    // Keep a fixed width so all button columns align.
+    btns.style.minWidth = (CELL_SIZE * 3 + 2 * 4) + 'px';
+    btns.style.justifyContent = 'flex-end';
+    // Create three square cells (X/Y/Z) matching Crumble labels for this column.
+    const mkCell = (lbl) => {
+      const c = document.createElement('canvas');
+      c.style.display = 'block';
+      drawGateCell(c, lbl);
+      return c;
+    };
+    btns.append(
+      mkCell(X_LABELS[colIndex] || ''),
+      mkCell(Y_LABELS[colIndex] || ''),
+      mkCell(Z_LABELS[colIndex] || ''),
+    );
+    wrap.appendChild(btns);
+    return wrap;
+  }
+
+  gateRows.forEach((t, idx) => {
+    gatesContainer.appendChild(makePillRow(t, idx));
+  });
+
+  // Wire collapsible marks panel
+  let marksCollapsed = false;
+  const setMarksCollapsed = (c) => {
+    marksCollapsed = !!c;
+    marksContent.style.display = marksCollapsed ? 'none' : 'flex';
+    marksToggle.textContent = marksCollapsed ? '▸' : '▾';
+  };
+  marksToggle.addEventListener('click', () => setMarksCollapsed(!marksCollapsed));
 
 }
