@@ -19,6 +19,7 @@ import { createSheetsDropdown } from './ui_elements/sheets_dropdown.js';
 import { setupTextEditorUI } from './ui_elements/text_editor_controller.js';
 import { setupMarkersUI as setupToolboxUI } from './ui_elements/markers_controller.js';
 import { renderMarkers as renderToolbox } from './ui_elements/markers_renderer.js';
+import { createChordsController } from './keyboard/chords_controller.js';
 import { GatePlacementController } from './editor/gate_placement_controller.js';
 import { EdgeChainPlacementController, PolygonChainPlacementController } from './editor/shape_placement_controller.js';
 import { GATE_MAP } from './gates/gateset.js';
@@ -404,6 +405,7 @@ if (toolboxEl) {
 }
 
 let toolboxRenderScheduled = false;
+let chords = null;
 function renderToolboxUI() {
   if (toolboxRenderScheduled) return;
   toolboxRenderScheduled = true;
@@ -425,8 +427,15 @@ function renderToolboxUI() {
         currentLayer,
         propagated: snap?.propagatedFrames,
         canToggle,
+        chordHighlightCol: chords?.getHighlight?.() ?? -1,
+        chordMarksActive: chords?.isMarksHeld?.() ?? false,
+        chordHints: (() => { const s = appSettings || {}; const ch = (s.chords || {}); const v=(k,d)=>ch[k]||d; return {0:v('H','H'),1:v('S','S'),2:v('R','R'),3:v('M','M'),4:v('MR','M+R'),5:v('C','C'),6:v('W','W'),7:v('SC','S+C'),8:v('MC','M+C'),9:v('MP','M+P')}; })(),
+        chordHintMarks: (() => { const s = appSettings || {}; const ch = (s.chords || {}); return ch.P || 'P'; })(),
         onClearIndex: (idx) => { try { editorState?.clearMarkersIndex?.(idx); renderToolboxUI(); schedulePanelsRender(); } catch {} },
         onToggleType: (gateName, idx) => { try { editorState?.toggleMarkerAtSelection?.(false, gateName, idx); renderToolboxUI(); schedulePanelsRender(); } catch {} },
+        chordHighlightCol: chords?.getHighlight?.() ?? -1,
+        chordMarksActive: chords?.isMarksHeld?.() ?? false,
+        chordHints: (() => { const s = appSettings || {}; const ch = (s.chords || {}); const v=(k,d)=>ch[k]||d; return {0:v('H','H'),1:v('S','S'),2:v('R','R'),3:v('M','M'),4:v('MR','M+R'),5:v('C','C'),6:v('W','W'),7:v('SC','S+C'),8:v('MC','M+C'),9:v('MP','M+P')}; })(),
         onStartGatePlacement: (gateId) => {
           try {
             const g = GATE_MAP.get(gateId);
@@ -506,7 +515,7 @@ function renderToolboxUI() {
             try { pushStatus(`Failed to add polygon: ${e?.message||e}`, 'error'); } catch {}
           }
         },
-        onAddEdge: (color) => {
+        onAddEdge: (color, thickness) => {
           try {
             if (!editorState) return;
             const ordered = selectionStore.orderedEntries?.() || [];
@@ -524,7 +533,9 @@ function renderToolboxUI() {
               while (c.layers.length <= layerIdx) c.layers.push(c.layers[c.layers.length-1]?.copy?.() || new (c.layers[0].constructor)());
               const anns = c.layers[layerIdx].annotations = c.layers[layerIdx].annotations || [];
               const sheetName = _targetSheetName || 'DEFAULT';
-              anns.push({ kind: 'ConnSet', sheet: { name: sheetName }, edges, colour: color });
+              const ann = { kind: 'ConnSet', sheet: { name: sheetName }, edges, colour: color };
+              if (Number.isFinite(thickness)) ann.thickness = thickness;
+              anns.push(ann);
               editorState._pendingDesc = 'Add edge';
               editorState.commit(c);
               pushStatus(`Added edge on sheet ${sheetName} at layer ${layerIdx}.`, 'info');
@@ -533,7 +544,7 @@ function renderToolboxUI() {
               // Start edge chaining placement
               try { if (gatePlacement?.isActive?.()) gatePlacement.cancel?.(); } catch {}
               try { if (polyPlacement?.isActive?.()) polyPlacement.cancel?.(); } catch {}
-              edgePlacement.start(color);
+              edgePlacement.start(color, Number.isFinite(thickness) ? thickness : undefined);
             }
           } catch (e) {
             try { pushStatus(`Failed to add edge(s): ${e?.message||e}`, 'error'); } catch {}
@@ -861,6 +872,39 @@ async function initSettingsAndKeymap() {
 
 initSettingsAndKeymap().then(() => {
   try {
+    // Attach chords controller (after settings loaded)
+    chords = createChordsController({
+      isEditing: () => {
+        const el = document.activeElement; const tag = (el && el.tagName || '').toLowerCase();
+        return tag === 'input' || tag === 'textarea' || (el && el.isContentEditable);
+      },
+      getSettings: () => appSettings,
+      canToggleMarks: () => { try { const snapSel = selectionStore.snapshot?.(); return !!(snapSel && ['qubit','gate','connection','polygon'].includes(snapSel.kind) && snapSel.selected.size > 0); } catch { return false; } },
+      onTriggerGate: (gateId) => {
+        try {
+          const g = GATE_MAP.get(gateId);
+          const hasSel = !!editorState && editorState.get_selected_qubits && editorState.get_selected_qubits().size > 0;
+          if (g && g.num_qubits === 1 && hasSel) {
+            const qids = [...editorState.get_selected_qubits().values()];
+            const layer = currentLayer;
+            const c = editorState.copyOfCurAnnotatedCircuit();
+            const annLayer = c.layers[layer];
+            const occupied = (q)=> annLayer && annLayer.id_ops && annLayer.id_ops.has(q);
+            if (qids.some(occupied)) { pushStatus('Cannot place: one or more selected qubits are occupied at this layer.', 'warning'); return; }
+            for (const q of qids) { const op = new Operation(g, '', new Float32Array([]), new Uint32Array([q]), -1); annLayer.put(op, false); }
+            editorState._pendingDesc = `Add ${gateId}`; editorState.commit(c);
+            pushStatus(`Added ${gateId} at layer ${layer} on ${qids.length} qubit(s).`, 'info');
+            schedulePanelsRender(); renderToolboxUI();
+            return;
+          }
+        } catch {}
+        gatePlacement.start(gateId);
+      },
+      onToggleMark: (basis, index) => { try { editorState?.toggleMarkerAtSelection?.(false, basis, index); renderToolboxUI(); schedulePanelsRender(); } catch {} },
+      pushStatus: (m, s) => pushStatus(m, s || 'info'),
+      onHighlightChanged: () => { try { renderToolboxUI(); } catch {} },
+    });
+    chords.attach();
     setupSettingsUI({
       containerEl: settingsBodyEl,
       importBtn: settingsImportBtn,
@@ -875,6 +919,7 @@ initSettingsAndKeymap().then(() => {
         if (shouldReloadOnFeature(name)) {
           recomputePropagationAndRender();
         }
+        try { renderToolboxUI(); } catch {}
       },
       onSaveKeybindings: (updatesMap) => {
         // Apply all updates atomically
@@ -888,6 +933,7 @@ initSettingsAndKeymap().then(() => {
         try { timelineCtl.render(); } catch {}
         try { updateLayerIndicator(); } catch {}
         try { schedulePanelsRender(); } catch {}
+        try { renderToolboxUI(); } catch {}
       },
       onSaveGeneral: (updatesObj) => {
         // Shallow merge per section, create if missing
@@ -901,6 +947,7 @@ initSettingsAndKeymap().then(() => {
         try { schedulePanelsRender(); } catch {}
         try { timelineCtl.render(); } catch {}
         try { updateLayerIndicator(); } catch {}
+        try { renderToolboxUI(); } catch {}
       },
       onImportSettings: async (obj) => {
         importUserSettings(obj);
@@ -909,6 +956,7 @@ initSettingsAndKeymap().then(() => {
         try { schedulePanelsRender(); } catch {}
         try { timelineCtl.render(); } catch {}
         try { updateLayerIndicator(); } catch {}
+        try { renderToolboxUI(); } catch {}
       },
       onExportSettings: () => exportUserSettings(),
       pushStatus,

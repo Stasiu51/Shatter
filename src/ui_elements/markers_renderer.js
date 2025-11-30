@@ -7,7 +7,12 @@ import { renderEdgesPalette } from './edges_palette.js';
 // Persist collapsed state of the Pauli Marks subpanel across redraws/sessions.
 const LS_MARKS_COLLAPSED = 'toolboxMarksCollapsed.v1';
 function loadMarksCollapsed() {
-  try { return localStorage.getItem(LS_MARKS_COLLAPSED) === '1'; } catch { return false; }
+  try {
+    const v = localStorage.getItem(LS_MARKS_COLLAPSED);
+    // Default to collapsed when unset
+    if (v === null || v === undefined) return true;
+    return v === '1';
+  } catch { return true; }
 }
 function saveMarksCollapsed(v) {
   try { localStorage.setItem(LS_MARKS_COLLAPSED, v ? '1' : '0'); } catch {}
@@ -57,7 +62,7 @@ function rowEl() {
   return { row, square, btnCl, btnO, btnD, btnX, btnY, btnZ };
 }
 
-export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType, onStartGatePlacement, activeGateId, flashGateId, getTargetSheet, setTargetSheet, onAddPolygon, onAddEdge }) {
+export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType, onStartGatePlacement, activeGateId, flashGateId, getTargetSheet, setTargetSheet, onAddPolygon, onAddEdge, chordHighlightCol = -1, chordMarksActive = false, chordHints = {}, chordHintMarks = '' }) {
   if (!containerEl) return;
   containerEl.innerHTML='';
   // Center the toolbox contents.
@@ -76,7 +81,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
   marksHeader.style.width = '100%';
   marksHeader.style.maxWidth = '320px';
   const hdrMarks = document.createElement('div');
-  hdrMarks.textContent = 'Pauli Marks';
+  hdrMarks.textContent = 'Pauli Marks' + (chordHintMarks ? ` (${chordHintMarks})` : '');
   hdrMarks.style.fontWeight = '600';
   hdrMarks.style.fontSize = '12px';
   hdrMarks.style.color = 'var(--text)';
@@ -92,6 +97,11 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
   marksToggle.style.fontSize = '14px';
   marksToggle.style.color = 'var(--text)';
   marksHeader.append(document.createElement('span'), hdrMarks, marksToggle);
+  // Highlight marks text when chord P is held; use !important to beat theme rules.
+  try {
+    const hilite = (getComputedStyle(document.documentElement).getPropertyValue('--chord-hilite') || '').trim() || '#ffd54f';
+    hdrMarks.style.setProperty('color', chordMarksActive ? hilite : 'var(--text)', 'important');
+  } catch {}
   containerEl.appendChild(marksHeader);
   const marksContent = document.createElement('div');
   marksContent.style.display = 'flex';
@@ -289,7 +299,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
 
   const CELL_SIZE = 20; // CSS px (compact to fit narrow toolbox)
 
-  function drawGateCell(canvas, label, isActive, isFlash) {
+  function drawGateCell(canvas, label, isActive, isFlash, isChord) {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const css = CELL_SIZE;
     const w = Math.floor(css * dpr), h = Math.floor(css * dpr);
@@ -300,8 +310,17 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0, 0, w, h);
     ctx.scale(dpr, dpr);
-    // Square: red flash overrides active yellow; else grey
-    ctx.fillStyle = isFlash ? '#ef5350' : (isActive ? '#ffd54f' : '#aaa');
+    // Square: red flash > chord highlight (theme var) > active yellow > grey
+    if (isFlash) {
+      ctx.fillStyle = '#ef5350';
+    } else if (isChord) {
+      try { ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--chord-hilite')?.trim() || '#ffd54f'; }
+      catch { ctx.fillStyle = '#ffd54f'; }
+    } else if (isActive) {
+      ctx.fillStyle = '#ffd54f';
+    } else {
+      ctx.fillStyle = '#aaa';
+    }
     ctx.fillRect(0.5, 0.5, css - 1, css - 1);
     ctx.lineWidth = 1;
     ctx.strokeStyle = isFlash ? '#b71c1c' : (isActive ? '#c48f00' : '#000');
@@ -350,7 +369,8 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
     // Allow variable row height for multi-line titles.
 
     const label = document.createElement('div');
-    label.textContent = title;
+    const hint = chordHints && chordHints[colIndex] ? ` (${chordHints[colIndex]})` : '';
+    label.textContent = title + hint;
     label.style.position = 'relative';
     label.style.top = '0';
     label.style.left = '0';
@@ -370,13 +390,13 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
     btns.style.minWidth = (CELL_SIZE * 3 + 2 * 4) + 'px';
     btns.style.justifyContent = 'flex-end';
     // Create three square cells (X/Y/Z) matching Crumble labels for this column.
-    const mkCell = (lbl) => {
+    const mkCell = (lbl, isChordCell) => {
       const c = document.createElement('canvas');
       c.style.display = 'block';
       const gateId = labelToGateId(lbl);
       const isActive = !!activeGateId && gateId === activeGateId;
       const isFlash = !!flashGateId && gateId === flashGateId;
-      drawGateCell(c, lbl, isActive, isFlash);
+      drawGateCell(c, lbl, isActive, isFlash, !!isChordCell);
       if (onStartGatePlacement && gateId) {
         c.style.cursor = 'pointer';
         c.addEventListener('click', (e) => {
@@ -386,10 +406,11 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
       }
       return c;
     };
+    const isChordRow = chordHighlightCol === colIndex;
     btns.append(
-      mkCell(X_LABELS[colIndex] || ''),
-      mkCell(Y_LABELS[colIndex] || ''),
-      mkCell(Z_LABELS[colIndex] || ''),
+      mkCell(X_LABELS[colIndex] || '', isChordRow),
+      mkCell(Y_LABELS[colIndex] || '', isChordRow),
+      mkCell(Z_LABELS[colIndex] || '', isChordRow),
     );
     wrap.appendChild(btns);
     return wrap;
@@ -435,6 +456,11 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
   sheetSel.style.border = '1px solid var(--border)';
   sheetSel.style.borderRadius = '6px';
   sheetSel.style.background = 'var(--bg)';
+  sheetSel.style.color = 'var(--text)';
+  // Try to enforce option text color across themes
+  sheetSel.addEventListener('DOMNodeInserted', () => {
+    try { for (const opt of sheetSel.querySelectorAll('option')) opt.style.color = 'var(--text)'; } catch {}
+  });
   // Populate options from circuit sheets
   try {
     const names = (circuit && circuit.sheets) ? Array.from(circuit.sheets.keys()) : ['DEFAULT'];
@@ -443,6 +469,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
       const opt = document.createElement('option');
       opt.value = n; opt.textContent = n;
       if (n === selName) opt.selected = true;
+      try { opt.style.color = 'var(--text)'; } catch {}
       sheetSel.appendChild(opt);
     }
     sheetSel.addEventListener('change', () => {
@@ -460,6 +487,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
   addBtn.style.border = '1px solid var(--border)';
   addBtn.style.borderRadius = '6px';
   addBtn.style.background = 'var(--bg)';
+  addBtn.style.color = 'var(--text)';
   addBtn.style.cursor = 'pointer';
   addBtn.addEventListener('click', () => {
     const name = prompt('New sheet name (UPPERCASE recommended):', 'NEW');
@@ -488,8 +516,44 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
   styleBox.appendChild(polyContainer);
 
   const edgeContainer = document.createElement('div');
-  renderEdgesPalette({ containerEl: edgeContainer, circuit, onAdd: (color) => { try { onAddEdge && onAddEdge(color); } catch {} } });
+  // Edge thickness config (persisted)
+  const LS_EDGE_THICKNESS = 'paletteEdgeThickness.v1';
+  const loadEdgeThickness = () => { try { const v = parseFloat(localStorage.getItem(LS_EDGE_THICKNESS) || ''); return Number.isFinite(v) ? v : 4; } catch { return 4; } };
+  const saveEdgeThickness = (v) => { try { localStorage.setItem(LS_EDGE_THICKNESS, String(v)); } catch {} };
+  let edgeThickness = loadEdgeThickness();
+
+  renderEdgesPalette({ containerEl: edgeContainer, circuit, onAdd: (color) => { try { onAddEdge && onAddEdge(color, edgeThickness); } catch {} } });
   styleBox.appendChild(edgeContainer);
+
+  // Edge settings row (thickness input)
+  const edgeCfg = document.createElement('div');
+  edgeCfg.style.display = 'flex';
+  edgeCfg.style.alignItems = 'center';
+  edgeCfg.style.gap = '8px';
+  edgeCfg.style.justifyContent = 'center';
+
+  const thLbl = document.createElement('label');
+  thLbl.textContent = 'Edge Weight:';
+  thLbl.style.fontSize = '12px';
+  thLbl.style.color = 'var(--text)';
+
+  const thInp = document.createElement('input');
+  thInp.type = 'number';
+  thInp.min = '0.5';
+  thInp.step = '0.5';
+  thInp.value = String(edgeThickness);
+  thInp.style.width = '70px';
+  thInp.style.padding = '2px 6px';
+  thInp.style.border = '1px solid var(--border)';
+  thInp.style.borderRadius = '6px';
+  thInp.style.background = 'var(--bg)';
+  thInp.style.color = 'var(--text)';
+  thInp.addEventListener('change', () => {
+    const v = parseFloat(thInp.value);
+    if (Number.isFinite(v) && v > 0) { edgeThickness = v; saveEdgeThickness(v); }
+  });
+  edgeCfg.append(thLbl, thInp);
+  styleBox.appendChild(edgeCfg);
 
   containerEl.appendChild(styleBox);
 
@@ -508,7 +572,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
 }
 
 // Map a toolbox label to a gate id in GATE_MAP (best effort).
-function labelToGateId(lbl) {
+export function labelToGateId(lbl) {
   if (!lbl) return '';
   // M_XX -> MXX
   if (/^M_/.test(lbl)) return lbl.replace(/^M_/, 'M');

@@ -65,6 +65,8 @@ export function setupSettingsUI(opts) {
     }
     featuresWrap.appendChild(ft);
 
+    containerEl.appendChild(featuresWrap);
+
     // Keybindings section
     const keysWrap = el('div', { class: 'settings-section' });
     keysWrap.appendChild(el('h3', { text: 'Keybindings' }));
@@ -91,14 +93,28 @@ export function setupSettingsUI(opts) {
       table.appendChild(row2);
     }
     keysWrap.appendChild(table);
-
-    containerEl.appendChild(featuresWrap);
+    containerEl.appendChild(keysWrap);
 
     // Generic sections for all other setting groups (auto-render)
     const IGNORED_SECTIONS = new Set(['features', 'keybindings']);
     const sections = Object.keys(s).filter(k => !IGNORED_SECTIONS.has(k));
     const GENERAL_LABELS = {
-      'appearance.focusDim': 'Focus dimming (0..1)'
+      'appearance.focusDim': 'Focus dimming (0..1)',
+      // Chord binds (one per item)
+      'chords.H': 'Chord: Hadamard row (H)',
+      'chords.S': 'Chord: S row (S)',
+      'chords.R': 'Chord: Reset row (R)',
+      'chords.M': 'Chord: Measure row (M)',
+      'chords.MR': 'Chord: Measure Reset row (M+R)',
+      'chords.C': 'Chord: Controlled-Pauli row (C)',
+      'chords.W': 'Chord: Controlled-Swap row (W)',
+      'chords.SC': 'Chord: SC row (S+C)',
+      'chords.MC': 'Chord: Measure Pauli Pair row (M+C)',
+      'chords.MP': 'Chord: Measure Pauli Product row (M+P)',
+      'chords.P': 'Chord: Pauli marks (P)',
+      'chords.X': 'Chord axis: X key',
+      'chords.Y': 'Chord axis: Y key',
+      'chords.Z': 'Chord axis: Z key',
     };
     for (const sec of sections) {
       const val = s[sec];
@@ -130,7 +146,7 @@ export function setupSettingsUI(opts) {
       containerEl.appendChild(wrap);
     }
 
-    containerEl.appendChild(keysWrap);
+    // (Keybindings already appended; remaining sections, including 'chords', appear below.)
   }
 
   // Save all settings (keybindings + generic groups)

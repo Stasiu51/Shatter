@@ -36,16 +36,18 @@ export class EdgeChainPlacementController {
   reset() {
     this.active = false;
     this.color = '#b0b5ba';
+    this.thickness = undefined;
     this.startPoint = null; // { id } or { coord }
     this.phantom = null; // {x,y}
     this.hoverQubit = null;
     this.edgesCommitted = 0;
   }
   isActive() { return !!this.active; }
-  start(color) {
+  start(color, thickness) {
     this.reset();
     this.active = true;
     if (typeof color === 'string' && color.length) this.color = color;
+    if (typeof thickness === 'number' && isFinite(thickness)) this.thickness = thickness;
     this._pushStatus('Edge placement: click first point, then next; Enter to finish, Esc to cancel.', 'info');
     this._onStateChange();
   }
@@ -106,7 +108,9 @@ export class EdgeChainPlacementController {
         : ensureQubitForCoord(c, secondPoint.coord, this._getTargetSheet);
       if (aId === bId) { this._pushStatus('Ignored degenerate edge (same point).', 'warning'); return true; }
       const anns = c.layers[layerIdx].annotations = c.layers[layerIdx].annotations || [];
-      anns.push({ kind: 'ConnSet', sheet: { name: sheetName }, edges: [[Math.min(aId,bId), Math.max(aId,bId)]], colour: this.color });
+      const entry = { kind: 'ConnSet', sheet: { name: sheetName }, edges: [[Math.min(aId,bId), Math.max(aId,bId)]], colour: this.color };
+      if (typeof this.thickness === 'number' && isFinite(this.thickness)) entry.thickness = this.thickness;
+      anns.push(entry);
       es._pendingDesc = 'Add edge';
       es.commit(c);
       this.edgesCommitted += 1;

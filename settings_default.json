@@ -5,6 +5,21 @@
   "appearance": {
     "focusDim": 0.5
   },
+  "chords": {
+    "H": "H",
+    "S": "S",
+    "M": "M",
+    "MR": "M+R",
+    "C": "C",
+    "W": "W",
+    "SC": "S+C",
+    "MC": "M+C",
+    "MP": "M+P",
+    "P": "P",
+    "X": "X",
+    "Y": "Y",
+    "Z": "Z"
+  },
   "keybindings": {
     "commands": {
       "layer.prev": { "name": "Previous layer", "bindings": ["Q", "ArrowLeft"] },

@@ -72,13 +72,15 @@ function resolveNameAndLine(id, kind, circuit, curLayer) {
       const line = best?.line;
       return { name, line };
     }
-    if (kind === 'polygon' || tokens[0] === 'p') {
+  if (kind === 'polygon' || tokens[0] === 'p') {
       const layerIdx = parseInt(tokens[1]);
       const polyIndex = parseInt(tokens[2]);
       const anns = circuit.layers?.[layerIdx]?.annotations || [];
       const poly = anns.find(a => a && a.kind === 'Polygon' && a.polyIndex === polyIndex);
-      const count = Array.isArray(poly?.targets) ? poly.targets.length : 0;
-      const name = `Polygon [${poly?.sheet || 'DEFAULT'}] (${count} vertices)`;
+      const ids = Array.isArray(poly?.targets) ? poly.targets.map(v => parseInt(v)).filter(Number.isFinite) : [];
+      const count = ids.length;
+      const idsTxt = ids.length ? ` – q{${ids.join(',')}}` : '';
+      const name = `Polygon [${poly?.sheet || 'DEFAULT'}] (${count} vertices)${idsTxt}`;
       const line = poly?.line;
       return { name, line };
     }

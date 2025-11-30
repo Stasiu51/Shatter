@@ -15,6 +15,8 @@
   --muted: #f6f8fa;
   --accent: #4b6a88;  /* muted blue */
   --danger: #b04a4a;  /* muted red */
+  /* Chord highlight color (used for chord-held buttons and marks header) */
+  --chord-hilite: #ffd54f; /* warm yellow */
 
   /* Header shades (darkest at top). Edit these to retheme headers. */
   --hdr-top: #e9ecef;    /* overall top header */

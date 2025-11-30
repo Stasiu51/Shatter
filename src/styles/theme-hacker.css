@@ -6,6 +6,8 @@
   --muted: #000000;
   --accent: #00ff66;
   --danger: #00ff66;
+  /* Chord highlight: electric blue */
+  --chord-hilite: #00d0ff;
 
   /* Headers all black */
   --hdr-top: #000000;
