@@ -19,7 +19,11 @@ import { createSheetsDropdown } from './ui_elements/sheets_dropdown.js';
 import { setupTextEditorUI } from './ui_elements/text_editor_controller.js';
 import { setupMarkersUI as setupToolboxUI } from './ui_elements/markers_controller.js';
 import { renderMarkers as renderToolbox } from './ui_elements/markers_renderer.js';
+import { GatePlacementController } from './editor/gate_placement_controller.js';
+import { GATE_MAP } from './gates/gateset.js';
+import { Operation } from './circuit/operation.js';
 import { setupSettingsUI } from './ui_elements/settings_controller.js';
+import { pitch, OFFSET_X, OFFSET_Y, rad } from './draw/config.js';
 import { EditorState } from './editor/editor_state.js';
 import { selectionStore } from './editor/selection_store.js';
 import { hitTestAt } from './draw/hit_test.js';
@@ -415,6 +419,41 @@ function renderToolboxUI() {
         canToggle,
         onClearIndex: (idx) => { try { editorState?.clearMarkersIndex?.(idx); renderToolboxUI(); schedulePanelsRender(); } catch {} },
         onToggleType: (gateName, idx) => { try { editorState?.toggleMarkerAtSelection?.(false, gateName, idx); renderToolboxUI(); schedulePanelsRender(); } catch {} },
+        onStartGatePlacement: (gateId) => {
+          try {
+            const g = GATE_MAP.get(gateId);
+            const hasSel = !!editorState && editorState.get_selected_qubits && editorState.get_selected_qubits().size > 0;
+            if (g && g.num_qubits === 1 && hasSel) {
+              const qids = [...editorState.get_selected_qubits().values()];
+              const layer = currentLayer;
+              const c = editorState.copyOfCurAnnotatedCircuit();
+              const annLayer = c.layers[layer];
+              const occupied = (q)=> annLayer && annLayer.id_ops && annLayer.id_ops.has(q);
+              if (qids.some(occupied)) {
+                pushStatus('Cannot place: one or more selected qubits are occupied at this layer.', 'warning');
+                return;
+              }
+              try {
+                for (const q of qids) {
+                  const op = new Operation(g, '', new Float32Array([]), new Uint32Array([q]), -1);
+                  annLayer.put(op, false);
+                }
+                editorState._pendingDesc = `Add ${gateId}`;
+                editorState.commit(c);
+                pushStatus(`Added ${gateId} at layer ${layer} on ${qids.length} qubit(s).`, 'info');
+                schedulePanelsRender();
+                renderToolboxUI();
+                return;
+              } catch (e) {
+                pushStatus('Failed to place gates on selection.', 'error');
+                return;
+              }
+            }
+          } catch {}
+          gatePlacement.start(gateId);
+        },
+        activeGateId: gatePlacement.activeGateId,
+        flashGateId,
       });
       // No toolbox grid appended (using only marker rows for now).
     } catch {}
@@ -808,9 +847,11 @@ function renderAllPanels() {
       ctx.save();
       ctx.scale(panelZoom, panelZoom);
       drawPanel(ctx, snap, sheetsSel, { timelineCollapsed, focusDim: (appSettings && appSettings.appearance && typeof appSettings.appearance.focusDim==='number') ? appSettings.appearance.focusDim : 0.2 });
+      try { drawGatePlacementOverlay(ctx, circuit, sheetsSel); } catch {}
       ctx.restore();
     } else {
       drawPanel(ctx, snap, sheetsSel, { timelineCollapsed, focusDim: (appSettings && appSettings.appearance && typeof appSettings.appearance.focusDim==='number') ? appSettings.appearance.focusDim : 0.2 });
+      try { drawGatePlacementOverlay(ctx, circuit, sheetsSel); } catch {}
     }
     // Bind mouse events once per canvas.
     if (!p._eventsBound) {
@@ -1024,9 +1065,14 @@ function bindPanelMouse(panelRef, panelIndex) {
       torusSegmentsBetween: (p1,p2,Lx,Ly)=>torusSegmentsBetween(p1,p2,Lx,Ly),
       altOnly: ev.altKey === true,
     });
+    if (gatePlacement.isActive()) {
+      gatePlacement.onPanelMove(hit || null);
+      selectionStore.setHover(null);
+      return;
+    }
     if (hit) selectionStore.setHover(hit); else selectionStore.setHover(null);
   };
-  const onLeave = () => selectionStore.setHover(null);
+  const onLeave = () => { selectionStore.setHover(null); try { gatePlacement.onPanelMove(null); } catch {} };
   const onClick = (ev) => {
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -1056,6 +1102,9 @@ function bindPanelMouse(panelRef, panelIndex) {
       torusSegmentsBetween: (p1,p2,Lx,Ly)=>torusSegmentsBetween(p1,p2,Lx,Ly),
       altOnly: ev.altKey === true,
     });
+    if (gatePlacement.isActive()) {
+      if (gatePlacement.onPanelClick(hit || null)) return;
+    }
     // Click on empty space without multi-select modifiers clears selection.
     if (!hit && !ev.shiftKey && !(ev.ctrlKey || ev.metaKey)) {
       selectionStore.clear();
@@ -1225,6 +1274,75 @@ timelineFocusBtn?.addEventListener('click', () => {
 // Keep focus button state in sync with selection changes
 selectionStore.subscribe(() => { try { updateTimelineFocusButton(); } catch {} });
 
+// Keyboard finalize/cancel for gate placement
+window.addEventListener('keydown', (e) => {
+  const el = document.activeElement;
+  const tag = (el && el.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || (el && el.isContentEditable)) return;
+  if (gatePlacement && gatePlacement.isActive()) {
+    if (gatePlacement.onKeydown(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
+});
+
+// Minimal interim overlay for partial placement (yellow squares at chosen qubits)
+function drawGatePlacementOverlay(ctx, circuit, sheetsSel) {
+  if (!gatePlacement || !gatePlacement.isActive()) return;
+  const ov = gatePlacement.getOverlay?.();
+  if (!ov) return;
+  const qmeta = (q)=>circuit.qubits?.get?.(q);
+  const vis = (q)=>{ const s=qmeta(q)?.sheet || 'DEFAULT'; return sheetsSel.has(s); };
+  const qubitDrawCoords = (q) => [
+    circuit.qubitCoordData[2 * q] * pitch - OFFSET_X,
+    circuit.qubitCoordData[2 * q + 1] * pitch - OFFSET_Y,
+  ];
+  const fillBox = (q, a=0.3) => {
+    if (!vis(q)) return;
+    const [x,y] = qubitDrawCoords(q);
+    ctx.save();
+    ctx.globalAlpha *= a;
+    ctx.fillStyle = '#ffd54f';
+    ctx.fillRect(x - rad, y - rad, 2*rad, 2*rad);
+    ctx.restore();
+  };
+  if (ov.mode === 'two_first') {
+    if (ov.hoverQubit != null) fillBox(ov.hoverQubit, 0.25);
+  } else if (ov.mode === 'two_second') {
+    if (ov.firstQubit != null) fillBox(ov.firstQubit, 0.3);
+    if (ov.hoverQubit != null) fillBox(ov.hoverQubit, 0.25);
+  } else if (ov.mode === 'multi') {
+    for (const q of ov.multiQubits || []) fillBox(q, 0.3);
+  }
+}
+
+// Flash a gate button in the toolbox briefly (red) on failure.
+let flashGateId = null;
+let flashTimer = null;
+function flashGate(gateId) {
+  try { if (flashTimer) { clearTimeout(flashTimer); flashTimer = null; } } catch {}
+  flashGateId = gateId;
+  try { renderToolboxUI(); } catch {}
+  flashTimer = setTimeout(() => { flashGateId = null; try { renderToolboxUI(); } catch {} }, 500);
+}
+
+// Update the mouse cursor on panel canvases based on gate placement phase.
+function updateGateCursor() {
+  try {
+    const canvases = mgr.panels.map(p => p.canvas).filter(Boolean);
+    if (!gatePlacement || !gatePlacement.isActive()) {
+      for (const c of canvases) c.style.cursor = '';
+      return;
+    }
+    const ov = gatePlacement.getOverlay?.();
+    const phase = ov ? (ov.mode === 'two_first' ? 'first' : ov.mode === 'two_second' ? 'second' : (ov.mode === 'multi' ? 'multi' : 'single')) : 'single';
+    const { url, hx, hy } = buildCursorFor({ gateId: ov?.gateId || gatePlacement.activeGateId, phase });
+    const css = `url(${url}) ${hx} ${hy}, crosshair`;
+    for (const c of canvases) c.style.cursor = css;
+  } catch {}
+}
+
 // Expose a tiny API for toolbox to add sheets from the palette subpanel.
 // Adds a sheet to the current circuit via EditorState and refreshes UI.
 // @ts-ignore
@@ -1254,3 +1372,16 @@ window.__addSheet = (name) => {
     return false;
   }
 };
+// Interactive gate placement controller
+const gatePlacement = new GatePlacementController({
+  getCircuit: () => circuit,
+  getCurrentLayer: () => currentLayer,
+  getEditorState: () => editorState,
+  pushStatus: (msg, sev) => pushStatus(msg, sev || 'info'),
+  onStateChange: () => {
+    try { renderToolboxUI(); } catch {}
+    try { schedulePanelsRender(); } catch {}
+    try { updateGateCursor(); } catch {}
+  },
+  onFlashGate: (gateId) => { try { flashGate(gateId); } catch {} },
+});

@@ -57,7 +57,7 @@ function rowEl() {
   return { row, square, btnCl, btnO, btnD, btnX, btnY, btnZ };
 }
 
-export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType }) {
+export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType, onStartGatePlacement, activeGateId, flashGateId }) {
   if (!containerEl) return;
   containerEl.innerHTML='';
   // Center the toolbox contents.
@@ -288,7 +288,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
 
   const CELL_SIZE = 20; // CSS px (compact to fit narrow toolbox)
 
-  function drawGateCell(canvas, label) {
+  function drawGateCell(canvas, label, isActive, isFlash) {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const css = CELL_SIZE;
     const w = Math.floor(css * dpr), h = Math.floor(css * dpr);
@@ -299,11 +299,11 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0, 0, w, h);
     ctx.scale(dpr, dpr);
-    // Square with darker grey fill like Crumble toolbox
-    ctx.fillStyle = '#aaa';
+    // Square: red flash overrides active yellow; else grey
+    ctx.fillStyle = isFlash ? '#ef5350' : (isActive ? '#ffd54f' : '#aaa');
     ctx.fillRect(0.5, 0.5, css - 1, css - 1);
     ctx.lineWidth = 1;
-    ctx.strokeStyle = '#000';
+    ctx.strokeStyle = isFlash ? '#b71c1c' : (isActive ? '#c48f00' : '#000');
     ctx.strokeRect(0.5, 0.5, css - 1, css - 1);
     // Label
     ctx.fillStyle = '#000';
@@ -322,7 +322,8 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
     const offSub = 5 * scale;
     if (label.indexOf('_') !== -1) {
       const [main, sub] = label.split('_');
-      ctx.font = `bold ${baseMainSub}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+      const isMPP = main === 'MPP';
+      ctx.font = `${isMPP ? '' : 'bold '}${baseMainSub}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
       ctx.fillText(main, cx, cy + offMain);
       ctx.font = `${baseSub}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
       ctx.fillText(sub, cx, cy + offSub);
@@ -371,7 +372,17 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
     const mkCell = (lbl) => {
       const c = document.createElement('canvas');
       c.style.display = 'block';
-      drawGateCell(c, lbl);
+      const gateId = labelToGateId(lbl);
+      const isActive = !!activeGateId && gateId === activeGateId;
+      const isFlash = !!flashGateId && gateId === flashGateId;
+      drawGateCell(c, lbl, isActive, isFlash);
+      if (onStartGatePlacement && gateId) {
+        c.style.cursor = 'pointer';
+        c.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onStartGatePlacement(gateId);
+        });
+      }
       return c;
     };
     btns.append(
@@ -494,4 +505,20 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
   // Apply initial state
   setMarksCollapsed(marksCollapsed);
 
+}
+
+// Map a toolbox label to a gate id in GATE_MAP (best effort).
+function labelToGateId(lbl) {
+  if (!lbl) return '';
+  // M_XX -> MXX
+  if (/^M_/.test(lbl)) return lbl.replace(/^M_/, 'M');
+  // √XX -> SQRT_XX
+  if (/^√/.test(lbl)) return 'SQRT_' + lbl.substring(1);
+  // S_X, S_Y -> S (use plain S gate)
+  // Keep original simple mapping
+  if (/^M_/.test(lbl)) return lbl.replace(/^M_/, 'M');
+  if (/^√/.test(lbl)) return 'SQRT_' + lbl.substring(1);
+  // leave S_X, S_Y as-is (legacy mapping); upstream may alias
+  // Pass-through common names: H, H_XY, H_YZ, S, S_X, S_Y, RX, RY, R, MX, MY, MR, CX, CY, CZ, SWAP, ISWAP, CXSWAP, CZSWAP
+  return lbl;
 }
