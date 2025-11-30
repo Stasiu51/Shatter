@@ -733,7 +733,8 @@ function updateLayerIndicator() {
     if (c) c.textContent = '';
     return;
   }
-  const last = Math.max(0, circuit.layers.length - 1);
+  // Show a virtual final TICK by reporting one extra layer column.
+  const last = Math.max(0, circuit.layers.length);
   const f = el.querySelector('.full');
   const c = el.querySelector('.compact');
   const getFirstBinding = (id, fallback) => {
@@ -753,7 +754,8 @@ function updateLayerIndicator() {
 
 function setLayer(layer) {
   if (!circuit) return;
-  const maxLayer = Math.max(0, circuit.layers.length - 1);
+  // Allow selecting a virtual final TICK column (one past the last real layer).
+  const maxLayer = Math.max(0, circuit.layers.length);
   const next = clamp(Math.trunc(layer), 0, maxLayer);
   if (next === currentLayer) return;
   currentLayer = next;

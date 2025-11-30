@@ -86,7 +86,7 @@ export function renderTimeline({canvas, circuit, currentLayer, timelineZoom, tim
 
   const snap = new StateSnapshot(
     circuit,
-    Math.max(0, Math.min(currentLayer, circuit.layers.length - 1)),
+    Math.max(0, Math.min(currentLayer, circuit.layers.length)),
     new Map(),
     timelineSet instanceof Map ? new Map(timelineSet.entries()) : new Map(),
     0, 0, undefined, undefined, []
@@ -134,7 +134,8 @@ export function renderTimeline({canvas, circuit, currentLayer, timelineZoom, tim
 
   ctx.save();
   ctx.scale(Math.max(0.1, timelineZoom), Math.max(0.1, timelineZoom));
-  drawTimelineOnly(ctx, snap, propagated, qubitDrawCoords, circuit.layers.length, timelineZoom);
+  // Render as if there's an extra final TICK: numLayers = layers.length + 1
+  drawTimelineOnly(ctx, snap, propagated, qubitDrawCoords, circuit.layers.length + 1, timelineZoom);
   drawScrubber(ctx, snap, propagated, circuit);
   ctx.restore();
 }

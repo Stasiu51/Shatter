@@ -47,20 +47,27 @@ class StateSnapshot {
      * @returns {!Array<!int>}
      */
     timelineQubits() {
-        let used = this.id_usedQubits();
+        // Prefer used qubits, but fall back to all declared qubits when there are no gates/markers.
+        const used = this.id_usedQubits();
+        const declared = new Set();
+        try { const n = Math.floor((this.circuit.qubitCoordData?.length || 0) / 2); for (let i = 0; i < n; i++) declared.add(i); } catch {}
+        try { if (this.circuit.qubit_coords && typeof this.circuit.qubit_coords.keys === 'function') { for (const q of this.circuit.qubit_coords.keys()) declared.add(q); } } catch {}
+        try { if (this.circuit.qubits && typeof this.circuit.qubits.keys === 'function') { for (const q of this.circuit.qubits.keys()) declared.add(q); } } catch {}
+
+        let baseSet = used.size > 0 ? used : declared;
         let qubits = [];
         if (this.timelineSet.size > 0) {
-            let c2q = this.circuit.coordToQubitMap();
-            for (let key of this.timelineSet.keys()) {
-                let q = c2q.get(key);
-                if (q !== undefined) {
-                    qubits.push(q);
-                }
+            const c2q = this.circuit.coordToQubitMap();
+            for (const key of this.timelineSet.keys()) {
+                const q = c2q.get(key);
+                if (q !== undefined) qubits.push(q);
             }
+            // Restrict to known qubits (used or declared fallback)
+            qubits = qubits.filter(q => baseSet.has(q));
         } else {
-            qubits.push(...used.values());
+            qubits.push(...baseSet.values());
         }
-        return qubits.filter(q => used.has(q));
+        return qubits;
     }
 }
 

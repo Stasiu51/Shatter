@@ -194,8 +194,16 @@ class EditorState {
      * @param {!AnnotatedCircuit} newAnnotatedCircuit
      */
     commit(newAnnotatedCircuit) {
-        while (newAnnotatedCircuit.layers.length > 0 && newAnnotatedCircuit.layers[newAnnotatedCircuit.layers.length - 1].isEmpty()) {
-            newAnnotatedCircuit.layers.pop();
+        // Trim only truly empty trailing layers (no gates/markers AND no annotations),
+        // and always keep at least one layer.
+        while (newAnnotatedCircuit.layers.length > 1) {
+            const last = newAnnotatedCircuit.layers[newAnnotatedCircuit.layers.length - 1];
+            const hasAnnotations = Array.isArray(last.annotations) && last.annotations.length > 0;
+            if (last.isEmpty() && !hasAnnotations) {
+                newAnnotatedCircuit.layers.pop();
+            } else {
+                break;
+            }
         }
         const desc = this._pendingDesc;
         this._pendingDesc = undefined;

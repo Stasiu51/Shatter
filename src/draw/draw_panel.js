@@ -424,18 +424,36 @@ function drawPanel(ctx, snap, sheetsToDraw) {
     const embedding = circuit.embedding || { type: 'PLANE' };
     const c2dCoordTransform = (x, y) => [x*pitch - OFFSET_X, y*pitch - OFFSET_Y];
     const modWrap = (v, L) => ((v % L) + L) % L;
+    // Relaxed panel coordinate lookup: prefer metadata, but fall back to qubitCoordData or qubit_coords map.
     const getPanelXY = (q) => {
-        const qq = circuit.qubits?.get?.(q);
-        if (!qq || typeof qq.panelX !== 'number' || typeof qq.panelY !== 'number') {
-            throw new Error(`Missing panel coords for qubit ${q}`);
-        }
-        let x = qq.panelX;
-        let y = qq.panelY;
-        if (embedding && embedding.type === 'TORUS') {
-            x = modWrap(x, embedding.Lx);
-            y = modWrap(y, embedding.Ly);
-        }
-        return [x, y];
+        // Metadata first
+        try {
+            const qq = circuit.qubits?.get?.(q);
+            if (qq && typeof qq.panelX === 'number' && typeof qq.panelY === 'number') {
+                let x = qq.panelX, y = qq.panelY;
+                if (embedding && embedding.type === 'TORUS') { x = modWrap(x, embedding.Lx); y = modWrap(y, embedding.Ly); }
+                return [x, y];
+            }
+        } catch {}
+        // qubitCoordData fallback
+        try {
+            const x = circuit.qubitCoordData[2 * q];
+            const y = circuit.qubitCoordData[2 * q + 1];
+            if (Number.isFinite(x) && Number.isFinite(y)) {
+                let fx = x, fy = y;
+                if (embedding && embedding.type === 'TORUS') { fx = modWrap(fx, embedding.Lx); fy = modWrap(fy, embedding.Ly); }
+                return [fx, fy];
+            }
+        } catch {}
+        // qubit_coords map fallback
+        try {
+            if (circuit.qubit_coords && circuit.qubit_coords.has(q)) {
+                let [x, y] = circuit.qubit_coords.get(q);
+                if (embedding && embedding.type === 'TORUS') { x = modWrap(x, embedding.Lx); y = modWrap(y, embedding.Ly); }
+                return [x, y];
+            }
+        } catch {}
+        throw new Error(`Missing panel coords for qubit ${q}`);
     };
     const qubitDrawCoords = q => c2dCoordTransform(...getPanelXY(q));
     const propagatedMarkerLayers = snap.propagatedFrames || new Map();
@@ -559,16 +577,55 @@ function drawPanel(ctx, snap, sheetsToDraw) {
         // Draw qubit highlights (latest highlight layer), under qubit squares.
         drawQubitHighlights(ctx, snap, qubitDrawCoords, visibleSheetNames, hlLayer);
 
-        // Draw only actual qubits on visible sheets, using panel coordinates when available.
+        // Draw qubits including those declared via QUBIT_COORDS but unused by any gate.
         defensiveDraw(ctx, () => {
             ctx.strokeStyle = 'black';
-            for (const q of circuit.allQubits()) {
+            // Build display set: union of used qubits, declared metadata, qubit_coords, and indices present in qubitCoordData.
+            const displayQubits = new Set();
+            try { for (const q of circuit.allQubits()) displayQubits.add(q); } catch {}
+            try { if (circuit.qubits && typeof circuit.qubits.keys === 'function') { for (const q of circuit.qubits.keys()) displayQubits.add(q); } } catch {}
+            try { if (circuit.qubit_coords && typeof circuit.qubit_coords.keys === 'function') { for (const q of circuit.qubit_coords.keys()) displayQubits.add(q); } } catch {}
+            try { const n = Math.floor((circuit.qubitCoordData?.length || 0) / 2); for (let i = 0; i < n; i++) displayQubits.add(i); } catch {}
+
+            const getPanelXYLoose = (qid) => {
+                try {
+                    const q = circuit.qubits?.get?.(qid);
+                    if (q && typeof q.panelX === 'number' && typeof q.panelY === 'number') {
+                        let px = q.panelX, py = q.panelY;
+                        if (embedding && embedding.type === 'TORUS') { px = modWrap(px, embedding.Lx); py = modWrap(py, embedding.Ly); }
+                        return [px, py];
+                    }
+                } catch {}
+                // Fallback to qubitCoordData
+                try {
+                    const px = circuit.qubitCoordData[2 * qid];
+                    const py = circuit.qubitCoordData[2 * qid + 1];
+                    if (Number.isFinite(px) && Number.isFinite(py)) {
+                        let fx = px, fy = py;
+                        if (embedding && embedding.type === 'TORUS') { fx = modWrap(fx, embedding.Lx); fy = modWrap(fy, embedding.Ly); }
+                        return [fx, fy];
+                    }
+                } catch {}
+                // Fallback to qubit_coords map
+                try {
+                    if (circuit.qubit_coords && circuit.qubit_coords.has(qid)) {
+                        let [px, py] = circuit.qubit_coords.get(qid);
+                        if (embedding && embedding.type === 'TORUS') { px = modWrap(px, embedding.Lx); py = modWrap(py, embedding.Ly); }
+                        return [px, py];
+                    }
+                } catch {}
+                return null;
+            };
+
+            for (const q of displayQubits) {
                 if (!isQubitVisible(q)) continue;
-                const [x, y] = qubitDrawCoords(q);
+                const p = getPanelXYLoose(q);
+                if (!p) continue;
+                const [gx, gy] = p;
+                const [x, y] = c2dCoordTransform(gx, gy);
                 const meta = circuit.qubits?.get?.(q);
-                // Fill with per-qubit colour if present; default white.
                 const fill = (meta && meta.colour) ? parseCssColor(meta.colour) : 'white';
-                const key = `${meta?.panelX},${meta?.panelY}`;
+                const key = `${gx},${gy}`;
                 const dim = focusActive && !snap.timelineSet.has(key);
                 ctx.save();
                 if (dim) ctx.globalAlpha *= dimFactor;
@@ -786,19 +843,19 @@ function drawPanel(ctx, snap, sheetsToDraw) {
                         const [q1s,q2s] = key.split('-');
                         const q1 = parseInt(q1s), q2 = parseInt(q2s);
                         const color = '#f2c744';
-                        if (embedding && embedding.type === 'TORUS') {
-                            const p1 = getPanelXY(q1), p2 = getPanelXY(q2);
-                            const segs = torusSegmentsBetween(p1, p2, embedding.Lx, embedding.Ly);
-                            for (const [[sx,sy],[tx,ty]] of segs) {
-                                const [dx1,dy1] = c2dCoordTransform(sx,sy);
-                                const [dx2,dy2] = c2dCoordTransform(tx,ty);
-                                stroke_connector_to(ctx, dx1, dy1, dx2, dy2, { color, thickness: 5, droop: 0 });
-                            }
-                        } else {
-                            const [x1,y1] = qubitDrawCoords(q1);
-                            const [x2,y2] = qubitDrawCoords(q2);
-                            stroke_connector_to(ctx, x1, y1, x2, y2, { color, thickness: 5, droop: 0 });
-                        }
+            if (embedding && embedding.type === 'TORUS') {
+                const p1 = getPanelXY(q1), p2 = getPanelXY(q2);
+                const segs = torusSegmentsBetween(p1, p2, embedding.Lx, embedding.Ly);
+                for (const [[sx,sy],[tx,ty]] of segs) {
+                    const [dx1,dy1] = c2dCoordTransform(sx,sy);
+                    const [dx2,dy2] = c2dCoordTransform(tx,ty);
+                    stroke_connector_to(ctx, dx1, dy1, dx2, dy2, { color, thickness: 5, droop: 0 });
+                }
+            } else {
+                const [x1,y1] = qubitDrawCoords(q1);
+                const [x2,y2] = qubitDrawCoords(q2);
+                stroke_connector_to(ctx, x1, y1, x2, y2, { color, thickness: 5, droop: 0 });
+            }
                     } else if (sel.hover.kind === 'polygon') {
                         const tokens = sel.hover.id.split(':');
                         const layerIdx = parseInt(tokens[1]);
@@ -839,18 +896,18 @@ function drawPanel(ctx, snap, sheetsToDraw) {
                                     const q1 = op.id_targets[k];
                                     if (!isQubitVisible(q0) || !isQubitVisible(q1)) continue;
                                     if (embedding && embedding.type === 'TORUS') {
-                                        const p0 = getPanelXY(q0), p1 = getPanelXY(q1);
-                                        const segs = torusSegmentsBetween(p0, p1, embedding.Lx, embedding.Ly);
-                                        for (const [[sx,sy],[tx,ty]] of segs) {
-                                            const [dx1,dy1] = c2dCoordTransform(sx,sy);
-                                            const [dx2,dy2] = c2dCoordTransform(tx,ty);
-                                            stroke_connector_to(ctx, dx1, dy1, dx2, dy2, { color, thickness: thick });
-                                        }
-                                    } else {
-                                        const [x0,y0] = qubitDrawCoords(q0);
-                                        const [x1,y1] = qubitDrawCoords(q1);
-                                        stroke_connector_to(ctx, x0, y0, x1, y1, { color, thickness: thick });
+                                    const p0 = getPanelXY(q0), p1 = getPanelXY(q1);
+                                    const segs = torusSegmentsBetween(p0, p1, embedding.Lx, embedding.Ly);
+                                    for (const [[sx,sy],[tx,ty]] of segs) {
+                                        const [dx1,dy1] = c2dCoordTransform(sx,sy);
+                                        const [dx2,dy2] = c2dCoordTransform(tx,ty);
+                                        stroke_connector_to(ctx, dx1, dy1, dx2, dy2, { color, thickness: thick });
                                     }
+                                } else {
+                                    const [x0,y0] = qubitDrawCoords(q0);
+                                    const [x1,y1] = qubitDrawCoords(q1);
+                                    stroke_connector_to(ctx, x0, y0, x1, y1, { color, thickness: thick });
+                                }
                                 }
                             }
                         } else if (sel.kind === 'connection') {
