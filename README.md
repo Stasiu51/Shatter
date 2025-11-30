@@ -11,4 +11,4 @@ It expands on the rendering capabilities of Crumble by adding multiple panels an
 
 *Attribution:* the source code of Shatter is inextricable from that of Crumble. I have variously vendored and modified the files available under an Apache license [here](https://github.com/quantumlib/Stim/blob/main/glue/crumble/).
 
-<img width="1787" height="1035" alt="Screenshot 2025-11-30 at 01 28 22" src="https://github.com/user-attachments/assets/483860be-a571-41e1-8062-3aadcdf7835d" />
+<img width="1787" height="1035" alt="Screenshot 2025-11-30 at 14 56 26" src="https://github.com/user-attachments/assets/3f793db4-5b96-430e-ae6d-a223b2bd2778" />
