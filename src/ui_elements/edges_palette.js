@@ -3,8 +3,8 @@ const LS_KEY = 'customEdgeColors.v1';
 function loadCustom() { try { const raw = localStorage.getItem(LS_KEY); return Array.isArray(JSON.parse(raw)) ? new Set(JSON.parse(raw)) : new Set(); } catch { return new Set(); } }
 function saveCustom(set) { try { localStorage.setItem(LS_KEY, JSON.stringify([...set])); } catch {} }
 
-// Default edge color
-const DEFAULT_EDGE_COLOR = '#4361ee';
+// Default edge color (aligns with draw fallback in draw_panel.js: '#b0b5ba')
+const DEFAULT_EDGE_COLOR = '#b0b5ba';
 
 function normColor(c) {
   try { return String(parseCssColor(c) || c).toLowerCase(); } catch { return String(c || '').toLowerCase(); }
@@ -15,7 +15,7 @@ export function renderEdgesPalette({ containerEl, circuit }) {
   containerEl.innerHTML = '';
   // Header
   const hdr = document.createElement('div');
-  hdr.textContent = 'Edges';
+  hdr.textContent = 'Add Edge';
   hdr.style.fontWeight = '600';
   hdr.style.fontSize = '12px';
   hdr.style.color = 'var(--text)';
@@ -106,20 +106,27 @@ export function renderEdgesPalette({ containerEl, circuit }) {
   plus.style.cursor = 'pointer';
   plus.style.color = 'var(--text)';
   plus.textContent = '+';
-  plus.onclick = async () => {
+  plus.onclick = async (ev) => {
+    ev.stopPropagation();
     try {
       const mod = await import('../vendor/vanilla-picker.mjs');
       const Picker = mod.default || mod;
+      // Use body as parent and position below the "+" like the original code.
       const picker = new Picker({ parent: document.body, popup: 'bottom', alpha: false, color: DEFAULT_EDGE_COLOR });
-      picker.onChange = (color) => {
-        const hex = color.hexString || color.rgbaString;
-        const norm = normColor(hex);
-        if (norm) { custom.add(norm); saveCustom(custom); }
-        picker.hide();
-        renderEdgesPalette({ containerEl, circuit });
+      picker.onDone = (color) => {
+        try {
+          const hex = color.hexString || color.rgbaString;
+          const norm = normColor(hex);
+          if (norm) { custom.add(norm); saveCustom(custom); }
+        } finally {
+          try { picker.hide(); } catch {}
+          try { picker.destroy(); } catch {}
+          renderEdgesPalette({ containerEl, circuit });
+        }
       };
+      picker.onClose = () => { try { picker.hide(); picker.destroy(); } catch {} };
       picker.show();
-      // Reposition and elevate popup near the plus box; scale down.
+      // Reposition and elevate popup near the plus box; scale down (original behavior), below the plus.
       try {
         const dom = picker.domElement;
         const rect = plus.getBoundingClientRect();

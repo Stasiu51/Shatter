@@ -388,18 +388,99 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
   });
 
   // Polygons palette
-  const polyContainer = document.createElement('div');
-  polyContainer.style.width = '100%';
-  polyContainer.style.maxWidth = '320px';
-  containerEl.appendChild(polyContainer);
-  renderPolygonsPalette({ containerEl: polyContainer, circuit });
+  // Subpanel wrapper for Polygons and Edges palettes, with a header row for sheet selection and add (+)
+  const styleBox = document.createElement('div');
+  styleBox.style.width = '100%';
+  styleBox.style.maxWidth = '320px';
+  styleBox.style.background = 'var(--muted)';
+  styleBox.style.border = '1px solid var(--border)';
+  styleBox.style.borderRadius = '8px';
+  styleBox.style.padding = '8px';
+  styleBox.style.display = 'flex';
+  styleBox.style.flexDirection = 'column';
+  styleBox.style.gap = '8px';
 
-  // Edges palette
+  // Header label row: centered 'Sheet:' label
+  const sheetLbl = document.createElement('div');
+  sheetLbl.textContent = 'Sheet:';
+  sheetLbl.style.fontSize = '12px';
+  sheetLbl.style.color = 'var(--text)';
+  sheetLbl.style.fontWeight = '600';
+  sheetLbl.style.textAlign = 'center';
+  styleBox.appendChild(sheetLbl);
+
+  // Controls row: dropdown + add button centered under the label
+  const controlRow = document.createElement('div');
+  controlRow.style.display = 'flex';
+  controlRow.style.alignItems = 'center';
+  controlRow.style.justifyContent = 'center';
+  controlRow.style.gap = '8px';
+
+  const sheetSel = document.createElement('select');
+  sheetSel.style.font = 'inherit';
+  sheetSel.style.fontSize = '12px';
+  sheetSel.style.padding = '2px 6px';
+  sheetSel.style.border = '1px solid var(--border)';
+  sheetSel.style.borderRadius = '6px';
+  sheetSel.style.background = 'var(--bg)';
+  // Populate options from circuit sheets
+  try {
+    const names = (circuit && circuit.sheets) ? Array.from(circuit.sheets.keys()) : ['DEFAULT'];
+    const LS_KEY_SHEET = 'paletteTargetSheet.v1';
+    let selName = localStorage.getItem(LS_KEY_SHEET) || (names.includes('DEFAULT') ? 'DEFAULT' : names[0]);
+    for (const n of names) {
+      const opt = document.createElement('option');
+      opt.value = n; opt.textContent = n;
+      if (n === selName) opt.selected = true;
+      sheetSel.appendChild(opt);
+    }
+    sheetSel.addEventListener('change', () => {
+      try { localStorage.setItem(LS_KEY_SHEET, sheetSel.value); } catch {}
+    });
+  } catch {}
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.title = 'Add sheet';
+  addBtn.textContent = '+';
+  addBtn.style.font = 'inherit';
+  addBtn.style.fontSize = '14px';
+  addBtn.style.lineHeight = '14px';
+  addBtn.style.padding = '2px 8px';
+  addBtn.style.border = '1px solid var(--border)';
+  addBtn.style.borderRadius = '6px';
+  addBtn.style.background = 'var(--bg)';
+  addBtn.style.cursor = 'pointer';
+  addBtn.addEventListener('click', () => {
+    const name = prompt('New sheet name (UPPERCASE recommended):', 'NEW');
+    if (!name) return;
+    const nm = String(name).trim();
+    if (!nm) return;
+    // Try app-level sheet creation if available; otherwise just persist selection
+    try {
+      // @ts-ignore
+      if (window.__addSheet && typeof window.__addSheet === 'function') {
+        // @ts-ignore
+        window.__addSheet(nm);
+      } else {
+        alert('Sheet will be created on next export.');
+      }
+    } catch {}
+    try { localStorage.setItem('paletteTargetSheet.v1', nm); } catch {}
+    try { sheetSel.value = nm; } catch {}
+  });
+  controlRow.append(sheetSel, addBtn);
+  styleBox.appendChild(controlRow);
+
+  // Palettes inside the subpanel
+  const polyContainer = document.createElement('div');
+  renderPolygonsPalette({ containerEl: polyContainer, circuit });
+  styleBox.appendChild(polyContainer);
+
   const edgeContainer = document.createElement('div');
-  edgeContainer.style.width = '100%';
-  edgeContainer.style.maxWidth = '320px';
-  containerEl.appendChild(edgeContainer);
   renderEdgesPalette({ containerEl: edgeContainer, circuit });
+  styleBox.appendChild(edgeContainer);
+
+  containerEl.appendChild(styleBox);
 
   // Wire collapsible marks panel (persisted)
   let marksCollapsed = loadMarksCollapsed();

@@ -17,7 +17,7 @@ export function createSelectionWidget() {
   const poly = box('poly', 'Poly');
   const alt = document.createElement('div');
   alt.className = 'sel-alt';
-  alt.textContent = 'Alt';
+  alt.textContent = 'Alt/Opt';
   const svgNS = 'http://www.w3.org/2000/svg';
   const brace = document.createElementNS(svgNS, 'svg');
   brace.setAttribute('class', 'sel-brace');

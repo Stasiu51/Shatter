@@ -39,7 +39,7 @@ export function renderPolygonsPalette({ containerEl, circuit }) {
   containerEl.innerHTML = '';
   // Header
   const hdr = document.createElement('div');
-  hdr.textContent = 'Polygons';
+  hdr.textContent = 'Add Polygon';
   hdr.style.fontWeight = '600';
   hdr.style.fontSize = '12px';
   hdr.style.color = 'var(--text)';
@@ -131,20 +131,27 @@ export function renderPolygonsPalette({ containerEl, circuit }) {
   plus.style.cursor = 'pointer';
   plus.style.color = 'var(--text)';
   plus.textContent = '+';
-  plus.onclick = async () => {
+  plus.onclick = async (ev) => {
+    ev.stopPropagation();
     try {
       const mod = await import('../vendor/vanilla-picker.mjs');
       const Picker = mod.default || mod;
+      // Use body as parent and position below the "+" like the original code.
       const picker = new Picker({ parent: document.body, popup: 'bottom', alpha: true, color: DEFAULT_POLY_COLORS[0] });
-      picker.onChange = (color) => {
-        const rgba = color.rgbaString;
-        const norm = normCssColor(rgba);
-        if (norm) { custom.add(norm); saveCustom(custom); }
-        picker.hide();
-        renderPolygonsPalette({ containerEl, circuit });
+      picker.onDone = (color) => {
+        try {
+          const rgba = color.rgbaString;
+          const norm = normCssColor(rgba);
+          if (norm) { custom.add(norm); saveCustom(custom); }
+        } finally {
+          try { picker.hide(); } catch {}
+          try { picker.destroy(); } catch {}
+          renderPolygonsPalette({ containerEl, circuit });
+        }
       };
+      picker.onClose = () => { try { picker.hide(); picker.destroy(); } catch {} };
       picker.show();
-      // Reposition and elevate popup near the plus box; scale down.
+      // Reposition and elevate popup near the plus box; scale down (original behavior), below the plus.
       try {
         const dom = picker.domElement;
         const rect = plus.getBoundingClientRect();

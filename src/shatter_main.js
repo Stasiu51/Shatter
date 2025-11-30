@@ -1,6 +1,7 @@
 import { PanelManager } from './ui_elements/panel_manager.js';
 import { parseStim, stringifyStim, pickAndReadFile, downloadText } from './io/import_export.js';
 import { AnnotatedCircuit } from './circuit/annotated_circuit.js';
+import { Sheet } from './circuit/sheet.js';
 import { renderTimeline as renderTimelineCore, computeMaxScrollCSS } from './ui_elements/timeline_renderer.js';
 import { drawPanel } from './draw/draw_panel.js'
 import { setGateStyle } from './draw/gate_style.js';
@@ -1223,3 +1224,33 @@ timelineFocusBtn?.addEventListener('click', () => {
 
 // Keep focus button state in sync with selection changes
 selectionStore.subscribe(() => { try { updateTimelineFocusButton(); } catch {} });
+
+// Expose a tiny API for toolbox to add sheets from the palette subpanel.
+// Adds a sheet to the current circuit via EditorState and refreshes UI.
+// @ts-ignore
+window.__addSheet = (name) => {
+  try {
+    const nm = String(name || '').trim();
+    if (!nm) return false;
+    const c = editorState ? editorState.copyOfCurAnnotatedCircuit() : (circuit || new AnnotatedCircuit());
+    if (c.sheets && c.sheets.has(nm)) { try { pushStatus(`Sheet "${nm}" already exists.`, 'warning'); } catch {}; return false; }
+    try { c.sheets.set(nm, new Sheet(nm)); } catch { c.sheets.set(nm, { name: nm }); }
+    if (editorState) {
+      editorState._pendingDesc = `Add sheet ${nm}`;
+      editorState.commit(c);
+    } else {
+      circuit = c;
+    }
+    // Refresh overlay sheet lists and panel dropdowns
+    try { overlayState.sheets = Array.from(c.sheets.keys()).map(name => ({ name })); } catch {}
+    try { renderPanelSheetsOptions(); } catch {}
+    try { schedulePanelsRender(); } catch {}
+    try { renderToolboxUI(); } catch {}
+    try { renderInspectorUI(); } catch {}
+    try { pushStatus(`Added sheet "${nm}".`, 'info'); } catch {}
+    return true;
+  } catch (e) {
+    try { pushStatus('Failed to add sheet.', 'error'); } catch {}
+    return false;
+  }
+};

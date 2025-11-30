@@ -18,12 +18,11 @@ Status labels used below:
 
 Syntax:
 ```
-##! SHEET NAME=<UPPERCASE> [Z=<int>]
+##! SHEET NAME=<UPPERCASE>
 ```
-- Declares a named sheet. Z orders sheets visually; defaults to 0.
-- Must appear before non‑sheet content.
+- Declares a named sheet. Must appear before non‑sheet content.
 
-Status: Implemented (parsing + panel filter; Z is stored; rendering uses order but no special z‑stack visuals yet).
+Status: Implemented (parsing + per‑panel filtering). Z‑ordering is Planned (not parsed/stored yet).
 
 Diagnostics:
 - SHEET001: must be at top.
@@ -73,7 +72,7 @@ Paired form (recommended):
 #!pragma POLYGON(r,g,b,a)  id ...
 ```
 - The `#!pragma POLYGON(r,g,b,a)` line carries the fill color and the qubit ids that define vertices.
-- The `##! POLY` header carries sheet and stroke (outline). FILL in the `##! POLY` header is ignored; fill is derived from the pragma color.
+- The `##! POLY` header carries sheet and stroke (outline). FILL in the header is serialized for readability but ignored by the parser; fill is derived from the pragma color.
 - Panels: polygons draw under connections and qubits; filtered by the polygon’s `SHEET`. Vertex positions use panel coordinates.
 - Timeline: polygons draw in the column for the layer where they appear. All polygon sets are shown at their respective time columns.
 - Duration semantics:
@@ -178,7 +177,7 @@ Status: Layout helpers Planned.
 - On save (`toStimCircuit`): Emits Stim text plus overlay lines for:
   - `##! SHEET` declarations (excluding implicit DEFAULT),
   - `##! EMBEDDING` (PLANE or TORUS with LX/LY),
-  - `##! GATESTYLE` when present (DROOP/COLOUR),
+  - `##! GATESTYLE` when present (DROOP/COLOUR/THICKNESS),
   - per‑qubit overlays `##! QUBIT` (when non‑default metadata exists),
   - `##! CONN SET` overlays,
   - `##! POLY` headers paired with `#!pragma POLYGON(...)` bodies.
@@ -199,7 +198,7 @@ Status: Layout helpers Planned.
 
 Minimal polygons:
 ```
-##! SHEET NAME=DEFAULT Z=0
+##! SHEET NAME=DEFAULT
 QUBIT_COORDS(0, 0) 0
 QUBIT_COORDS(1, 0) 1
 QUBIT_COORDS(1, 1) 2
