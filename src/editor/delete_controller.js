@@ -103,12 +103,8 @@ export function deleteSelection(editorState, currentLayer, pushStatus = ()=>{}) 
   if (changed) {
     editorState._pendingDesc = 'Delete selection';
     editorState.commit(c);
-    // Clear connection selection explicitly so deleted edges don't remain selected visually.
-    try {
-      if (snap.kind === 'connection') {
-        selectionStore.clear();
-      }
-    } catch {}
+    // Clear selection for deleted items so the inspector doesn't reference stale ids.
+    try { selectionStore.clear(); } catch {}
     pushStatus('Deleted selection.', 'info');
     return true;
   } else {
