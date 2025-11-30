@@ -172,7 +172,7 @@ function drawSingleMarker(ctx, snap, qubitCoordsFunc, propagatedMarkers, mi, hit
 }
 
 let _defensive_draw_enabled = true;
-let _lattice_debug_logged = false; // TEMP: log once to confirm lattice background draws
+let _lattice_debug_logged = false; // (debug logging removed)
 
 /**
  * @param {!boolean} val
@@ -514,11 +514,7 @@ function drawPanel(ctx, snap, sheetsToDraw) {
                     ctx.fill();
                 }
             }
-            if (!_lattice_debug_logged) {
-                _lattice_debug_logged = true;
-                // eslint-disable-next-line no-console
-                console.log('DEBUG lattice background drawn', {minGX, minGY, maxGX, maxGY});
-            }
+            // (removed one-time lattice debug log)
             ctx.restore();
         } catch (_) {}
 

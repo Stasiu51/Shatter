@@ -20,8 +20,10 @@ import { setupTextEditorUI } from './ui_elements/text_editor_controller.js';
 import { setupMarkersUI as setupToolboxUI } from './ui_elements/markers_controller.js';
 import { renderMarkers as renderToolbox } from './ui_elements/markers_renderer.js';
 import { GatePlacementController } from './editor/gate_placement_controller.js';
+import { EdgeChainPlacementController, PolygonChainPlacementController } from './editor/shape_placement_controller.js';
 import { GATE_MAP } from './gates/gateset.js';
 import { Operation } from './circuit/operation.js';
+import { deleteSelection } from './editor/delete_controller.js';
 import { setupSettingsUI } from './ui_elements/settings_controller.js';
 import { pitch, OFFSET_X, OFFSET_Y, rad } from './draw/config.js';
 import { draw_x_control, draw_y_control, draw_z_control, draw_swap_control, draw_iswap_control, draw_xswap_control, draw_zswap_control } from './gates/gate_draw_util.js';
@@ -462,6 +464,81 @@ function renderToolboxUI() {
         flashGateId,
         getTargetSheet: () => _targetSheetName,
         setTargetSheet: (name) => { _targetSheetName = name || 'DEFAULT'; try { renderToolboxUI(); schedulePanelsRender(); } catch {} },
+        onAddPolygon: (color) => {
+          try {
+            if (!editorState) return;
+            const ordered = selectionStore.orderedEntries?.() || [];
+            const qids = ordered.filter(e => (e.kind === 'qubit') && e.id.startsWith('q:'))
+              .map(e => parseInt(e.id.split(':')[1]))
+              .filter(n => Number.isFinite(n));
+            // Normalize fill color to (r,g,b,a)
+            const toTupleFill = (cstr) => {
+              try {
+                const s = String(cstr).trim();
+                const m = s.match(/^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([0-9.]+)\s*\)$/i);
+                if (m) return `(${parseInt(m[1])}, ${parseInt(m[2])}, ${parseInt(m[3])}, ${parseFloat(m[4])})`;
+                const n = s.replace(/[()]/g, '');
+                if (/^(\d+\s*,\s*){3}[0-9.]+$/.test(n)) return `(${n})`;
+              } catch {}
+              return '(0,0,0,0.25)';
+            };
+            const fillTuple = toTupleFill(color);
+            if (qids.length >= 1) {
+              // Immediate polygon from selection (allow 1 or 2 vertices too)
+              const c = editorState.copyOfCurAnnotatedCircuit();
+              const layerIdx = currentLayer;
+              while (c.layers.length <= layerIdx) c.layers.push(c.layers[c.layers.length-1]?.copy?.() || new (c.layers[0].constructor)());
+              const anns = c.layers[layerIdx].annotations = c.layers[layerIdx].annotations || [];
+              const polyIndex = anns.filter(a => a && a.kind === 'Polygon').length;
+              const sheetName = _targetSheetName || 'DEFAULT';
+              anns.push({ kind: 'Polygon', sheet: sheetName, stroke: 'none', fill: fillTuple, targets: qids.slice(), polyIndex });
+              editorState._pendingDesc = 'Add polygon';
+              editorState.commit(c);
+              pushStatus(`Added polygon on sheet ${sheetName} at layer ${layerIdx}.`, 'info');
+              renderToolboxUI(); schedulePanelsRender();
+            } else {
+              // Start polygon chaining placement
+              try { if (gatePlacement?.isActive?.()) gatePlacement.cancel?.(); } catch {}
+              try { if (edgePlacement?.isActive?.()) edgePlacement.cancel?.(); } catch {}
+              polyPlacement.start(fillTuple);
+            }
+          } catch (e) {
+            try { pushStatus(`Failed to add polygon: ${e?.message||e}`, 'error'); } catch {}
+          }
+        },
+        onAddEdge: (color) => {
+          try {
+            if (!editorState) return;
+            const ordered = selectionStore.orderedEntries?.() || [];
+            const qids = ordered.filter(e => (e.kind === 'qubit') && e.id.startsWith('q:'))
+              .map(e => parseInt(e.id.split(':')[1]))
+              .filter(n => Number.isFinite(n));
+            if (qids.length === 2) {
+              // Immediate single edge
+              const edges = [];
+              const a = Math.min(qids[0], qids[1]);
+              const b = Math.max(qids[0], qids[1]);
+              edges.push([a,b]);
+              const c = editorState.copyOfCurAnnotatedCircuit();
+              const layerIdx = currentLayer;
+              while (c.layers.length <= layerIdx) c.layers.push(c.layers[c.layers.length-1]?.copy?.() || new (c.layers[0].constructor)());
+              const anns = c.layers[layerIdx].annotations = c.layers[layerIdx].annotations || [];
+              const sheetName = _targetSheetName || 'DEFAULT';
+              anns.push({ kind: 'ConnSet', sheet: { name: sheetName }, edges, colour: color });
+              editorState._pendingDesc = 'Add edge';
+              editorState.commit(c);
+              pushStatus(`Added edge on sheet ${sheetName} at layer ${layerIdx}.`, 'info');
+              renderToolboxUI(); schedulePanelsRender();
+            } else {
+              // Start edge chaining placement
+              try { if (gatePlacement?.isActive?.()) gatePlacement.cancel?.(); } catch {}
+              try { if (polyPlacement?.isActive?.()) polyPlacement.cancel?.(); } catch {}
+              edgePlacement.start(color);
+            }
+          } catch (e) {
+            try { pushStatus(`Failed to add edge(s): ${e?.message||e}`, 'error'); } catch {}
+          }
+        },
       });
       // No toolbox grid appended (using only marker rows for now).
     } catch {}
@@ -726,11 +803,25 @@ const isEditing = () => {
 // Register commands (bindings applied from settings after load)
 keymap.registerCommand('layer.prev', () => setLayer(currentLayer - 1), { when: () => !isEditing() && !!circuit });
 keymap.registerCommand('layer.next', () => setLayer(currentLayer + 1), { when: () => !isEditing() && !!circuit });
-keymap.registerCommand('layer.prev.fast', () => setLayer(currentLayer - 5), { when: () => !isEditing() && !!circuit });
-keymap.registerCommand('layer.next.fast', () => setLayer(currentLayer + 5), { when: () => !isEditing() && !!circuit });
-keymap.registerCommand('edit.undo', () => { const d = editorState?.undo?.(); if (d !== undefined) pushStatus(`Undid ${d || 'change'}`, 'info'); }, { when: () => !isEditing() && !!editorState });
-keymap.registerCommand('edit.redo', () => { const d = editorState?.redo?.(); if (d !== undefined) pushStatus(`Redid ${d || 'change'}`, 'info'); }, { when: () => !isEditing() && !!editorState });
-keymap.registerCommand('panel.zoom.in', () => setPanelZoom(panelZoom * 1.25), { when: () => !isEditing() });
+  keymap.registerCommand('layer.prev.fast', () => setLayer(currentLayer - 5), { when: () => !isEditing() && !!circuit });
+  keymap.registerCommand('layer.next.fast', () => setLayer(currentLayer + 5), { when: () => !isEditing() && !!circuit });
+  keymap.registerCommand('edit.undo', () => { const d = editorState?.undo?.(); if (d !== undefined) pushStatus(`Undid ${d || 'change'}`, 'info'); }, { when: () => !isEditing() && !!editorState });
+  keymap.registerCommand('edit.redo', () => { const d = editorState?.redo?.(); if (d !== undefined) pushStatus(`Redid ${d || 'change'}`, 'info'); }, { when: () => !isEditing() && !!editorState });
+  // Clear selection (Escape) only when not actively placing a gate (that handler owns Escape).
+  keymap.registerCommand(
+    'selection.clear',
+    () => {
+      try {
+        selectionStore.clear();
+        schedulePanelsRender();
+        renderToolboxUI();
+        renderInspectorUI();
+      } catch {}
+    },
+    { when: () => !isEditing() && !(gatePlacement?.isActive?.() || edgePlacement?.isActive?.() || polyPlacement?.isActive?.()) }
+  );
+  keymap.registerCommand('edit.delete', () => { try { if (deleteSelection(editorState, currentLayer, pushStatus)) { schedulePanelsRender(); renderToolboxUI(); renderInspectorUI(); } } catch (e) { try { pushStatus(`Delete failed: ${e?.message||e}`, 'error'); } catch {} } }, { when: () => !isEditing() && !!editorState });
+  keymap.registerCommand('panel.zoom.in', () => setPanelZoom(panelZoom * 1.25), { when: () => !isEditing() });
 keymap.registerCommand('panel.zoom.out', () => setPanelZoom(panelZoom / 1.25), { when: () => !isEditing() });
   keymap.registerCommand('panel.zoom.reset', () => setPanelZoom(2), { when: () => !isEditing() });
   keymap.registerCommand('layer.insert', () => { try { editorState?.insertLayer?.(false); } catch {} }, { when: () => !isEditing() && !!editorState });
@@ -861,10 +952,12 @@ function renderAllPanels() {
       ctx.scale(panelZoom, panelZoom);
       drawPanel(ctx, snap, sheetsSel, { timelineCollapsed, focusDim: (appSettings && appSettings.appearance && typeof appSettings.appearance.focusDim==='number') ? appSettings.appearance.focusDim : 0.2 });
       try { drawGatePlacementOverlay(ctx, circuit, sheetsSel); } catch {}
+      try { drawShapePlacementOverlays(ctx, circuit, sheetsSel); } catch {}
       ctx.restore();
     } else {
       drawPanel(ctx, snap, sheetsSel, { timelineCollapsed, focusDim: (appSettings && appSettings.appearance && typeof appSettings.appearance.focusDim==='number') ? appSettings.appearance.focusDim : 0.2 });
       try { drawGatePlacementOverlay(ctx, circuit, sheetsSel); } catch {}
+      try { drawShapePlacementOverlays(ctx, circuit, sheetsSel); } catch {}
     }
     // Bind mouse events once per canvas.
     if (!p._eventsBound) {
@@ -1086,11 +1179,26 @@ function bindPanelMouse(panelRef, panelIndex) {
       torusSegmentsBetween: (p1,p2,Lx,Ly)=>torusSegmentsBetween(p1,p2,Lx,Ly),
       altOnly: ev.altKey === true,
     });
-    if (gatePlacement.isActive()) {
+    if (gatePlacement.isActive() || edgePlacement.isActive() || polyPlacement.isActive()) {
       // Determine phantom lattice point near cursor when not over a qubit
       let phantom = null;
+      let overQubitHit = null;
       try {
-        if (!hit) {
+        // Derive snapped panel coords under cursor
+        const dprNow = Math.max(1, window.devicePixelRatio || 1);
+        const drawX = (offsetX / dprNow) / Math.max(0.1, panelZoom);
+        const drawY = (offsetY / dprNow) / Math.max(0.1, panelZoom);
+        const pos = xyToPos(drawX * 2 + OFFSET_X, drawY * 2 + OFFSET_Y) || [];
+        const gx = pos[0], gy = pos[1];
+        // If a qubit exists exactly at the snapped coords, prefer it over non-qubit hits (pass-through gates/edges/polys)
+        if (gx !== undefined && gy !== undefined) {
+          try {
+            for (const [id, q] of circuit.qubits.entries()) {
+              if (q && q.panelX === gx && q.panelY === gy) { overQubitHit = { kind: 'qubit', id: `q:${id}` }; break; }
+            }
+          } catch {}
+        }
+        if (!hit && !overQubitHit) {
           const dprNow = Math.max(1, window.devicePixelRatio || 1);
           const drawX = (offsetX / dprNow) / Math.max(0.1, panelZoom);
           const drawY = (offsetY / dprNow) / Math.max(0.1, panelZoom);
@@ -1107,7 +1215,10 @@ function bindPanelMouse(panelRef, panelIndex) {
           if (!exists) phantom = { x: gx, y: gy };
         }
       } catch {}
-      gatePlacement.onPanelMove(hit || null, phantom);
+      const routedHit = overQubitHit || hit || null;
+      if (gatePlacement.isActive()) gatePlacement.onPanelMove(routedHit, phantom);
+      if (edgePlacement.isActive()) edgePlacement.onPanelMove(routedHit, phantom);
+      if (polyPlacement.isActive()) polyPlacement.onPanelMove(routedHit, phantom);
       // no phantom debug log
       selectionStore.setHover(null);
       try { schedulePanelsRender(); } catch {}
@@ -1115,7 +1226,7 @@ function bindPanelMouse(panelRef, panelIndex) {
     }
     if (hit) selectionStore.setHover(hit); else selectionStore.setHover(null);
   };
-  const onLeave = () => { selectionStore.setHover(null); try { gatePlacement.onPanelMove(null); } catch {}; try { schedulePanelsRender(); } catch {} };
+  const onLeave = () => { selectionStore.setHover(null); try { gatePlacement.onPanelMove(null); } catch {}; try { edgePlacement.onPanelMove(null); } catch {}; try { polyPlacement.onPanelMove(null); } catch {}; try { schedulePanelsRender(); } catch {} };
   const onClick = (ev) => {
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -1145,8 +1256,24 @@ function bindPanelMouse(panelRef, panelIndex) {
       torusSegmentsBetween: (p1,p2,Lx,Ly)=>torusSegmentsBetween(p1,p2,Lx,Ly),
       altOnly: ev.altKey === true,
     });
-    if (gatePlacement.isActive()) {
-      if (gatePlacement.onPanelClick(hit || null)) { try { schedulePanelsRender(); } catch {}; return; }
+    if (gatePlacement.isActive() || edgePlacement.isActive() || polyPlacement.isActive()) {
+      // Pass-through to qubits when possible
+      let routedHit = hit || null;
+      try {
+        const dprNow = Math.max(1, window.devicePixelRatio || 1);
+        const drawX = (offsetX / dprNow) / Math.max(0.1, panelZoom);
+        const drawY = (offsetY / dprNow) / Math.max(0.1, panelZoom);
+        const pos = xyToPos(drawX * 2 + OFFSET_X, drawY * 2 + OFFSET_Y) || [];
+        const gx = pos[0], gy = pos[1];
+        if (gx !== undefined && gy !== undefined) {
+          for (const [id, q] of circuit.qubits.entries()) {
+            if (q && q.panelX === gx && q.panelY === gy) { routedHit = { kind: 'qubit', id: `q:${id}` }; break; }
+          }
+        }
+      } catch {}
+      if (gatePlacement.isActive()) { if (gatePlacement.onPanelClick(routedHit)) { try { schedulePanelsRender(); } catch {}; return; } }
+      if (edgePlacement.isActive()) { if (edgePlacement.onPanelClick(routedHit)) { try { schedulePanelsRender(); } catch {}; return; } }
+      if (polyPlacement.isActive()) { if (polyPlacement.onPanelClick(routedHit)) { try { schedulePanelsRender(); } catch {}; return; } }
     }
     // Click on empty space without multi-select modifiers clears selection.
     if (!hit && !ev.shiftKey && !(ev.ctrlKey || ev.metaKey)) {
@@ -1317,13 +1444,25 @@ timelineFocusBtn?.addEventListener('click', () => {
 // Keep focus button state in sync with selection changes
 selectionStore.subscribe(() => { try { updateTimelineFocusButton(); } catch {} });
 
-// Keyboard finalize/cancel for gate placement
+// Keyboard finalize/cancel for placements
 window.addEventListener('keydown', (e) => {
   const el = document.activeElement;
   const tag = (el && el.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'textarea' || (el && el.isContentEditable)) return;
   if (gatePlacement && gatePlacement.isActive()) {
     if (gatePlacement.onKeydown(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
+  if (edgePlacement && edgePlacement.isActive()) {
+    if (edgePlacement.onKeydown(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
+  if (polyPlacement && polyPlacement.isActive()) {
+    if (polyPlacement.onKeydown(e)) {
       e.preventDefault();
       e.stopPropagation();
     }
@@ -1438,6 +1577,97 @@ function drawGatePlacementOverlay(ctx, circuit, sheetsSel) {
   }
 }
 
+// Edge/Polygon chain overlays
+function drawShapePlacementOverlays(ctx, circuit, sheetsSel) {
+  const toXY = (p) => {
+    if (p.id !== undefined) {
+      const q = circuit.qubits?.get?.(p.id);
+      if (q) {
+        const sheet = q.sheet || 'DEFAULT';
+        if (sheetsSel && !sheetsSel.has(sheet)) return null;
+        return [q.panelX * pitch - OFFSET_X, q.panelY * pitch - OFFSET_Y];
+      }
+    }
+    if (p.coord) {
+      // Assume phantoms/new points will be created on target sheet; draw regardless.
+      return [p.coord.x * pitch - OFFSET_X, p.coord.y * pitch - OFFSET_Y];
+    }
+    return null;
+  };
+
+  // Edges: draw from start to current hover/phantom
+  if (edgePlacement && edgePlacement.isActive && edgePlacement.isActive()) {
+    const ovE = edgePlacement.getOverlay?.();
+    if (ovE) {
+      ctx.save();
+      ctx.globalAlpha *= 0.9;
+      ctx.strokeStyle = '#000';
+      ctx.fillStyle = '#fff';
+      // Draw start point
+      if (ovE.startPoint) {
+        const sxy = toXY(ovE.startPoint); if (sxy) { ctx.fillRect(sxy[0]-3, sxy[1]-3, 6, 6); ctx.strokeRect(sxy[0]-3, sxy[1]-3, 6, 6); }
+      }
+      // Draw line toward hover qubit or phantom
+      let targetXY = null;
+      if (ovE.phantom) targetXY = [ovE.phantom.x * pitch - OFFSET_X, ovE.phantom.y * pitch - OFFSET_Y];
+      // If hovering a qubit, prefer that over phantom
+      if (!targetXY && ovE.hoverQubit != null) {
+        try {
+          const q = circuit.qubits?.get?.(ovE.hoverQubit);
+          if (q) targetXY = [q.panelX * pitch - OFFSET_X, q.panelY * pitch - OFFSET_Y];
+        } catch {}
+      }
+      if (ovE.startPoint && targetXY) {
+        const sxy = toXY(ovE.startPoint);
+        if (sxy) { ctx.beginPath(); ctx.moveTo(sxy[0], sxy[1]); ctx.lineTo(targetXY[0], targetXY[1]); ctx.stroke(); }
+      }
+      // Phantom marker square
+      if (ovE.phantom) {
+        const [x,y] = [ovE.phantom.x * pitch - OFFSET_X, ovE.phantom.y * pitch - OFFSET_Y];
+        ctx.globalAlpha *= 1.0;
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillRect(x - rad, y - rad, 2*rad, 2*rad);
+        ctx.strokeStyle = '#bbb';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x - rad, y - rad, 2*rad, 2*rad);
+      }
+      ctx.restore();
+    }
+  }
+
+  // Polygons
+  if (polyPlacement && polyPlacement.isActive && polyPlacement.isActive()) {
+    const ovP = polyPlacement.getOverlay?.();
+    if (ovP) {
+      ctx.save();
+      ctx.globalAlpha *= 0.9;
+      ctx.strokeStyle = '#000';
+      ctx.fillStyle = '#fff';
+      let prev = null;
+      for (const p of ovP.points) {
+        const xy = toXY(p); if (!xy) continue;
+        if (prev) { ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(xy[0], xy[1]); ctx.stroke(); }
+        prev = xy;
+      }
+      for (const p of ovP.points) {
+        const xy = toXY(p); if (!xy) continue;
+        ctx.fillRect(xy[0]-3, xy[1]-3, 6, 6);
+        ctx.strokeRect(xy[0]-3, xy[1]-3, 6, 6);
+      }
+      if (ovP.phantom) {
+        const [x,y] = [ovP.phantom.x * pitch - OFFSET_X, ovP.phantom.y * pitch - OFFSET_Y];
+        ctx.globalAlpha *= 1.0;
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillRect(x - rad, y - rad, 2*rad, 2*rad);
+        ctx.strokeStyle = '#bbb';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x - rad, y - rad, 2*rad, 2*rad);
+      }
+      ctx.restore();
+    }
+  }
+}
+
 // Flash a gate button in the toolbox briefly (red) on failure.
 let flashGateId = null;
 let flashTimer = null;
@@ -1452,7 +1682,7 @@ function flashGate(gateId) {
 function updateGateCursor() {
   try {
     const canvases = mgr.panels.map(p => p.canvas).filter(Boolean);
-    if (!gatePlacement || !gatePlacement.isActive()) {
+    if (!gatePlacement?.isActive?.() && !edgePlacement?.isActive?.() && !polyPlacement?.isActive?.()) {
       for (const c of canvases) c.style.cursor = '';
       return;
     }
@@ -1503,4 +1733,22 @@ const gatePlacement = new GatePlacementController({
     try { updateGateCursor(); } catch {}
   },
   onFlashGate: (gateId) => { try { flashGate(gateId); } catch {} },
+});
+
+// Interactive edge/polygon placement controllers
+const edgePlacement = new EdgeChainPlacementController({
+  getCircuit: () => circuit,
+  getCurrentLayer: () => currentLayer,
+  getEditorState: () => editorState,
+  getTargetSheet: () => _targetSheetName,
+  pushStatus: (msg, sev) => pushStatus(msg, sev || 'info'),
+  onStateChange: () => { try { renderToolboxUI(); } catch {} try { schedulePanelsRender(); } catch {} try { updateGateCursor(); } catch {} },
+});
+const polyPlacement = new PolygonChainPlacementController({
+  getCircuit: () => circuit,
+  getCurrentLayer: () => currentLayer,
+  getEditorState: () => editorState,
+  getTargetSheet: () => _targetSheetName,
+  pushStatus: (msg, sev) => pushStatus(msg, sev || 'info'),
+  onStateChange: () => { try { renderToolboxUI(); } catch {} try { schedulePanelsRender(); } catch {} try { updateGateCursor(); } catch {} },
 });

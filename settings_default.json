@@ -13,6 +13,8 @@
       "layer.next.fast": { "name": "Next layer (x5)", "bindings": ["Shift+E", "Shift+ArrowRight"] },
       "edit.undo": { "name": "Undo", "bindings": ["Mod+Z"] },
       "edit.redo": { "name": "Redo", "bindings": ["Shift+Mod+Z", "Mod+Y"] },
+      "selection.clear": { "name": "Clear selection", "bindings": ["Escape"] },
+      "edit.delete": { "name": "Delete selection", "bindings": ["Backspace", "Delete"] },
       "panel.zoom.in": { "name": "Panel zoom in", "bindings": ["Mod+="] },
       "panel.zoom.out": { "name": "Panel zoom out", "bindings": ["Mod+-"] },
       "panel.zoom.reset": { "name": "Panel zoom reset", "bindings": ["Mod+0"] }

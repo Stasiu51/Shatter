@@ -57,7 +57,7 @@ function rowEl() {
   return { row, square, btnCl, btnO, btnD, btnX, btnY, btnZ };
 }
 
-export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType, onStartGatePlacement, activeGateId, flashGateId, getTargetSheet, setTargetSheet }) {
+export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType, onStartGatePlacement, activeGateId, flashGateId, getTargetSheet, setTargetSheet, onAddPolygon, onAddEdge }) {
   if (!containerEl) return;
   containerEl.innerHTML='';
   // Center the toolbox contents.
@@ -484,11 +484,11 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
 
   // Palettes inside the subpanel
   const polyContainer = document.createElement('div');
-  renderPolygonsPalette({ containerEl: polyContainer, circuit });
+  renderPolygonsPalette({ containerEl: polyContainer, circuit, onAdd: (color) => { try { onAddPolygon && onAddPolygon(color); } catch {} } });
   styleBox.appendChild(polyContainer);
 
   const edgeContainer = document.createElement('div');
-  renderEdgesPalette({ containerEl: edgeContainer, circuit });
+  renderEdgesPalette({ containerEl: edgeContainer, circuit, onAdd: (color) => { try { onAddEdge && onAddEdge(color); } catch {} } });
   styleBox.appendChild(edgeContainer);
 
   containerEl.appendChild(styleBox);

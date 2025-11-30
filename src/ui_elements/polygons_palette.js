@@ -34,7 +34,7 @@ function toCssRgba(fillStr) {
   }
 }
 
-export function renderPolygonsPalette({ containerEl, circuit }) {
+export function renderPolygonsPalette({ containerEl, circuit, onAdd }) {
   if (!containerEl || !circuit) return;
   containerEl.innerHTML = '';
   // Header
@@ -92,6 +92,11 @@ export function renderPolygonsPalette({ containerEl, circuit }) {
     box.style.border = '1px solid var(--border)';
     box.style.background = c;
     box.style.borderRadius = '4px';
+    box.style.cursor = 'pointer';
+    box.onclick = (e) => {
+      e.stopPropagation();
+      try { if (typeof onAdd === 'function') onAdd(c); } catch {}
+    };
     boxWrap.appendChild(box);
     // Remove 'x' if custom and not extant
     const isCustom = custom.has(c);
@@ -113,7 +118,7 @@ export function renderPolygonsPalette({ containerEl, circuit }) {
       close.style.justifyContent = 'center';
       close.style.cursor = 'pointer';
       close.title = 'Remove';
-      close.onclick = () => { custom.delete(c); saveCustom(custom); renderPolygonsPalette({ containerEl, circuit }); };
+      close.onclick = () => { custom.delete(c); saveCustom(custom); renderPolygonsPalette({ containerEl, circuit, onAdd }); };
       boxWrap.appendChild(close);
     }
     grid.appendChild(boxWrap);
@@ -146,7 +151,7 @@ export function renderPolygonsPalette({ containerEl, circuit }) {
         } finally {
           try { picker.hide(); } catch {}
           try { picker.destroy(); } catch {}
-          renderPolygonsPalette({ containerEl, circuit });
+          renderPolygonsPalette({ containerEl, circuit, onAdd });
         }
       };
       picker.onClose = () => { try { picker.hide(); picker.destroy(); } catch {} };

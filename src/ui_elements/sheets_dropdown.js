@@ -53,11 +53,9 @@ export function createSheetsDropdown({ getSheets, getSelected, onChange }) {
   root.appendChild(button);
 
   const menu = document.createElement('div');
-  console.log("hello");
-  menu.className = 'sheets-dd-menuoop';
+  menu.className = 'sheets-dd-menu';
   menu.style.position = 'absolute';
   menu.style.top = 'calc(100% + 4px)';
-  menu.style.left = '0px'
   // Default anchor: align to left edge of the button
   menu.style.left = '0';
   menu.style.minWidth = '200px';

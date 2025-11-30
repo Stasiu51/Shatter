@@ -10,7 +10,7 @@ function normColor(c) {
   try { return String(parseCssColor(c) || c).toLowerCase(); } catch { return String(c || '').toLowerCase(); }
 }
 
-export function renderEdgesPalette({ containerEl, circuit }) {
+export function renderEdgesPalette({ containerEl, circuit, onAdd }) {
   if (!containerEl || !circuit) return;
   containerEl.innerHTML = '';
   // Header
@@ -68,6 +68,11 @@ export function renderEdgesPalette({ containerEl, circuit }) {
     box.style.border = '1px solid var(--border)';
     box.style.background = c;
     box.style.borderRadius = '2px';
+    box.style.cursor = 'pointer';
+    box.onclick = (e) => {
+      e.stopPropagation();
+      try { if (typeof onAdd === 'function') onAdd(c); } catch {}
+    };
     wrap.appendChild(box);
     const isCustom = custom.has(c);
     const isExtant = extant.has(c) || normColor(DEFAULT_EDGE_COLOR) === c;
@@ -88,7 +93,7 @@ export function renderEdgesPalette({ containerEl, circuit }) {
       close.style.justifyContent = 'center';
       close.style.cursor = 'pointer';
       close.title = 'Remove';
-      close.onclick = () => { custom.delete(c); saveCustom(custom); renderEdgesPalette({ containerEl, circuit }); };
+      close.onclick = () => { custom.delete(c); saveCustom(custom); renderEdgesPalette({ containerEl, circuit, onAdd }); };
       wrap.appendChild(close);
     }
     grid.appendChild(wrap);
@@ -121,7 +126,7 @@ export function renderEdgesPalette({ containerEl, circuit }) {
         } finally {
           try { picker.hide(); } catch {}
           try { picker.destroy(); } catch {}
-          renderEdgesPalette({ containerEl, circuit });
+          renderEdgesPalette({ containerEl, circuit, onAdd });
         }
       };
       picker.onClose = () => { try { picker.hide(); picker.destroy(); } catch {} };

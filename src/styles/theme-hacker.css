@@ -86,6 +86,10 @@ h1,
   border-color: var(--btn-border-color) !important;
 }
 
+/* Ensure all text within the sheets dropdown button and menu is green */
+.sheets-dd-button * { color: var(--text) !important; }
+.sheets-dd-menu, .sheets-dd-menu * { color: var(--text) !important; }
+
 /* Editor textarea: black background with green text */
 #editor-text {
   background: #000000 !important;

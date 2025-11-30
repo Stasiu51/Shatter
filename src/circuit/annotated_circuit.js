@@ -1365,9 +1365,15 @@ export class AnnotatedCircuit {
           } else if (a.kind === 'Polygon') {
             const sheetName = a.sheet || 'DEFAULT';
             const stroke = a.stroke ?? 'none';
-            const fill = a.fill ?? '(0,0,0,0.2)';
+            let fill = a.fill ?? '(0,0,0,0.2)';
             // Compute args/ids first; only emit header if there are vertices.
             try {
+              // Normalize rgba(...) to (r,g,b,a)
+              try {
+                const s = String(fill).trim();
+                const m = s.match(/^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([0-9.]+)\s*\)$/i);
+                if (m) fill = `(${parseInt(m[1])}, ${parseInt(m[2])}, ${parseInt(m[3])}, ${parseFloat(m[4])})`;
+              } catch {}
               const args = String(fill).replace(/[()]/g, '');
               const ids = (Array.isArray(a.targets) ? a.targets : [])
                 .map(v => parseInt(v))
