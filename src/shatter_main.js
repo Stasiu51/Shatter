@@ -1160,14 +1160,45 @@ function bindPanelMouse(panelRef, panelIndex) {
     const sheetsSel = overlayState.panelSheets[panelIndex] || new Set(getSheetsSafe().map(s=>s.name));
     const embedding = circuit?.embedding || { type: 'PLANE' };
     const getPanelXY = (q) => {
-      const qq = circuit.qubits?.get?.(q);
-      let x = qq?.panelX, y = qq?.panelY;
-      if (embedding && embedding.type === 'TORUS') {
-        const mod = (v,L)=>((v%L)+L)%L;
-        x = mod(x, embedding.Lx);
-        y = mod(y, embedding.Ly);
-      }
-      return [x,y];
+      // Metadata first
+      try {
+        const qq = circuit.qubits?.get?.(q);
+        if (qq && typeof qq.panelX === 'number' && typeof qq.panelY === 'number') {
+          let x = qq.panelX, y = qq.panelY;
+          if (embedding && embedding.type === 'TORUS') {
+            const mod = (v,L)=>((v%L)+L)%L;
+            x = mod(x, embedding.Lx);
+            y = mod(y, embedding.Ly);
+          }
+          return [x,y];
+        }
+      } catch {}
+      // qubitCoordData fallback
+      try {
+        let x = circuit.qubitCoordData[2*q];
+        let y = circuit.qubitCoordData[2*q+1];
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          if (embedding && embedding.type === 'TORUS') {
+            const mod = (v,L)=>((v%L)+L)%L;
+            x = mod(x, embedding.Lx);
+            y = mod(y, embedding.Ly);
+          }
+          return [x,y];
+        }
+      } catch {}
+      // qubit_coords map fallback
+      try {
+        if (circuit.qubit_coords && circuit.qubit_coords.has(q)) {
+          let [x,y] = circuit.qubit_coords.get(q);
+          if (embedding && embedding.type === 'TORUS') {
+            const mod = (v,L)=>((v%L)+L)%L;
+            x = mod(x, embedding.Lx);
+            y = mod(y, embedding.Ly);
+          }
+          return [x,y];
+        }
+      } catch {}
+      return [undefined, undefined];
     };
     const hit = hitTestAt({
       canvas,
@@ -1237,14 +1268,42 @@ function bindPanelMouse(panelRef, panelIndex) {
     const sheetsSel = overlayState.panelSheets[panelIndex] || new Set(getSheetsSafe().map(s=>s.name));
     const embedding = circuit?.embedding || { type: 'PLANE' };
     const getPanelXY = (q) => {
-      const qq = circuit.qubits?.get?.(q);
-      let x = qq?.panelX, y = qq?.panelY;
-      if (embedding && embedding.type === 'TORUS') {
-        const mod = (v,L)=>((v%L)+L)%L;
-        x = mod(x, embedding.Lx);
-        y = mod(y, embedding.Ly);
-      }
-      return [x,y];
+      try {
+        const qq = circuit.qubits?.get?.(q);
+        if (qq && typeof qq.panelX === 'number' && typeof qq.panelY === 'number') {
+          let x = qq.panelX, y = qq.panelY;
+          if (embedding && embedding.type === 'TORUS') {
+            const mod = (v,L)=>((v%L)+L)%L;
+            x = mod(x, embedding.Lx);
+            y = mod(y, embedding.Ly);
+          }
+          return [x,y];
+        }
+      } catch {}
+      try {
+        let x = circuit.qubitCoordData[2*q];
+        let y = circuit.qubitCoordData[2*q+1];
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          if (embedding && embedding.type === 'TORUS') {
+            const mod = (v,L)=>((v%L)+L)%L;
+            x = mod(x, embedding.Lx);
+            y = mod(y, embedding.Ly);
+          }
+          return [x,y];
+        }
+      } catch {}
+      try {
+        if (circuit.qubit_coords && circuit.qubit_coords.has(q)) {
+          let [x,y] = circuit.qubit_coords.get(q);
+          if (embedding && embedding.type === 'TORUS') {
+            const mod = (v,L)=>((v%L)+L)%L;
+            x = mod(x, embedding.Lx);
+            y = mod(y, embedding.Ly);
+          }
+          return [x,y];
+        }
+      } catch {}
+      return [undefined, undefined];
     };
     const hit = hitTestAt({
       canvas,

@@ -63,8 +63,14 @@ export function hitTestAt(opts) {
     }
   }
 
-  // Qubits (top of the non-gate stack)
-  for (const q of circuit.allQubits()) {
+  // Qubits (top of the non-gate stack). Include declared-only qubits when there are no gates.
+  const used = circuit.allQubits();
+  const declared = new Set();
+  try { const n = Math.floor((circuit.qubitCoordData?.length || 0) / 2); for (let i = 0; i < n; i++) declared.add(i); } catch {}
+  try { if (circuit.qubit_coords && typeof circuit.qubit_coords.keys === 'function') { for (const q of circuit.qubit_coords.keys()) declared.add(q); } } catch {}
+  try { if (circuit.qubits && typeof circuit.qubits.keys === 'function') { for (const q of circuit.qubits.keys()) declared.add(q); } } catch {}
+  const qubitsForHit = used.size > 0 ? used : declared;
+  for (const q of qubitsForHit) {
     if (!isQubitVisible(q)) continue;
     const [x, y] = qubitDrawCoords(q);
     if (contentX >= x - rad && contentX <= x + rad && contentY >= y - rad && contentY <= y + rad) {
