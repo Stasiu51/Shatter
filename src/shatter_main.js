@@ -1335,11 +1335,8 @@ function updateGateCursor() {
       for (const c of canvases) c.style.cursor = '';
       return;
     }
-    const ov = gatePlacement.getOverlay?.();
-    const phase = ov ? (ov.mode === 'two_first' ? 'first' : ov.mode === 'two_second' ? 'second' : (ov.mode === 'multi' ? 'multi' : 'single')) : 'single';
-    const { url, hx, hy } = buildCursorFor({ gateId: ov?.gateId || gatePlacement.activeGateId, phase });
-    const css = `url(${url}) ${hx} ${hy}, crosshair`;
-    for (const c of canvases) c.style.cursor = css;
+    // Simple crosshair only
+    for (const c of canvases) c.style.cursor = 'crosshair';
   } catch {}
 }
 

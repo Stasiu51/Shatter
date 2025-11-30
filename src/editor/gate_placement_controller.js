@@ -143,7 +143,7 @@ export class GatePlacementController {
         if (occupied(q)) { this._flashFail(`Qubit ${q} occupied at this layer.`); return true; }
         this.firstQubit = q;
         this.mode = 'two_second';
-        this._pushStatus(`Placing ${this.activeGateId}: choose second qubit, Esc to cancel.`, 'info');
+        this._pushStatus(`Selected q${q}. Choose second qubit (Esc to cancel).`, 'info');
         this._onStateChange();
         return true;
       } else if (this.mode === 'two_second') {
@@ -156,6 +156,13 @@ export class GatePlacementController {
       // multi
       if (occupied(q)) { this._flashFail(`Qubit ${q} occupied at this layer.`); return true; }
       if (!this.multiQubits.has(q)) this.multiQubits.add(q);
+      // Inform user of current target list
+      try {
+        const list = [...this.multiQubits].sort((a,b)=>a-b);
+        const basis = (this.activeGateId && this.activeGateId.startsWith('MPP:')) ? this.activeGateId.substring(4) : '';
+        const gateLabel = basis ? `MPP:${basis}` : (this.activeGateId || 'MPP');
+        this._pushStatus(`${gateLabel} targets: q{${list.join(',')}}. Enter to finish, Esc to cancel.`, 'info');
+      } catch {}
       this._onStateChange();
       return true;
     }
@@ -178,7 +185,8 @@ export class GatePlacementController {
     const layer = circuit.layers[layerIdx];
     let gate = GATE_MAP.get(this.activeGateId);
     if (!gate && this.activeGateId && this.activeGateId.startsWith('MPP:')) {
-      const bases = this.activeGateId.substring(4) || 'X';
+      const base = (this.activeGateId.substring(4) || 'X').replace(/[^XYZ]/g,'X');
+      const bases = base.repeat(Math.max(1, qids.length));
       gate = make_mpp_gate(bases);
     }
     try {

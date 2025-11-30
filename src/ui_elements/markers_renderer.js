@@ -278,13 +278,14 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
     'Controlled-Pauli',
     'Controlled-Swap',
     'SC',
+    'Measure Pauli Pair',
     'Measure Pauli Product',
   ];
 
   // Labels inside each gate cell, taken from stim_crumble/keyboard/toolbox.js (columns 0..8).
-  const X_LABELS = ['H_YZ', 'S_X',    'RX', 'MX', 'MRX', 'CX', 'CXSWAP', '√XX', 'M_XX'];
-  const Y_LABELS = ['H',    'S_Y',    'RY', 'MY', 'MRY', 'CY', 'SWAP',   '√YY', 'M_YY'];
-  const Z_LABELS = ['H_XY', 'S',      'R',  'M',  'MR',  'CZ', 'CZSWAP', '√ZZ', 'M_ZZ'];
+  const X_LABELS = ['H_YZ', 'S_X',    'RX', 'MX', 'MRX', 'CX', 'CXSWAP', '√XX', 'M_XX', 'MPP_X'];
+  const Y_LABELS = ['H',    'S_Y',    'RY', 'MY', 'MRY', 'CY', 'SWAP',   '√YY', 'M_YY', 'MPP_Y'];
+  const Z_LABELS = ['H_XY', 'S',      'R',  'M',  'MR',  'CZ', 'CZSWAP', '√ZZ', 'M_ZZ', 'MPP_Z'];
 
   const CELL_SIZE = 20; // CSS px (compact to fit narrow toolbox)
 
@@ -514,11 +515,13 @@ function labelToGateId(lbl) {
   if (/^M_/.test(lbl)) return lbl.replace(/^M_/, 'M');
   // √XX -> SQRT_XX
   if (/^√/.test(lbl)) return 'SQRT_' + lbl.substring(1);
-  // S_X, S_Y -> S (use plain S gate)
-  // Keep original simple mapping
-  if (/^M_/.test(lbl)) return lbl.replace(/^M_/, 'M');
-  if (/^√/.test(lbl)) return 'SQRT_' + lbl.substring(1);
-  // leave S_X, S_Y as-is (legacy mapping); upstream may alias
+  // S row mapping to one-line variants
+  if (lbl === 'S_X') return 'SQRT_X';
+  if (lbl === 'S_Y') return 'SQRT_Y';
+  // MPP dynamic gates
+  if (lbl === 'MPP_X') return 'MPP:X';
+  if (lbl === 'MPP_Y') return 'MPP:Y';
+  if (lbl === 'MPP_Z') return 'MPP:Z';
   // Pass-through common names: H, H_XY, H_YZ, S, S_X, S_Y, RX, RY, R, MX, MY, MR, CX, CY, CZ, SWAP, ISWAP, CXSWAP, CZSWAP
   return lbl;
 }
