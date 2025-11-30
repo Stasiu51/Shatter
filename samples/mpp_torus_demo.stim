@@ -1,8 +1,0 @@
-##! EMBEDDING TYPE=TORUS LX=4 LY=2
-QUBIT_COORDS(0.2, 1.0) 0
-QUBIT_COORDS(3.8, 1.0) 1
-
-# MPP across the horizontal seam (shortest wrap path is 0.4 instead of 3.6)
-MPP X0*Z1
-
-TICK
