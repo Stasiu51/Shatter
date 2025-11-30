@@ -34,6 +34,8 @@
   /* Layout */
   --markers-width: 170px;
   --font-size-base: 14px;
+  /* Lattice dots color */
+  --lattice-dot: var(--text);
   /* Status bar customization */
   --status-bg: #000000;
   --status-fg: var(--text);
@@ -65,6 +67,12 @@ h1,
 #status-left,
 #status-right,
 .timeline-left {
+  color: var(--text) !important;
+}
+
+/* Ensure inspector content inherits green text explicitly */
+.inspector-body,
+.inspector-body * {
   color: var(--text) !important;
 }
 

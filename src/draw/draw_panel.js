@@ -480,7 +480,13 @@ function drawPanel(ctx, snap, sheetsToDraw) {
         try {
             ctx.save();
             ctx.globalAlpha = 1.0;
-            ctx.fillStyle = '#bbb';
+            // Theme-aware lattice dot color
+            let dotColor = '#bbb';
+            try {
+                const s = getComputedStyle(document.documentElement).getPropertyValue('--lattice-dot');
+                if (s && s.trim()) dotColor = s.trim();
+            } catch {}
+            ctx.fillStyle = dotColor;
             // compute visible bounds in draw coords
             const w = ctx.canvas.width, h = ctx.canvas.height;
             const minGX = Math.floor(OFFSET_X / pitch);

@@ -1094,11 +1094,9 @@ function bindPanelMouse(panelRef, panelIndex) {
           const dprNow = Math.max(1, window.devicePixelRatio || 1);
           const drawX = (offsetX / dprNow) / Math.max(0.1, panelZoom);
           const drawY = (offsetY / dprNow) / Math.max(0.1, panelZoom);
-          // xyToPos expects pre-offset draw coords; apply half-offset correction
-          const pos = xyToPos(drawX + OFFSET_X/2, drawY + OFFSET_Y/2) || [];
-          // TEMP hard-coded correction: factor-of-two to match panel mapping
-          const gx = pos[0] !== undefined ? pos[0] * 2 : undefined;
-          const gy = pos[1] !== undefined ? pos[1] * 2 : undefined;
+          // Use draw coords with x2 scaling and negative half-offset correction
+          const pos = xyToPos(drawX * 2 + OFFSET_X, drawY * 2 + OFFSET_Y) || [];
+          const gx = pos[0], gy = pos[1];
           // Ensure no existing qubit at these panel coords
           let exists = false;
           try {

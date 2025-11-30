@@ -43,6 +43,9 @@
 
   /* Panels: toolbox width */
   --markers-width: 170px; /* adjust to make the toolbox wider/narrower */
+
+  /* Lattice dots (panels) */
+  --lattice-dot: #a8aeb6; /* slightly darker grey */
 }
 
 /* Ostrich Sans removed; using League Mono */

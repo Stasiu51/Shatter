@@ -25,6 +25,7 @@ export function createSheetsDropdown({ getSheets, getSelected, onChange }) {
   button.style.border = '1px solid var(--border)';
   button.style.borderRadius = '6px';
   button.style.background = 'var(--sheets-dd-bg, #fff)';
+  button.style.color = 'var(--sheets-dd-fg, var(--text))';
   button.style.font = 'inherit';
   button.style.fontSize = '10px';
   button.style.cursor = 'pointer';
@@ -40,7 +41,7 @@ export function createSheetsDropdown({ getSheets, getSelected, onChange }) {
   text.style.whiteSpace = 'nowrap';
   text.style.overflow = 'hidden';
   text.style.textOverflow = 'ellipsis';
-  text.style.color = 'var(--sheets-dd-fg, #24292f)';
+  text.style.color = 'var(--sheets-dd-fg, var(--text))';
   text.style.fontSize = '10px';
 
   const caret = document.createElement('span');
