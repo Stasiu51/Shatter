@@ -354,8 +354,8 @@
     }
 
     /* Alt-active emphasis on selection widget */
-    .sel-widget.alt-active .sel-alt { font-weight: 700; color: #111; }
-    .sel-widget.alt-active .sel-brace path { stroke-width: 2; stroke: #111; }
+    .sel-widget.alt-active .sel-alt { font-weight: 700; color: var(--sel-alt-active, #111); }
+    .sel-widget.alt-active .sel-brace path { stroke-width: 2; stroke: var(--sel-alt-stroke-active, #111); }
 
     .flash {
       animation: flash 0.5s linear 1;
@@ -733,6 +733,7 @@
         <option value="seventies">Groovy</option>
         <option value="quantum-hacker-bro">QU4NTu₼ H@CK3R BR0</option>
       </select>
+      <img id="theme-badge" alt="" style="height:28px; display:none; margin-left:8px; border-radius:4px; object-fit:cover;" />
       <div class="spacer"></div>
       <button class="btn" id="toolbox-toggle-global">Show toolbox</button>
       <button class="btn" id="inspector-toggle-global">Show inspector</button>
@@ -833,16 +834,16 @@
     </div>
   </main>
   <footer id="statusbar" title="Click to download status log"
-    style="position:fixed; left:0; right:0; bottom:0; height:32px; border-top:1px solid var(--border); background:#f8fafc; display:flex; align-items:center; padding:0 12px; cursor:pointer; font-size:12px; color:#57606a; gap:12px;">
+    style="position:fixed; left:0; right:0; bottom:0; height:32px; border-top:1px solid var(--border); background: var(--status-bg, #f8fafc); display:flex; align-items:center; padding:0 12px; cursor:pointer; font-size:12px; color: var(--status-fg, #57606a); gap:12px;">
     <div id="status-left" style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
       <span id="status-dot"
-        style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#8b949e;"></span>
+        style="display:inline-block; width:8px; height:8px; border-radius:50%; background: var(--status-dot, #8b949e);"></span>
       <span id="status-text" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Ready.</span>
     </div>
     <div id="status-right"
       style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; justify-content:flex-end; opacity:0.9;">
       <span id="status-dot-right"
-        style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#8b949e;"></span>
+        style="display:inline-block; width:8px; height:8px; border-radius:50%; background: var(--status-dot, #8b949e);"></span>
       <span id="status-text-right" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
     </div>
   </footer>

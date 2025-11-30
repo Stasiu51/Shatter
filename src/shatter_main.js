@@ -191,6 +191,12 @@ renderPanelSheetsOptions();
     'seventies': './src/styles/theme-seventies.css',
     'quantum-hacker-bro': './src/styles/theme-hacker.css',
   };
+  const badgeMap = {
+    'boring': '',
+    'purple-charcoal': '',
+    'seventies': '',
+    'quantum-hacker-bro': './src/assets/pictures/music-saturation.gif',
+  };
   const setHeaderTitleForTheme = (name) => {
     try {
       const h = document.querySelector('header h1');
@@ -207,6 +213,14 @@ renderPanelSheetsOptions();
     themeLinkEl.href = href;
     localStorage.setItem(LS_THEME_KEY, name);
     setHeaderTitleForTheme(name);
+    try {
+      const img = document.getElementById('theme-badge');
+      const src = badgeMap[name] || '';
+      if (img) {
+        if (src) { img.src = src; img.style.display = 'inline-block'; }
+        else { img.style.display = 'none'; img.removeAttribute('src'); }
+      }
+    } catch {}
   };
   let cur = localStorage.getItem(LS_THEME_KEY) || 'boring';
   // Migrate old stored values

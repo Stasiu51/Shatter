@@ -34,6 +34,18 @@
   /* Layout */
   --markers-width: 160px;
   --font-size-base: 14px;
+  /* Status bar customization */
+  --status-bg: #000000;
+  --status-fg: var(--text);
+  --status-dot: var(--text);
+  /* Sheets dropdown customization */
+  --sheets-dd-bg: #000000;
+  --sheets-dd-menu-bg: #000000;
+  --sheets-dd-fg: var(--text);
+  --sheets-dd-label: var(--text);
+  /* Selection widget Alt active colors */
+  --sel-alt-active: var(--text);
+  --sel-alt-stroke-active: var(--text);
 }
 
 /* Force all key text to the bright green theme color */

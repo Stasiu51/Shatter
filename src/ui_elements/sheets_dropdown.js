@@ -24,14 +24,14 @@ export function createSheetsDropdown({ getSheets, getSelected, onChange }) {
   button.style.padding = '4px 8px';
   button.style.border = '1px solid var(--border)';
   button.style.borderRadius = '6px';
-  button.style.background = '#fff';
+  button.style.background = 'var(--sheets-dd-bg, #fff)';
   button.style.font = 'inherit';
   button.style.fontSize = '10px';
   button.style.cursor = 'pointer';
 
   const label = document.createElement('span');
   label.textContent = 'Sheets:';
-  label.style.color = '#57606a';
+  label.style.color = 'var(--sheets-dd-label, #57606a)';
   label.style.fontSize = '10px';
 
   const text = document.createElement('span');
@@ -40,7 +40,7 @@ export function createSheetsDropdown({ getSheets, getSelected, onChange }) {
   text.style.whiteSpace = 'nowrap';
   text.style.overflow = 'hidden';
   text.style.textOverflow = 'ellipsis';
-  text.style.color = '#24292f';
+  text.style.color = 'var(--sheets-dd-fg, #24292f)';
   text.style.fontSize = '10px';
 
   const caret = document.createElement('span');
@@ -65,12 +65,13 @@ export function createSheetsDropdown({ getSheets, getSelected, onChange }) {
   menu.style.overflow = 'auto';
   menu.style.border = '1px solid var(--border)';
   menu.style.borderRadius = '8px';
-  menu.style.background = '#fff';
+  menu.style.background = 'var(--sheets-dd-menu-bg, var(--sheets-dd-bg, #fff))';
   menu.style.boxShadow = '0 8px 24px rgba(140,149,159,0.2)';
   menu.style.padding = '8px';
   menu.style.zIndex = '50';
   menu.style.display = 'none';
   menu.style.fontSize = '10px';
+  menu.style.color = 'var(--sheets-dd-fg, #24292f)';
   root.appendChild(menu);
 
   function formatSelected(names, sel) {
@@ -129,7 +130,8 @@ export function createSheetsDropdown({ getSheets, getSelected, onChange }) {
       b.style.padding = '4px 8px';
       b.style.border = '1px solid var(--border)';
       b.style.borderRadius = '6px';
-      b.style.background = '#fff';
+      b.style.background = 'var(--sheets-dd-bg, #fff)';
+      b.style.color = 'var(--sheets-dd-fg, #24292f)';
       b.style.cursor = 'pointer';
     }
     allBtn.addEventListener('click', () => {
