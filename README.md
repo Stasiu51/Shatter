@@ -1,7 +1,7 @@
 ## Shatter Visualiser (Work in Progress)
 
 > *"All this chitter-chatter, chitter-chatter, chitter-chatter 'bout
-> Shmatta, shmatta, shmatta."*
+> shmatta, shmatta, shmatta."*
 
 Shatter is a visualiser for quantum circuits that is based on [Crumble](https://algassert.com/crumble). 
 
