@@ -340,13 +340,49 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
     const baseSub = 8 * scale;
     const offMain = -3 * scale;
     const offSub = 5 * scale;
+
+    // Special-case rendering for CXSWAP/CZSWAP as two lines (same size): CX-/CZ- and SWAP
+    if (label === 'CXSWAP' || label === 'CZSWAP') {
+      const top = label.startsWith('CX') ? 'CX-' : 'CZ-';
+      const bottom = 'SWAP';
+      let k = 10 * scale;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      while (k > 4) {
+        ctx.font = `bold ${k}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+        const wTop = ctx.measureText(top).width;
+        const wBot = ctx.measureText(bottom).width;
+        if (Math.max(wTop, wBot) <= 26) break;
+        k -= 1;
+      }
+      const lineGap = Math.max(2, Math.round(k * 0.3));
+      ctx.font = `bold ${k}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+      ctx.fillText(top, cx, cy - (lineGap + k * 0.35));
+      ctx.fillText(bottom, cx, cy + (lineGap + k * 0.35));
+      return;
+    }
     if (label.indexOf('_') !== -1) {
       const [main, sub] = label.split('_');
       const isMPP = main === 'MPP';
-      ctx.font = `${isMPP ? '' : 'bold '}${baseMainSub}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
-      ctx.fillText(main, cx, cy + offMain);
-      ctx.font = `${baseSub}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
-      ctx.fillText(sub, cx, cy + offSub);
+      const isInlineS = (main === 'S' && sub && sub.length === 1);
+      if (isInlineS) {
+        // Render SX / SY inline (single line) like RX/CX for consistency
+        const txt = main + sub;
+        let k = baseMain; // start from main size and shrink to fit
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        while (k > 4) {
+          ctx.font = `bold ${k}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+          if (ctx.measureText(txt).width <= 26) break;
+          k -= 1;
+        }
+        ctx.fillText(txt, cx, cy);
+      } else {
+        ctx.font = `${isMPP ? '' : 'bold '}${baseMainSub}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+        ctx.fillText(main, cx, cy + offMain);
+        ctx.font = `${baseSub}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
+        ctx.fillText(sub, cx, cy + offSub);
+      }
     } else {
       ctx.font = `bold ${baseMain}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace`;
       ctx.fillText(label, cx, cy);
