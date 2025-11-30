@@ -172,6 +172,7 @@ function drawSingleMarker(ctx, snap, qubitCoordsFunc, propagatedMarkers, mi, hit
 }
 
 let _defensive_draw_enabled = true;
+let _lattice_debug_logged = false; // TEMP: log once to confirm lattice background draws
 
 /**
  * @param {!boolean} val
@@ -474,6 +475,46 @@ function drawPanel(ctx, snap, sheetsToDraw) {
         ctx.fillStyle = 'white';
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         let [focusX, focusY] = xyToPos(snap.curMouseX, snap.curMouseY);
+
+        // Lattice background: dots at (i,j) and (i+0.5,j+0.5) only (no mixed half/integer)
+        try {
+            ctx.save();
+            ctx.globalAlpha = 1.0;
+            ctx.fillStyle = '#bbb';
+            // compute visible bounds in draw coords
+            const w = ctx.canvas.width, h = ctx.canvas.height;
+            const minGX = Math.floor(OFFSET_X / pitch);
+            const minGY = Math.floor(OFFSET_Y / pitch);
+            const maxGX = Math.ceil((w + OFFSET_X) / pitch);
+            const maxGY = Math.ceil((h + OFFSET_Y) / pitch);
+            const r = Math.max(0.6, pitch * 0.02); // ~10% of previous size
+            // Integer grid points (i, j)
+            for (let gy = minGY; gy <= maxGY; gy++) {
+                for (let gx = minGX; gx <= maxGX; gx++) {
+                    const dx = gx * pitch - OFFSET_X;
+                    const dy = gy * pitch - OFFSET_Y;
+                    ctx.beginPath();
+                    ctx.arc(dx, dy, r, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            // Half-step grid points (i+0.5, j+0.5)
+            for (let gy = minGY; gy <= maxGY; gy++) {
+                for (let gx = minGX; gx <= maxGX; gx++) {
+                    const dx = (gx + 0.5) * pitch - OFFSET_X;
+                    const dy = (gy + 0.5) * pitch - OFFSET_Y;
+                    ctx.beginPath();
+                    ctx.arc(dx, dy, r, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            if (!_lattice_debug_logged) {
+                _lattice_debug_logged = true;
+                // eslint-disable-next-line no-console
+                console.log('DEBUG lattice background drawn', {minGX, minGY, maxGX, maxGY});
+            }
+            ctx.restore();
+        } catch (_) {}
 
         // Draw torus domain bounding box to indicate wrap edges.
         if (embedding && embedding.type === 'TORUS') {

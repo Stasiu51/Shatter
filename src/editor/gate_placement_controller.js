@@ -24,6 +24,7 @@ export class GatePlacementController {
     this._onStateChange = deps.onStateChange || (()=>{});
     this._onFlashGate = deps.onFlashGate || ((_)=>{});
 
+    this._getTargetSheet = deps.getTargetSheet || (()=>'DEFAULT');
     this.reset();
   }
 
@@ -33,8 +34,11 @@ export class GatePlacementController {
     this.activeGateId = null;
     this.gateArgs = new Float32Array([]);
     this.firstQubit = null;
+    this.firstCoord = null; // {x,y} when first target is a phantom lattice point
     this.multiQubits = new Set();
+    this.multiCoords = new Set(); // store as serialized 'x,y'
     this.hoverQubit = null;
+    this.phantom = null; // {x,y} current hover phantom
   }
 
   isActive() { return !!this.active; }
@@ -85,8 +89,13 @@ export class GatePlacementController {
 
   finalize() {
     if (!this.active) return false;
-    if (this.mode === 'multi' && this.multiQubits.size > 0) {
-      return this._commitGate([...this.multiQubits]);
+    if (this.mode === 'multi' && (this.multiQubits.size > 0 || this.multiCoords.size > 0)) {
+      // Resolve coords to new ids then commit
+      const targets = [
+        ...[...this.multiQubits].map(id=>({id})),
+        ...[...this.multiCoords].map(s=>({coord: {x:parseFloat(s.split(',')[0]), y:parseFloat(s.split(',')[1])}})),
+      ];
+      return this._commitWithNewQubitsAndTargets(targets);
     }
     // For single/two-qubit flows, finalize is not used (we commit on valid click). Just cancel.
     this.cancel();
@@ -103,7 +112,7 @@ export class GatePlacementController {
   /**
    * @param {{kind:string,id:string}|null} hit
    */
-  onPanelMove(hit) {
+  onPanelMove(hit, phantom) {
     if (!this.active) return;
     if (hit && hit.kind === 'qubit') {
       const q = parseInt(hit.id.split(':')[1]);
@@ -111,6 +120,7 @@ export class GatePlacementController {
     } else {
       this.hoverQubit = null;
     }
+    this.phantom = phantom || null;
   }
 
   /** Handle a panel click; returns true if the event was consumed. */
@@ -125,43 +135,70 @@ export class GatePlacementController {
 
     const g = GATE_MAP.get(this.activeGateId);
     const clickIsQubit = hit && hit.kind === 'qubit';
-    const q = clickIsQubit ? parseInt(hit.id.split(':')[1]) : NaN;
-    if (!clickIsQubit || !Number.isFinite(q)) {
-      this.cancel();
-      return true;
-    }
+    let q = clickIsQubit ? parseInt(hit.id.split(':')[1]) : NaN;
+    const clickedPhantom = !clickIsQubit && this.phantom && Number.isFinite(this.phantom.x) && Number.isFinite(this.phantom.y);
+    if (!clickIsQubit && !clickedPhantom) { this.cancel(); return true; }
 
     // Determine placement kind. If no gate in GATE_MAP (e.g. MPP:...), treat as multi.
     const isMulti = !g || (g.num_qubits !== 1 && g.num_qubits !== 2) || this.mode === 'multi' || (typeof this.activeGateId === 'string' && this.activeGateId.startsWith('MPP:'));
 
     if (!isMulti && g.num_qubits === 1) {
-      if (occupied(q)) { this._flashFail(`Qubit ${q} occupied at this layer.`); return true; }
-      this._commitGate([q]);
+      if (clickIsQubit) {
+        if (occupied(q)) { this._flashFail(`Qubit ${q} occupied at this layer.`); return true; }
+        this._commitGate([q]);
+      } else {
+        // Create a new qubit and place gate on it in one commit
+        this._commitWithNewQubitsAndTargets([{coord: {x:this.phantom.x, y:this.phantom.y}}]);
+      }
       return true;
     } else if (!isMulti && g.num_qubits === 2) {
       if (this.mode === 'two_first') {
-        if (occupied(q)) { this._flashFail(`Qubit ${q} occupied at this layer.`); return true; }
-        this.firstQubit = q;
+        if (clickIsQubit) {
+          if (occupied(q)) { this._flashFail(`Qubit ${q} occupied at this layer.`); return true; }
+          this.firstQubit = q;
+          this.firstCoord = null;
+        } else {
+          this.firstQubit = null;
+          this.firstCoord = { x: this.phantom.x, y: this.phantom.y };
+        }
         this.mode = 'two_second';
-        this._pushStatus(`Selected q${q}. Choose second qubit (Esc to cancel).`, 'info');
+        this._pushStatus(`Selected ${clickIsQubit ? `q${q}` : `(${this.phantom.x},${this.phantom.y})`}. Choose second qubit (Esc to cancel).`, 'info');
         this._onStateChange();
         return true;
       } else if (this.mode === 'two_second') {
-        if (occupied(q)) { this._flashFail(`Qubit ${q} occupied at this layer.`); return true; }
-        if (q === this.firstQubit) { this.cancel('Same qubit; canceled.'); return true; }
-        this._commitGate([this.firstQubit, q]);
+        let targets = [];
+        // Resolve first target (id or coord)
+        if (this.firstCoord) targets.push({coord: this.firstCoord}); else targets.push({id: this.firstQubit});
+        // Resolve second target
+        if (clickIsQubit) {
+          if (occupied(q)) { this._flashFail(`Qubit ${q} occupied at this layer.`); return true; }
+          if (this.firstQubit != null && q === this.firstQubit) { this.cancel('Same qubit; canceled.'); return true; }
+          targets.push({id: q});
+        } else {
+          targets.push({coord: {x:this.phantom.x, y:this.phantom.y}});
+        }
+        this._commitWithNewQubitsAndTargets(targets);
         return true;
       }
     } else {
       // multi
-      if (occupied(q)) { this._flashFail(`Qubit ${q} occupied at this layer.`); return true; }
-      if (!this.multiQubits.has(q)) this.multiQubits.add(q);
+      if (clickIsQubit) {
+        if (occupied(q)) { this._flashFail(`Qubit ${q} occupied at this layer.`); return true; }
+        if (!this.multiQubits.has(q)) this.multiQubits.add(q);
+      } else {
+        const key = `${this.phantom.x},${this.phantom.y}`;
+        this.multiCoords.add(key);
+      }
       // Inform user of current target list
       try {
-        const list = [...this.multiQubits].sort((a,b)=>a-b);
+        const idList = [...this.multiQubits].sort((a,b)=>a-b);
+        const coordList = [...this.multiCoords];
         const basis = (this.activeGateId && this.activeGateId.startsWith('MPP:')) ? this.activeGateId.substring(4) : '';
         const gateLabel = basis ? `MPP:${basis}` : (this.activeGateId || 'MPP');
-        this._pushStatus(`${gateLabel} targets: q{${list.join(',')}}. Enter to finish, Esc to cancel.`, 'info');
+        const parts = [];
+        if (idList.length) parts.push(`q{${idList.join(',')}}`);
+        if (coordList.length) parts.push(coordList.map(s=>`(${s})`).join(','));
+        this._pushStatus(`${gateLabel} targets: ${parts.join(' , ')}. Enter to finish, Esc to cancel.`, 'info');
       } catch {}
       this._onStateChange();
       return true;
@@ -205,6 +242,63 @@ export class GatePlacementController {
     return true;
   }
 
+  /** targets: array of {id} or {coord:{x,y}}; allocates new qubits for coords and commits */
+  _commitWithNewQubitsAndTargets(targets) {
+    const es = this._getEditorState();
+    if (!es) { this.cancel('No editor state.'); return false; }
+    const circuit = es.copyOfCurAnnotatedCircuit();
+    const layerIdx = this._getCurrentLayer();
+    while (circuit.layers.length <= layerIdx) circuit.layers.push(circuit.layers[circuit.layers.length-1]?.copy?.() || new (circuit.layers[0].constructor)());
+    const layer = circuit.layers[layerIdx];
+    const ids = [];
+    // allocate ids for coord targets
+    for (const t of targets) {
+      if (t.id !== undefined && Number.isFinite(t.id)) { ids.push(t.id); continue; }
+      const key = `${t.coord.x},${t.coord.y}`;
+      // Find an existing qubit at exact panel coords if any
+      let existing = null;
+      try {
+        for (const [qid, q] of circuit.qubits.entries()) {
+          if (q && q.panelX === t.coord.x && q.panelY === t.coord.y) { existing = qid; break; }
+        }
+      } catch {}
+      if (existing !== null) { ids.push(existing); continue; }
+      // Allocate new id
+      let newId = 0;
+      try { for (const k of circuit.qubit_coords.keys()) newId = Math.max(newId, k+1); } catch {}
+      circuit.qubit_coords.set(newId, [t.coord.x, t.coord.y]);
+      // Attach per-qubit metadata: panel coords + sheet from toolbox selection
+      try {
+        const sheetName = this._getTargetSheet() || 'DEFAULT';
+        const meta = { id: newId, stimX: t.coord.x, stimY: t.coord.y, panelX: t.coord.x, panelY: t.coord.y, sheet: sheetName };
+        if (!circuit.qubits) circuit.qubits = new Map();
+        circuit.qubits.set(newId, meta);
+      } catch {}
+      ids.push(newId);
+    }
+    // Build gate
+    let gate = GATE_MAP.get(this.activeGateId);
+    if (!gate && this.activeGateId && this.activeGateId.startsWith('MPP:')) {
+      const base = (this.activeGateId.substring(4) || 'X').replace(/[^XYZ]/g,'X');
+      const bases = base.repeat(Math.max(1, ids.length));
+      gate = make_mpp_gate(bases);
+    }
+    try {
+      const op = new Operation(gate, '', this.gateArgs, new Uint32Array(ids), -1);
+      layer.put(op, false);
+    } catch (e) {
+      this._flashFail('Collision while placing gate.');
+      return false;
+    }
+    es._pendingDesc = `Add ${this.activeGateId}`;
+    es.commit(circuit);
+    if (ids.length === 1) this._pushStatus(`Added ${this.activeGateId} at layer ${layerIdx} on q${ids[0]}.`, 'info');
+    else this._pushStatus(`Added ${this.activeGateId} at layer ${layerIdx} on q{${ids.join(',')}}.`, 'info');
+    this.reset();
+    this._onStateChange();
+    return true;
+  }
+
   /**
    * Returns overlay draw data for panels.
    * { firstQubit, hoverQubit, mode, gateId, multiQubits:Set<number> }
@@ -215,8 +309,11 @@ export class GatePlacementController {
       gateId: this.activeGateId,
       mode: this.mode,
       firstQubit: this.firstQubit,
+      firstCoord: this.firstCoord,
       hoverQubit: this.hoverQubit,
       multiQubits: new Set(this.multiQubits),
+      multiCoords: new Set(this.multiCoords),
+      phantom: this.phantom ? { x: this.phantom.x, y: this.phantom.y } : null,
     };
   }
 }

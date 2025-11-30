@@ -28,10 +28,13 @@ import { draw_x_control, draw_y_control, draw_z_control, draw_swap_control, draw
 import { EditorState } from './editor/editor_state.js';
 import { selectionStore } from './editor/selection_store.js';
 import { hitTestAt } from './draw/hit_test.js';
+import { xyToPos } from './draw/draw_panel.js';
 import { parseHashParams, writeHashFromCircuit, encodeCircuitToHash } from './io/url_sync.js';
 
 const panelsEl = document.getElementById('panels');
 const mgr = new PanelManager(panelsEl);
+let _lastOverlayDebugTs = 0; // TEMP: throttle overlay debug pings
+// (debug removed): no phantom status spam tracking
 
 const seg = document.getElementById('layout-seg');
 seg?.addEventListener('click', (e) => {
@@ -105,6 +108,8 @@ const editorToggleLocalEl = document.getElementById('editor-collapse-btn');
 const editorTextareaEl = document.getElementById('editor-text');
 
 const rootStyle = document.documentElement.style;
+// Current target sheet for new items created via toolbox/phantoms (session-scoped)
+let _targetSheetName = 'DEFAULT';
 
 // URL hash updates are coupled to text updates only (same content as editor)
 
@@ -455,6 +460,8 @@ function renderToolboxUI() {
         },
         activeGateId: gatePlacement.activeGateId,
         flashGateId,
+        getTargetSheet: () => _targetSheetName,
+        setTargetSheet: (name) => { _targetSheetName = name || 'DEFAULT'; try { renderToolboxUI(); schedulePanelsRender(); } catch {} },
       });
       // No toolbox grid appended (using only marker rows for now).
     } catch {}
@@ -553,6 +560,11 @@ function loadStimText(stimText) {
       } else {
         overlayState.sheets = DEFAULT_SHEETS;
       }
+      // Initialize target sheet for new items based on circuit sheets
+      try {
+        const names = overlayState.sheets.map(s=>s.name);
+        _targetSheetName = names.includes('DEFAULT') ? 'DEFAULT' : (names[0] || 'DEFAULT');
+      } catch {}
       // Ensure panel 0 starts with all sheets visible on first import.
       if (overlayState.sheets.length > 0) {
         overlayState.panelSheets[0] = new Set(overlayState.sheets.map(s => s.name));
@@ -933,6 +945,14 @@ editorReloadBtn?.addEventListener('click', () => {
   });
 })();
 
+// If nothing loaded yet, start with an empty circuit so the UI is visible immediately.
+try {
+  if (!circuit) {
+    loadStimText('');
+    pushStatus('Started new empty circuit.', 'info');
+  }
+} catch {}
+
 function ensureEditorState() {
   if (editorState) return editorState;
   // Prefer first panel canvas; fallback to a throwaway canvas.
@@ -1067,13 +1087,37 @@ function bindPanelMouse(panelRef, panelIndex) {
       altOnly: ev.altKey === true,
     });
     if (gatePlacement.isActive()) {
-      gatePlacement.onPanelMove(hit || null);
+      // Determine phantom lattice point near cursor when not over a qubit
+      let phantom = null;
+      try {
+        if (!hit) {
+          const dprNow = Math.max(1, window.devicePixelRatio || 1);
+          const drawX = (offsetX / dprNow) / Math.max(0.1, panelZoom);
+          const drawY = (offsetY / dprNow) / Math.max(0.1, panelZoom);
+          // xyToPos expects pre-offset draw coords; apply half-offset correction
+          const pos = xyToPos(drawX + OFFSET_X/2, drawY + OFFSET_Y/2) || [];
+          // TEMP hard-coded correction: factor-of-two to match panel mapping
+          const gx = pos[0] !== undefined ? pos[0] * 2 : undefined;
+          const gy = pos[1] !== undefined ? pos[1] * 2 : undefined;
+          // Ensure no existing qubit at these panel coords
+          let exists = false;
+          try {
+            for (const [id, q] of circuit.qubits.entries()) {
+              if (q && q.panelX === gx && q.panelY === gy) { exists = true; break; }
+            }
+          } catch {}
+          if (!exists) phantom = { x: gx, y: gy };
+        }
+      } catch {}
+      gatePlacement.onPanelMove(hit || null, phantom);
+      // no phantom debug log
       selectionStore.setHover(null);
+      try { schedulePanelsRender(); } catch {}
       return;
     }
     if (hit) selectionStore.setHover(hit); else selectionStore.setHover(null);
   };
-  const onLeave = () => { selectionStore.setHover(null); try { gatePlacement.onPanelMove(null); } catch {} };
+  const onLeave = () => { selectionStore.setHover(null); try { gatePlacement.onPanelMove(null); } catch {}; try { schedulePanelsRender(); } catch {} };
   const onClick = (ev) => {
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -1104,7 +1148,7 @@ function bindPanelMouse(panelRef, panelIndex) {
       altOnly: ev.altKey === true,
     });
     if (gatePlacement.isActive()) {
-      if (gatePlacement.onPanelClick(hit || null)) return;
+      if (gatePlacement.onPanelClick(hit || null)) { try { schedulePanelsRender(); } catch {}; return; }
     }
     // Click on empty space without multi-select modifiers clears selection.
     if (!hit && !ev.shiftKey && !(ev.ctrlKey || ev.metaKey)) {
@@ -1350,10 +1394,49 @@ function drawGatePlacementOverlay(ctx, circuit, sheetsSel) {
     ctx.restore();
   };
   if (ov.mode === 'two_second') {
-    drawFirstGlyphAt(ov.gateId, ov.firstQubit, 0.6);
+    if (ov.firstQubit != null) drawFirstGlyphAt(ov.gateId, ov.firstQubit, 0.6);
+    // Also support phantom firstCoord
+    if (ov.firstCoord) {
+      const [x,y] = [ov.firstCoord.x * pitch - OFFSET_X, ov.firstCoord.y * pitch - OFFSET_Y];
+      ctx.save(); ctx.globalAlpha *= 0.6; draw_z_control(ctx, x, y); ctx.restore();
+    }
   } else if (ov.mode === 'multi') {
     const basis = (ov.gateId && ov.gateId.startsWith('MPP:')) ? ov.gateId.substring(4) : 'X';
     for (const q of ov.multiQubits || []) drawMppGlyphAt(basis, q, 0.55);
+    // phantom multi coords
+    for (const s of ov.multiCoords || []) {
+      const [gx,gy] = String(s).split(',').map(parseFloat);
+      const [x,y] = [gx * pitch - OFFSET_X, gy * pitch - OFFSET_Y];
+      ctx.save();
+      ctx.globalAlpha *= 0.55;
+      ctx.fillStyle = 'gray';
+      ctx.fillRect(x - rad, y - rad, 2*rad, 2*rad);
+      ctx.strokeStyle = 'black';
+      ctx.strokeRect(x - rad, y - rad, 2*rad, 2*rad);
+      ctx.fillStyle = 'black';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = 'bold 12px monospace'; ctx.fillText((basis||'X')[0], x, y - 2);
+      ctx.font = '8px monospace'; ctx.fillText('MPP', x, y + 7);
+      ctx.restore();
+    }
+  }
+
+  // Phantom lattice point hover: faint outlined square
+  if (ov.phantom) {
+    const [x,y] = [ov.phantom.x * pitch - OFFSET_X, ov.phantom.y * pitch - OFFSET_Y];
+    ctx.save();
+    ctx.globalAlpha *= 1.0;
+    // White fill with faint grey outline
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillRect(x - rad, y - rad, 2*rad, 2*rad);
+    ctx.strokeStyle = '#bbb';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x - rad, y - rad, 2*rad, 2*rad);
+    ctx.restore();
+
+    // DEBUG: also draw a strong circle at fixed lattice (10,10) when phantom is active
+    // removed debug circle
   }
 }
 
@@ -1414,6 +1497,7 @@ const gatePlacement = new GatePlacementController({
   getCircuit: () => circuit,
   getCurrentLayer: () => currentLayer,
   getEditorState: () => editorState,
+  getTargetSheet: () => _targetSheetName,
   pushStatus: (msg, sev) => pushStatus(msg, sev || 'info'),
   onStateChange: () => {
     try { renderToolboxUI(); } catch {}

@@ -57,7 +57,7 @@ function rowEl() {
   return { row, square, btnCl, btnO, btnD, btnX, btnY, btnZ };
 }
 
-export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType, onStartGatePlacement, activeGateId, flashGateId }) {
+export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType, onStartGatePlacement, activeGateId, flashGateId, getTargetSheet, setTargetSheet }) {
   if (!containerEl) return;
   containerEl.innerHTML='';
   // Center the toolbox contents.
@@ -438,8 +438,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
   // Populate options from circuit sheets
   try {
     const names = (circuit && circuit.sheets) ? Array.from(circuit.sheets.keys()) : ['DEFAULT'];
-    const LS_KEY_SHEET = 'paletteTargetSheet.v1';
-    let selName = localStorage.getItem(LS_KEY_SHEET) || (names.includes('DEFAULT') ? 'DEFAULT' : names[0]);
+    const selName = (typeof getTargetSheet === 'function' ? getTargetSheet() : null) || (names.includes('DEFAULT') ? 'DEFAULT' : names[0]);
     for (const n of names) {
       const opt = document.createElement('option');
       opt.value = n; opt.textContent = n;
@@ -447,7 +446,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
       sheetSel.appendChild(opt);
     }
     sheetSel.addEventListener('change', () => {
-      try { localStorage.setItem(LS_KEY_SHEET, sheetSel.value); } catch {}
+      try { setTargetSheet && setTargetSheet(sheetSel.value); } catch {}
     });
   } catch {}
   const addBtn = document.createElement('button');
