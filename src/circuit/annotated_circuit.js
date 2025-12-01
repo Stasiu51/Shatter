@@ -912,14 +912,15 @@ export class AnnotatedCircuit {
       diag(repeat_unclosed_block(fr.startLine));
     }
 
-    // Assign coordinates to any qubits that don't have them
-    let max_qubit_index = -1;
+    // Assign coordinates to any used qubits that don't have them yet.
+    // Do NOT create placeholder coordinates for unused ids.
+    const usedIds = new Set();
     for (let layer of circuit.layers) {
       for (let op of layer.id_ops.values()) {
         for (let id of op.id_targets) {
-          max_qubit_index = Math.max(max_qubit_index, id);
+          usedIds.add(id);
           if (!circuit.qubit_coords.has(id)) {
-            //Assign a new coordinate of the form [x,0]
+            // Assign a new coordinate of the form [x,0], picking a free x.
             let x = 0;
             while ([...circuit.qubit_coords.values()].some(([cx, cy]) => cx === x && cy === 0)) {
               x += 1;
@@ -929,16 +930,27 @@ export class AnnotatedCircuit {
         }
       }
     }
-    for (let id = 0; id <= max_qubit_index; id++) {
-      if (!circuit.qubit_coords.has(id)) {
-        //Assign a new coordinate of the form [x,0]
-        let x = 0;
-        while ([...circuit.qubit_coords.values()].includes([x, 0])) { x += 1; }
-        circuit.qubit_coords.set(id, [x, 0]);
+
+    // Build the set of present qubit ids = declared via QUBIT_COORDS, referenced by gates, or present in metadata.
+    const presentIds = new Set();
+    try { for (const k of circuit.qubit_coords.keys()) presentIds.add(k); } catch {}
+    try { for (const k of usedIds.values()) presentIds.add(k); } catch {}
+    try { if (circuit.qubits && typeof circuit.qubits.keys === 'function') { for (const k of circuit.qubits.keys()) presentIds.add(k); } } catch {}
+
+    // Populate qubitCoordData and ensure qubit metadata for present ids only.
+    for (const id of presentIds) {
+      // Prefer declared stim coords when present; otherwise fall back to existing metadata stim coords.
+      let sx, sy;
+      if (circuit.qubit_coords.has(id)) {
+        [sx, sy] = circuit.qubit_coords.get(id);
+      } else {
+        const qm = circuit.qubits.get(id);
+        sx = qm?.stimX ?? 0;
+        sy = qm?.stimY ?? 0;
       }
-      const [sx, sy] = circuit.qubit_coords.get(id);
       circuit.qubitCoordData[2 * id] = sx;
       circuit.qubitCoordData[2 * id + 1] = sy;
+
       // Initialize or update qubit metadata (defaults).
       let q = circuit.qubits.get(id);
       if (!q) {
