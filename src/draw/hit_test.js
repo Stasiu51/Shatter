@@ -63,13 +63,14 @@ export function hitTestAt(opts) {
     }
   }
 
-  // Qubits (top of the non-gate stack). Include declared-only qubits when there are no gates.
+  // Qubits (top of the non-gate stack). Always include all declared qubits
+  // to keep hit-testing consistent with what is drawn.
   const used = circuit.allQubits();
   const declared = new Set();
   try { const n = Math.floor((circuit.qubitCoordData?.length || 0) / 2); for (let i = 0; i < n; i++) declared.add(i); } catch {}
   try { if (circuit.qubit_coords && typeof circuit.qubit_coords.keys === 'function') { for (const q of circuit.qubit_coords.keys()) declared.add(q); } } catch {}
   try { if (circuit.qubits && typeof circuit.qubits.keys === 'function') { for (const q of circuit.qubits.keys()) declared.add(q); } } catch {}
-  const qubitsForHit = used.size > 0 ? used : declared;
+  const qubitsForHit = declared;
   for (const q of qubitsForHit) {
     if (!isQubitVisible(q)) continue;
     const [x, y] = qubitDrawCoords(q);
