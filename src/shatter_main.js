@@ -21,7 +21,7 @@ import { setupMarkersUI as setupToolboxUI } from './ui_elements/markers_controll
 import { renderMarkers as renderToolbox } from './ui_elements/markers_renderer.js';
 import { createChordsController } from './keyboard/chords_controller.js';
 import { GatePlacementController } from './editor/gate_placement_controller.js';
-import { EdgeChainPlacementController, PolygonChainPlacementController } from './editor/shape_placement_controller.js';
+import { EdgeChainPlacementController, PolygonChainPlacementController, QubitPlacementController } from './editor/shape_placement_controller.js';
 import { GATE_MAP } from './gates/gateset.js';
 import { Operation } from './circuit/operation.js';
 import { deleteSelection } from './editor/delete_controller.js';
@@ -473,6 +473,17 @@ function renderToolboxUI() {
         flashGateId,
         getTargetSheet: () => _targetSheetName,
         setTargetSheet: (name) => { _targetSheetName = name || 'DEFAULT'; try { renderToolboxUI(); schedulePanelsRender(); } catch {} },
+        onAddQubit: (color) => {
+          try {
+            // Cancel other placements; start qubit placement with selected colour.
+            try { if (gatePlacement?.isActive?.()) gatePlacement.cancel?.(); } catch {}
+            try { if (edgePlacement?.isActive?.()) edgePlacement.cancel?.(); } catch {}
+            try { if (polyPlacement?.isActive?.()) polyPlacement.cancel?.(); } catch {}
+            qubitPlacement.start(color);
+          } catch (e) {
+            try { pushStatus(`Failed to add qubit: ${e?.message||e}`, 'error'); } catch {}
+          }
+        },
         onAddPolygon: (color) => {
           try {
             if (!editorState) return;
@@ -1260,7 +1271,7 @@ function bindPanelMouse(panelRef, panelIndex) {
       torusSegmentsBetween: (p1,p2,Lx,Ly)=>torusSegmentsBetween(p1,p2,Lx,Ly),
       altOnly: ev.altKey === true,
     });
-    if (gatePlacement.isActive() || edgePlacement.isActive() || polyPlacement.isActive()) {
+    if (gatePlacement.isActive() || edgePlacement.isActive() || polyPlacement.isActive() || (typeof qubitPlacement !== 'undefined' && qubitPlacement.isActive && qubitPlacement.isActive())) {
       // Determine phantom lattice point near cursor when not over a qubit
       let phantom = null;
       let overQubitHit = null;
@@ -1300,6 +1311,7 @@ function bindPanelMouse(panelRef, panelIndex) {
       if (gatePlacement.isActive()) gatePlacement.onPanelMove(routedHit, phantom);
       if (edgePlacement.isActive()) edgePlacement.onPanelMove(routedHit, phantom);
       if (polyPlacement.isActive()) polyPlacement.onPanelMove(routedHit, phantom);
+      try { if (qubitPlacement && qubitPlacement.isActive && qubitPlacement.isActive()) qubitPlacement.onPanelMove(routedHit, phantom); } catch {}
       // no phantom debug log
       selectionStore.setHover(null);
       try { schedulePanelsRender(); } catch {}
@@ -1307,7 +1319,7 @@ function bindPanelMouse(panelRef, panelIndex) {
     }
     if (hit) selectionStore.setHover(hit); else selectionStore.setHover(null);
   };
-  const onLeave = () => { selectionStore.setHover(null); try { gatePlacement.onPanelMove(null); } catch {}; try { edgePlacement.onPanelMove(null); } catch {}; try { polyPlacement.onPanelMove(null); } catch {}; try { schedulePanelsRender(); } catch {} };
+  const onLeave = () => { selectionStore.setHover(null); try { gatePlacement.onPanelMove(null); } catch {}; try { edgePlacement.onPanelMove(null); } catch {}; try { polyPlacement.onPanelMove(null); } catch {}; try { qubitPlacement.onPanelMove(null); } catch {}; try { schedulePanelsRender(); } catch {} };
   const onClick = (ev) => {
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -1365,7 +1377,7 @@ function bindPanelMouse(panelRef, panelIndex) {
       torusSegmentsBetween: (p1,p2,Lx,Ly)=>torusSegmentsBetween(p1,p2,Lx,Ly),
       altOnly: ev.altKey === true,
     });
-    if (gatePlacement.isActive() || edgePlacement.isActive() || polyPlacement.isActive()) {
+    if (gatePlacement.isActive() || edgePlacement.isActive() || polyPlacement.isActive() || (typeof qubitPlacement !== 'undefined' && qubitPlacement.isActive && qubitPlacement.isActive())) {
       // Pass-through to qubits when possible
       let routedHit = hit || null;
       try {
@@ -1383,6 +1395,7 @@ function bindPanelMouse(panelRef, panelIndex) {
       if (gatePlacement.isActive()) { if (gatePlacement.onPanelClick(routedHit)) { try { schedulePanelsRender(); } catch {}; return; } }
       if (edgePlacement.isActive()) { if (edgePlacement.onPanelClick(routedHit)) { try { schedulePanelsRender(); } catch {}; return; } }
       if (polyPlacement.isActive()) { if (polyPlacement.onPanelClick(routedHit)) { try { schedulePanelsRender(); } catch {}; return; } }
+      try { if (qubitPlacement && qubitPlacement.isActive && qubitPlacement.isActive()) { if (qubitPlacement.onPanelClick(routedHit)) { try { schedulePanelsRender(); } catch {}; return; } } } catch {}
     }
     // Click on empty space without multi-select modifiers clears selection.
     if (!hit && !ev.shiftKey && !(ev.ctrlKey || ev.metaKey)) {
@@ -1576,6 +1589,12 @@ window.addEventListener('keydown', (e) => {
       e.stopPropagation();
     }
   }
+  if (typeof qubitPlacement !== 'undefined' && qubitPlacement && qubitPlacement.isActive && qubitPlacement.isActive()) {
+    if (qubitPlacement.onKeydown(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
 });
 
 // Minimal interim overlay for partial placement (yellow squares at chosen qubits)
@@ -1688,6 +1707,22 @@ function drawGatePlacementOverlay(ctx, circuit, sheetsSel) {
 
 // Edge/Polygon chain overlays
 function drawShapePlacementOverlays(ctx, circuit, sheetsSel) {
+  // Qubit add: draw phantom square with chosen color
+  if (typeof qubitPlacement !== 'undefined' && qubitPlacement && qubitPlacement.isActive && qubitPlacement.isActive()) {
+    const ovQ = qubitPlacement.getOverlay?.();
+    if (ovQ && ovQ.phantom) {
+      ctx.save();
+      try {
+        const [x,y] = [ovQ.phantom.x * pitch - OFFSET_X, ovQ.phantom.y * pitch - OFFSET_Y];
+        ctx.globalAlpha *= 0.9;
+        ctx.fillStyle = ovQ.color || '#fff';
+        ctx.fillRect(x - rad, y - rad, 2*rad, 2*rad);
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x - rad, y - rad, 2*rad, 2*rad);
+      } finally { ctx.restore(); }
+    }
+  }
   const toXY = (p) => {
     if (p.id !== undefined) {
       const q = circuit.qubits?.get?.(p.id);
@@ -1791,7 +1826,7 @@ function flashGate(gateId) {
 function updateGateCursor() {
   try {
     const canvases = mgr.panels.map(p => p.canvas).filter(Boolean);
-    if (!gatePlacement?.isActive?.() && !edgePlacement?.isActive?.() && !polyPlacement?.isActive?.()) {
+    if (!gatePlacement?.isActive?.() && !edgePlacement?.isActive?.() && !polyPlacement?.isActive?.() && !(qubitPlacement?.isActive?.())) {
       for (const c of canvases) c.style.cursor = '';
       return;
     }
@@ -1854,6 +1889,15 @@ const edgePlacement = new EdgeChainPlacementController({
   onStateChange: () => { try { renderToolboxUI(); } catch {} try { schedulePanelsRender(); } catch {} try { updateGateCursor(); } catch {} },
 });
 const polyPlacement = new PolygonChainPlacementController({
+  getCircuit: () => circuit,
+  getCurrentLayer: () => currentLayer,
+  getEditorState: () => editorState,
+  getTargetSheet: () => _targetSheetName,
+  pushStatus: (msg, sev) => pushStatus(msg, sev || 'info'),
+  onStateChange: () => { try { renderToolboxUI(); } catch {} try { schedulePanelsRender(); } catch {} try { updateGateCursor(); } catch {} },
+});
+
+const qubitPlacement = new QubitPlacementController({
   getCircuit: () => circuit,
   getCurrentLayer: () => currentLayer,
   getEditorState: () => editorState,

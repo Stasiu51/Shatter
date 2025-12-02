@@ -1,6 +1,7 @@
 import { GATE_MAP } from '../gates/gateset.js';
 import { make_mpp_gate } from '../gates/gateset_mpp.js';
 import { Operation } from '../circuit/operation.js';
+import { ensureQubitForCoord } from './placement_utils.js';
 
 /**
  * Manages interactive gate placement (single/two-qubit; extensible to multi-qubit).
@@ -263,18 +264,8 @@ export class GatePlacementController {
         }
       } catch {}
       if (existing !== null) { ids.push(existing); continue; }
-      // Allocate new id
-      let newId = 0;
-      try { for (const k of circuit.qubit_coords.keys()) newId = Math.max(newId, k+1); } catch {}
-      circuit.qubit_coords.set(newId, [t.coord.x, t.coord.y]);
-      // Attach per-qubit metadata: panel coords + sheet from toolbox selection
-      try {
-        const sheetName = this._getTargetSheet() || 'DEFAULT';
-        const meta = { id: newId, stimX: t.coord.x, stimY: t.coord.y, panelX: t.coord.x, panelY: t.coord.y, sheet: sheetName };
-        if (!circuit.qubits) circuit.qubits = new Map();
-        circuit.qubits.set(newId, meta);
-      } catch {}
-      ids.push(newId);
+      const qid = ensureQubitForCoord(circuit, { x: t.coord.x, y: t.coord.y }, this._getTargetSheet);
+      ids.push(qid);
     }
     // Build gate
     let gate = GATE_MAP.get(this.activeGateId);

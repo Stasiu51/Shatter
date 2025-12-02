@@ -1,27 +1,7 @@
 import { Operation } from '../circuit/operation.js';
+import { ensureQubitForCoord } from './placement_utils.js';
 
-/** Shared helpers to allocate coords into qubits on a copied circuit. */
-function ensureQubitForCoord(circuit, coord, getTargetSheet) {
-  const key = `${coord.x},${coord.y}`;
-  // Find existing qubit at exact panel coords if any
-  try {
-    for (const [qid, q] of circuit.qubits.entries()) {
-      if (q && q.panelX === coord.x && q.panelY === coord.y) return qid;
-    }
-  } catch {}
-  // Allocate new id
-  let newId = 0;
-  try { for (const k of circuit.qubit_coords.keys()) newId = Math.max(newId, k + 1); } catch {}
-  circuit.qubit_coords.set(newId, [coord.x, coord.y]);
-  // Attach per-qubit metadata: panel coords + sheet from toolbox selection
-  try {
-    const sheetName = (typeof getTargetSheet === 'function' ? getTargetSheet() : null) || 'DEFAULT';
-    const meta = { id: newId, stimX: coord.x, stimY: coord.y, panelX: coord.x, panelY: coord.y, sheet: sheetName };
-    if (!circuit.qubits) circuit.qubits = new Map();
-    circuit.qubits.set(newId, meta);
-  } catch {}
-  return newId;
-}
+// moved to placement_utils.js
 
 export class EdgeChainPlacementController {
   constructor(deps) {
@@ -228,5 +208,71 @@ export class PolygonChainPlacementController {
       phantom: this.phantom ? { x: this.phantom.x, y: this.phantom.y } : null,
       hoverQubit: this.hoverQubit,
     };
+  }
+}
+
+export class QubitPlacementController {
+  constructor(deps) {
+    this._getCircuit = deps.getCircuit;
+    this._getCurrentLayer = deps.getCurrentLayer;
+    this._getEditorState = deps.getEditorState;
+    this._getTargetSheet = deps.getTargetSheet || (()=>'DEFAULT');
+    this._pushStatus = deps.pushStatus || (()=>{});
+    this._onStateChange = deps.onStateChange || (()=>{});
+    this.reset();
+  }
+  reset() {
+    this.active = false;
+    this.color = '#ffffff';
+    this.phantom = null; // {x,y}
+  }
+  isActive() { return !!this.active; }
+  start(color) {
+    this.reset();
+    this.active = true;
+    if (typeof color === 'string' && color.length) this.color = color;
+    this._pushStatus('Qubit placement: click on empty lattice to add. Enter to finish, Esc to cancel.', 'info');
+    this._onStateChange();
+  }
+  cancel() { if (!this.active) return; this.reset(); this._onStateChange(); this._pushStatus('Qubit placement canceled.', 'info'); }
+  finalize() {
+    if (!this.active) return false;
+    this._pushStatus('Qubit placement finished.', 'info');
+    this.reset();
+    this._onStateChange();
+    return true;
+  }
+  onKeydown(e) {
+    if (!this.active) return false;
+    if (e.key === 'Escape') { this.cancel(); return true; }
+    if (e.key === 'Enter') { this.finalize(); return true; }
+    return false;
+  }
+  onPanelMove(hit, phantom) {
+    if (!this.active) return;
+    // Only place on phantoms; ignore hover qubit hits.
+    this.phantom = phantom || null;
+  }
+  onPanelClick(hit) {
+    if (!this.active) return false;
+    // Only create on empty lattice (phantom); ignore clicks on existing qubits.
+    if (hit && hit.kind === 'qubit') return true; // consume without action
+    if (!this.phantom || !Number.isFinite(this.phantom.x) || !Number.isFinite(this.phantom.y)) return false;
+
+    const es = this._getEditorState();
+    if (!es) { this.cancel(); return true; }
+    const c = es.copyOfCurAnnotatedCircuit();
+    // Ensure/reuse qubit id at phantom coord, and assign colour.
+    const qid = ensureQubitForCoord(c, { x: this.phantom.x, y: this.phantom.y }, this._getTargetSheet, { colour: this.color });
+    // Commit only the qubit addition; no gate/annotation.
+    es._pendingDesc = 'Add qubit';
+    es.commit(c);
+    this._pushStatus(`Added qubit q${qid} at (${this.phantom.x}, ${this.phantom.y}).`, 'info');
+    this._onStateChange();
+    return true;
+  }
+  getOverlay() {
+    if (!this.active) return null;
+    return { kind: 'qubit-add', color: this.color, phantom: this.phantom ? { x: this.phantom.x, y: this.phantom.y } : null };
   }
 }
