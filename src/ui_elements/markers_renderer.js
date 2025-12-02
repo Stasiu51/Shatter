@@ -3,6 +3,7 @@ import { marker_placement } from '../gates/gateset_markers.js';
 import { rad } from '../draw/config.js';
 import { renderPolygonsPalette } from './polygons_palette.js';
 import { renderEdgesPalette } from './edges_palette.js';
+import { renderQubitsPalette } from './qubits_palette.js';
 
 // Persist collapsed state of the Pauli Marks subpanel across redraws/sessions.
 const LS_MARKS_COLLAPSED = 'toolboxMarksCollapsed.v1';
@@ -62,7 +63,7 @@ function rowEl() {
   return { row, square, btnCl, btnO, btnD, btnX, btnY, btnZ };
 }
 
-export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType, onStartGatePlacement, activeGateId, flashGateId, getTargetSheet, setTargetSheet, onAddPolygon, onAddEdge, chordHighlightCol = -1, chordMarksActive = false, chordHints = {}, chordHintMarks = '' }) {
+export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType, onStartGatePlacement, activeGateId, flashGateId, getTargetSheet, setTargetSheet, onAddQubit, onAddEdge, onAddPolygon, chordHighlightCol = -1, chordMarksActive = false, chordHints = {}, chordHintMarks = '' }) {
   if (!containerEl) return;
   containerEl.innerHTML='';
   // Center the toolbox contents.
@@ -546,10 +547,10 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
   controlRow.append(sheetSel, addBtn);
   styleBox.appendChild(controlRow);
 
-  // Palettes inside the subpanel
-  const polyContainer = document.createElement('div');
-  renderPolygonsPalette({ containerEl: polyContainer, circuit, onAdd: (color) => { try { onAddPolygon && onAddPolygon(color); } catch {} } });
-  styleBox.appendChild(polyContainer);
+  // Palettes inside the subpanel (reordered: qubit, edge, polygon)
+  const qubitContainer = document.createElement('div');
+  renderQubitsPalette({ containerEl: qubitContainer, circuit, onAdd: (color) => { try { onAddQubit && onAddQubit(color); } catch {} } });
+  styleBox.appendChild(qubitContainer);
 
   const edgeContainer = document.createElement('div');
   // Edge thickness config (persisted)
@@ -590,6 +591,10 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
   });
   edgeCfg.append(thLbl, thInp);
   styleBox.appendChild(edgeCfg);
+
+  const polyContainer = document.createElement('div');
+  renderPolygonsPalette({ containerEl: polyContainer, circuit, onAdd: (color) => { try { onAddPolygon && onAddPolygon(color); } catch {} } });
+  styleBox.appendChild(polyContainer);
 
   containerEl.appendChild(styleBox);
 
