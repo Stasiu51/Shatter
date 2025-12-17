@@ -33,6 +33,7 @@ import { selectionStore } from './editor/selection_store.js';
 import { hitTestAt } from './draw/hit_test.js';
 import { xyToPos } from './draw/draw_panel.js';
 import { parseHashParams, writeHashFromCircuit, encodeCircuitToHash } from './io/url_sync.js';
+import { parseCssColor } from './util/color.js';
 
 const panelsEl = document.getElementById('panels');
 const mgr = new PanelManager(panelsEl);
@@ -64,6 +65,7 @@ const panelsZoomInBtn = document.getElementById('panels-zoom-in');
 const panelsZoomOutBtn = document.getElementById('panels-zoom-out');
 const panelsZoomResetBtn = document.getElementById('panels-zoom-reset');
 const nameEl = document.getElementById('circuit-name');
+const timestepInputEl = document.getElementById('timestep-label');
 const statusEl = document.getElementById('statusbar');
 const statusText = document.getElementById('status-text');
 const statusDot = document.getElementById('status-dot');
@@ -475,6 +477,22 @@ function renderToolboxUI() {
         setTargetSheet: (name) => { _targetSheetName = name || 'DEFAULT'; try { renderToolboxUI(); schedulePanelsRender(); } catch {} },
         onAddQubit: (color) => {
           try {
+            // If qubits are selected, recolor them.
+            const sel = selectionStore.snapshot?.();
+            if (sel && sel.kind === 'qubit' && sel.selected && sel.selected.size > 0 && editorState) {
+              const c = editorState.copyOfCurAnnotatedCircuit();
+              for (const id of sel.selected) {
+                const parts = String(id).split(':');
+                if (parts[0] !== 'q') continue;
+                const qid = parseInt(parts[1]);
+                const qm = c.qubits?.get?.(qid);
+                if (qm) qm.colour = color;
+              }
+              editorState._pendingDesc = 'Recolor qubit(s)';
+              editorState.commit(c);
+              schedulePanelsRender(); renderToolboxUI(); renderInspectorUI();
+              return;
+            }
             // Cancel other placements; start qubit placement with selected colour.
             try { if (gatePlacement?.isActive?.()) gatePlacement.cancel?.(); } catch {}
             try { if (edgePlacement?.isActive?.()) edgePlacement.cancel?.(); } catch {}
@@ -487,6 +505,25 @@ function renderToolboxUI() {
         onAddPolygon: (color) => {
           try {
             if (!editorState) return;
+            // If polygons are selected, recolor their source annotations.
+            const sel = selectionStore.snapshot?.();
+            if (sel && sel.kind === 'polygon' && sel.selected && sel.selected.size > 0) {
+              const es = editorState;
+              const c = es.copyOfCurAnnotatedCircuit();
+              const norm = (() => { try { return parseCssColor(String(color)); } catch { return String(color); } })();
+              for (const sid of sel.selected) {
+                const tokens = String(sid).split(':');
+                if ((tokens[0] !== 'p' && tokens[0] !== 'polygon') || tokens.length < 3) continue;
+                const layerIdx = parseInt(tokens[1]);
+                const polyIndex = parseInt(tokens[2]);
+                const anns = c.layers?.[layerIdx]?.annotations || [];
+                const poly = anns.find(a => a && a.kind === 'Polygon' && a.polyIndex === polyIndex);
+                if (poly) poly.fill = norm;
+              }
+              es._pendingDesc = 'Recolor polygon(s)'; es.commit(c);
+              schedulePanelsRender(); renderToolboxUI(); renderInspectorUI();
+              return;
+            }
             const ordered = selectionStore.orderedEntries?.() || [];
             const qids = ordered.filter(e => (e.kind === 'qubit') && e.id.startsWith('q:'))
               .map(e => parseInt(e.id.split(':')[1]))
@@ -529,6 +566,39 @@ function renderToolboxUI() {
         onAddEdge: (color, thickness) => {
           try {
             if (!editorState) return;
+            // If edges are selected, recolor the last-writing ConnSet for each.
+            const sel = selectionStore.snapshot?.();
+            if (sel && sel.kind === 'connection' && sel.selected && sel.selected.size > 0) {
+              const es = editorState;
+              const c = es.copyOfCurAnnotatedCircuit();
+              for (const sid of sel.selected) {
+                const tokens = String(sid).split(':');
+                if ((tokens[0] !== 'c' && tokens[0] !== 'connection') || tokens.length < 3) continue;
+                const sheetName = tokens[1];
+                const [a,b] = tokens[2].split('-');
+                const q1 = Math.min(parseInt(a), parseInt(b));
+                const q2 = Math.max(parseInt(a), parseInt(b));
+                let lastR = -1, lastJ = -1;
+                for (let r = 0; r <= currentLayer && r < c.layers.length; r++) {
+                  const anns = c.layers[r].annotations || [];
+                  for (let j = 0; j < anns.length; j++) {
+                    const a2 = anns[j];
+                    if (!a2 || a2.kind !== 'ConnSet') continue;
+                    const sname = a2.sheet?.name || a2.sheet || 'DEFAULT';
+                    if (sname !== sheetName) continue;
+                    const edges = Array.isArray(a2.edges) ? a2.edges : [];
+                    if (edges.some(e => Array.isArray(e) && e.length===2 && ((e[0]===q1&&e[1]===q2)||(e[0]===q2&&e[1]===q1)))) { lastR=r; lastJ=j; }
+                  }
+                }
+                if (lastR >= 0 && lastJ >= 0) {
+                  const a2 = (c.layers[lastR].annotations || [])[lastJ];
+                  if (a2) a2.colour = color;
+                }
+              }
+              es._pendingDesc = 'Recolor edge(s)'; es.commit(c);
+              schedulePanelsRender(); renderToolboxUI(); renderInspectorUI();
+              return;
+            }
             const ordered = selectionStore.orderedEntries?.() || [];
             const qids = ordered.filter(e => (e.kind === 'qubit') && e.id.startsWith('q:'))
               .map(e => parseInt(e.id.split(':')[1]))
@@ -561,6 +631,13 @@ function renderToolboxUI() {
             try { pushStatus(`Failed to add edge(s): ${e?.message||e}`, 'error'); } catch {}
           }
         },
+        // Hints and selected colors for palette headers and selection outlines
+        placeHintQubit: (() => { try { const b=appSettings?.keybindings?.commands?.['place.qubit']?.bindings; return (Array.isArray(b)&&b.length>0)?String(b[0]):'O'; } catch { return 'O'; } })(),
+        placeHintEdge: (() => { try { const b=appSettings?.keybindings?.commands?.['place.edge']?.bindings; return (Array.isArray(b)&&b.length>0)?String(b[0]):'L'; } catch { return 'L'; } })(),
+        placeHintPolygon: (() => { try { const b=appSettings?.keybindings?.commands?.['place.polygon']?.bindings; return (Array.isArray(b)&&b.length>0)?String(b[0]):'K'; } catch { return 'K'; } })(),
+        selQubitColor: (() => { try { return localStorage.getItem('paletteSelected.qubit') || ''; } catch { return ''; } })(),
+        selEdgeColor: (() => { try { return localStorage.getItem('paletteSelected.edge') || ''; } catch { return ''; } })(),
+        selPolyColor: (() => { try { return localStorage.getItem('paletteSelected.poly') || ''; } catch { return ''; } })(),
       });
       // No toolbox grid appended (using only marker rows for now).
     } catch {}
@@ -671,6 +748,7 @@ function loadStimText(stimText) {
       renderPanelSheetsOptions();
       schedulePanelsRender();
       renderInspectorUI();
+      try { updateTimestepInput(); } catch {}
     } catch {}
     return true;
   } catch (e) {
@@ -791,6 +869,7 @@ function setLayer(layer) {
   schedulePanelsRender();
   renderToolboxUI();
   renderInspectorUI();
+  try { updateTimestepInput(); } catch {}
 }
 
 // Recompute propagation (e.g., when feature toggles affect visibility) and re-render panels/timeline/inspector
@@ -805,6 +884,47 @@ function recomputePropagationAndRender() {
     renderToolboxUI();
     renderInspectorUI();
   } catch {}
+}
+
+// ---- TIMESTEP label UI ----
+function updateTimestepInput() {
+  if (!timestepInputEl) return;
+  const maxLayer = circuit ? circuit.layers.length : 0;
+  const tickIdx = currentLayer; // label for TICK at this index
+  const enabled = !!circuit && tickIdx >= 1 && tickIdx < maxLayer;
+  timestepInputEl.disabled = !enabled;
+  let val = '';
+  try { if (enabled) val = String(circuit.timesteps?.get?.(tickIdx)?.label ?? ''); } catch {}
+  timestepInputEl.value = val;
+}
+if (timestepInputEl) {
+  const commitTimestep = () => {
+    try {
+      const maxLayer = circuit ? circuit.layers.length : 0;
+      const tickIdx = currentLayer;
+      const enabled = !!editorState && !!circuit && tickIdx >= 1 && tickIdx < maxLayer;
+      if (!enabled) return;
+      const newLabel = String(timestepInputEl.value || '');
+      const es = ensureEditorState();
+      const c = es.copyOfCurAnnotatedCircuit();
+      if (!c.timesteps) c.timesteps = new Map();
+      if (newLabel.trim().length > 0) c.timesteps.set(tickIdx, { label: newLabel });
+      else c.timesteps.delete(tickIdx);
+      es._pendingDesc = 'Set timestep label';
+      es.commit(c);
+      pushStatus('Updated timestep label.', 'info');
+      updateTimestepInput();
+    } catch (e) { try { pushStatus(`Failed to set label: ${e?.message||e}`, 'error'); } catch {} }
+  };
+  timestepInputEl.addEventListener('change', commitTimestep);
+  timestepInputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      commitTimestep();
+      try { timestepInputEl.blur(); } catch {}
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
 }
 
 function shouldReloadOnFeature(name) {
@@ -847,9 +967,165 @@ keymap.registerCommand('layer.next', () => setLayer(currentLayer + 1), { when: (
   keymap.registerCommand('edit.delete', () => { try { if (deleteSelection(editorState, currentLayer, pushStatus)) { schedulePanelsRender(); renderToolboxUI(); renderInspectorUI(); } } catch (e) { try { pushStatus(`Delete failed: ${e?.message||e}`, 'error'); } catch {} } }, { when: () => !isEditing() && !!editorState });
   keymap.registerCommand('panel.zoom.in', () => setPanelZoom(panelZoom * 1.25), { when: () => !isEditing() });
 keymap.registerCommand('panel.zoom.out', () => setPanelZoom(panelZoom / 1.25), { when: () => !isEditing() });
-  keymap.registerCommand('panel.zoom.reset', () => setPanelZoom(2), { when: () => !isEditing() });
+keymap.registerCommand('panel.zoom.reset', () => setPanelZoom(2), { when: () => !isEditing() });
   keymap.registerCommand('layer.insert', () => { try { editorState?.insertLayer?.(false); } catch {} }, { when: () => !isEditing() && !!editorState });
   keymap.registerCommand('layer.delete', () => { try { editorState?.deleteCurLayer?.(false); } catch {} }, { when: () => !isEditing() && !!editorState });
+
+// Helpers for palette selection + cycling
+const LS_SEL = {
+  qubit: 'paletteSelected.qubit',
+  edge: 'paletteSelected.edge',
+  poly: 'paletteSelected.poly',
+};
+const LS_CUSTOM = {
+  qubit: 'customQubitColors.v1',
+  edge: 'customEdgeColors.v1',
+  poly: 'customPolygonColors.v1',
+};
+function normCss(val) { try { return String(parseCssColor(val) || val).toLowerCase().replace(/\s+/g,' '); } catch { return String(val||'').toLowerCase(); } }
+function getSelectedPal(type) { try { return localStorage.getItem(LS_SEL[type]) || ''; } catch { return ''; } }
+function setSelectedPal(type, val) { try { localStorage.setItem(LS_SEL[type], normCss(val)); } catch {} }
+function getCustomSet(type) { try { const raw = localStorage.getItem(LS_CUSTOM[type]); const arr = JSON.parse(raw||'[]'); return Array.isArray(arr)?new Set(arr.map(normCss)):new Set(); } catch { return new Set(); } }
+function paletteColorsQubit() {
+  const out = new Set([normCss('#ffffff')]);
+  try { for (const q of circuit?.qubits?.values?.() || []) if (q && q.colour) out.add(normCss(q.colour)); } catch {}
+  for (const c of getCustomSet('qubit')) out.add(c);
+  return [...out];
+}
+function paletteColorsEdge() {
+  const out = new Set([normCss('#b0b5ba')]);
+  try {
+    for (const layer of circuit?.layers || []) for (const a of (layer.annotations||[])) if (a && a.kind==='ConnSet') { const col = a.COLOUR||a.colour; if (col) out.add(normCss(col)); }
+  } catch {}
+  for (const c of getCustomSet('edge')) out.add(c);
+  return [...out];
+}
+function toCssRgbaStr(fill) {
+  try {
+    const s = String(fill||'');
+    if (/^rgba\(/i.test(s)) return normCss(s);
+    const inner = s.replace(/[()]/g,'');
+    return normCss(parseCssColor(inner));
+  } catch { return normCss(fill); }
+}
+function paletteColorsPoly() {
+  const out = new Set([normCss('rgba(0, 0, 255, 0.25)'), normCss('rgba(255, 0, 0, 0.25)'), normCss('rgba(0, 255, 0, 0.25)')]);
+  try {
+    for (const layer of circuit?.layers || []) for (const a of (layer.annotations||[])) if (a && a.kind==='Polygon') out.add(toCssRgbaStr(a.fill));
+  } catch {}
+  for (const c of getCustomSet('poly')) out.add(c);
+  return [...out];
+}
+function cycleSelected(type, list) {
+  let cur = getSelectedPal(type);
+  if (!cur || !list || list.length===0) { if (list && list.length>0) cur=list[0]; }
+  const idx = Math.max(0, list.findIndex(v => v === cur));
+  const next = list[(idx + 1) % list.length];
+  setSelectedPal(type, next);
+  renderToolboxUI();
+  schedulePanelsRender();
+  return next;
+}
+
+// Register placement commands with cycling/recolor semantics
+keymap.registerCommand('place.qubit', () => {
+  if (isEditing()) return;
+  const sel = selectionStore.snapshot?.();
+  const color = getSelectedPal('qubit') || paletteColorsQubit()[0] || '#ffffff';
+  if (sel && sel.kind === 'qubit' && sel.selected && sel.selected.size > 0 && editorState) {
+    const es = editorState; const c = es.copyOfCurAnnotatedCircuit();
+    for (const id of sel.selected) { const p=String(id).split(':'); if (p[0]!=='q') continue; const qid=parseInt(p[1]); const qm=c.qubits?.get?.(qid); if (qm) qm.colour=color; }
+    es._pendingDesc = 'Recolor qubit(s)'; es.commit(c); schedulePanelsRender(); renderToolboxUI(); renderInspectorUI(); return;
+  }
+  if (qubitPlacement?.isActive?.()) {
+    const next = cycleSelected('qubit', paletteColorsQubit());
+    try { qubitPlacement.color = next; } catch {}
+    return;
+  }
+  try { if (gatePlacement?.isActive?.()) gatePlacement.cancel?.(); } catch {}
+  try { if (edgePlacement?.isActive?.()) edgePlacement.cancel?.(); } catch {}
+  try { if (polyPlacement?.isActive?.()) polyPlacement.cancel?.(); } catch {}
+  qubitPlacement.start(color);
+}, { when: () => !isEditing() });
+
+keymap.registerCommand('place.edge', () => {
+  if (isEditing()) return;
+  const sel = selectionStore.snapshot?.();
+  const color = getSelectedPal('edge') || paletteColorsEdge()[0] || '#b0b5ba';
+  if (sel && sel.kind === 'connection' && sel.selected && sel.selected.size > 0 && editorState) {
+    const es = editorState; const c = es.copyOfCurAnnotatedCircuit();
+    for (const sid of sel.selected) {
+      const tokens = String(sid).split(':'); if ((tokens[0]!=='c'&&tokens[0]!=='connection')||tokens.length<3) continue;
+      const sheetName = tokens[1]; const [a,b]=tokens[2].split('-'); const q1 = parseInt(a), q2 = parseInt(b);
+      for (let r=0; r <= currentLayer && r < c.layers.length; r++) {
+        const anns = c.layers[r].annotations || [];
+        for (const a2 of anns) {
+          if (!a2 || a2.kind!=='ConnSet') continue; const sname=a2.sheet?.name||a2.sheet||'DEFAULT'; if (sname!==sheetName) continue;
+          const edges = Array.isArray(a2.edges)?a2.edges:[];
+          if (edges.some(e => Array.isArray(e)&&e.length===2 && ((e[0]===q1&&e[1]===q2)||(e[0]===q2&&e[1]===q1)))) { a2.colour = color; }
+        }
+      }
+    }
+    es._pendingDesc = 'Recolor edge(s)'; es.commit(c); schedulePanelsRender(); renderToolboxUI(); renderInspectorUI(); return;
+  }
+  if (edgePlacement?.isActive?.()) {
+    const next = cycleSelected('edge', paletteColorsEdge());
+    try { edgePlacement.color = next; } catch {}
+    return;
+  }
+  // else fallback to default onAddEdge behavior: immediate if 2 qubits selected, else start chaining
+  const ordered = selectionStore.orderedEntries?.() || [];
+  const qids = ordered.filter(e => (e.kind === 'qubit') && e.id.startsWith('q:')).map(e => parseInt(e.id.split(':')[1])).filter(Number.isFinite);
+  if (qids.length === 2) {
+    try {
+      const es = editorState; const c = es.copyOfCurAnnotatedCircuit(); const layerIdx=currentLayer;
+      while (c.layers.length <= layerIdx) c.layers.push(c.layers[c.layers.length-1]?.copy?.() || new (c.layers[0].constructor)());
+      const anns = c.layers[layerIdx].annotations = c.layers[layerIdx].annotations || [];
+      const a = Math.min(qids[0], qids[1]); const b = Math.max(qids[0], qids[1]);
+      anns.push({ kind:'ConnSet', sheet:{name:_targetSheetName||'DEFAULT'}, edges:[[a,b]], colour: color });
+      es._pendingDesc='Add edge'; es.commit(c); schedulePanelsRender(); renderToolboxUI();
+    } catch (e) { try { pushStatus(`Failed to add edge: ${e?.message||e}`, 'error'); } catch {} }
+  } else {
+    edgePlacement.start(color);
+  }
+}, { when: () => !isEditing() });
+
+keymap.registerCommand('place.polygon', () => {
+  if (isEditing()) return;
+  const sel = selectionStore.snapshot?.();
+  const color = getSelectedPal('poly') || paletteColorsPoly()[0] || 'rgba(0, 0, 255, 0.25)';
+  if (sel && sel.kind === 'polygon' && sel.selected && sel.selected.size > 0 && editorState) {
+    const es = editorState; const c = es.copyOfCurAnnotatedCircuit();
+    const norm = normCss(color);
+    for (const sid of sel.selected) {
+      const tokens = String(sid).split(':'); if ((tokens[0]!=='p'&&tokens[0]!=='polygon')||tokens.length<3) continue;
+      const layerIdx = parseInt(tokens[1]); const polyIndex = parseInt(tokens[2]);
+      const anns = c.layers?.[layerIdx]?.annotations || [];
+      const poly = anns.find(a => a && a.kind==='Polygon' && a.polyIndex===polyIndex);
+      if (poly) poly.fill = norm;
+    }
+    es._pendingDesc='Recolor polygon(s)'; es.commit(c); schedulePanelsRender(); renderToolboxUI(); renderInspectorUI(); return;
+  }
+  if (polyPlacement?.isActive?.()) {
+    const next = cycleSelected('poly', paletteColorsPoly());
+    try { polyPlacement.fill = next; } catch {}
+    return;
+  }
+  // else default: immediate from qubit selection or start chaining via existing handler
+  const ordered = selectionStore.orderedEntries?.() || [];
+  const qids = ordered.filter(e => (e.kind === 'qubit') && e.id.startsWith('q:')).map(e => parseInt(e.id.split(':')[1])).filter(Number.isFinite);
+  if (qids.length >= 1) {
+    try {
+      const es = editorState; const c = es.copyOfCurAnnotatedCircuit(); const layerIdx=currentLayer;
+      while (c.layers.length <= layerIdx) c.layers.push(c.layers[c.layers.length-1]?.copy?.() || new (c.layers[0].constructor)());
+      const anns=c.layers[layerIdx].annotations=c.layers[layerIdx].annotations||[]; const polyIndex=anns.filter(a=>a&&a.kind==='Polygon').length;
+      anns.push({ kind:'Polygon', sheet:_targetSheetName||'DEFAULT', stroke:'none', fill: color, targets: qids.slice(), polyIndex });
+      es._pendingDesc='Add polygon'; es.commit(c); schedulePanelsRender(); renderToolboxUI();
+    } catch(e) { try { pushStatus(`Failed to add polygon: ${e?.message||e}`, 'error'); } catch {} }
+  } else {
+    polyPlacement.start(color);
+  }
+}, { when: () => !isEditing() });
 
 let appSettings = null;
 function applySettings() {
@@ -1169,6 +1445,7 @@ function ensureEditorState() {
       if (btnUndo) btnUndo.disabled = editorState.rev.isAtBeginningOfHistory();
       if (btnRedo) btnRedo.disabled = editorState.rev.isAtEndOfHistory();
     } catch {}
+    try { updateTimestepInput(); } catch {}
   });
   // Draw panels on snapshot changes, mirroring stim_crumble's render loop.
   editorState.obs_val_draw_state.observable().subscribe(ds => {
@@ -1887,6 +2164,10 @@ const edgePlacement = new EdgeChainPlacementController({
   getTargetSheet: () => _targetSheetName,
   pushStatus: (msg, sev) => pushStatus(msg, sev || 'info'),
   onStateChange: () => { try { renderToolboxUI(); } catch {} try { schedulePanelsRender(); } catch {} try { updateGateCursor(); } catch {} },
+  getPlacementKey: () => {
+    try { const b = appSettings?.keybindings?.commands?.['place.edge']?.bindings; if (Array.isArray(b) && b.length) return String(b[0]); } catch {}
+    return 'L';
+  },
 });
 const polyPlacement = new PolygonChainPlacementController({
   getCircuit: () => circuit,
@@ -1895,6 +2176,10 @@ const polyPlacement = new PolygonChainPlacementController({
   getTargetSheet: () => _targetSheetName,
   pushStatus: (msg, sev) => pushStatus(msg, sev || 'info'),
   onStateChange: () => { try { renderToolboxUI(); } catch {} try { schedulePanelsRender(); } catch {} try { updateGateCursor(); } catch {} },
+  getPlacementKey: () => {
+    try { const b = appSettings?.keybindings?.commands?.['place.polygon']?.bindings; if (Array.isArray(b) && b.length) return String(b[0]); } catch {}
+    return 'K';
+  },
 });
 
 const qubitPlacement = new QubitPlacementController({
@@ -1904,4 +2189,8 @@ const qubitPlacement = new QubitPlacementController({
   getTargetSheet: () => _targetSheetName,
   pushStatus: (msg, sev) => pushStatus(msg, sev || 'info'),
   onStateChange: () => { try { renderToolboxUI(); } catch {} try { schedulePanelsRender(); } catch {} try { updateGateCursor(); } catch {} },
+  getPlacementKey: () => {
+    try { const b = appSettings?.keybindings?.commands?.['place.qubit']?.bindings; if (Array.isArray(b) && b.length) return String(b[0]); } catch {}
+    return 'O';
+  },
 });

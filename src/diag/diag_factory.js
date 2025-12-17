@@ -76,3 +76,7 @@ Diag.embedding_must_be_at_top = embedding_must_be_at_top;
 Diag.embedding_invalid = embedding_invalid;
 
 export default Diag;
+
+// TIMESTEP ---
+/** TIMESTEP must immediately precede a TICK. */
+export const timestep_no_tick = (line) => make(line, 'error', 'TIME001', 'TIMESTEP must attach to next TICK.');

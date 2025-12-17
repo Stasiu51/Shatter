@@ -10,12 +10,12 @@ function normColor(c) {
   try { return String(parseCssColor(c) || c).toLowerCase(); } catch { return String(c || '').toLowerCase(); }
 }
 
-export function renderEdgesPalette({ containerEl, circuit, onAdd }) {
+export function renderEdgesPalette({ containerEl, circuit, onAdd, hintKey, selectedColor }) {
   if (!containerEl || !circuit) return;
   containerEl.innerHTML = '';
   // Header
   const hdr = document.createElement('div');
-  hdr.textContent = 'Add Edge';
+  hdr.textContent = 'Add Edge' + (hintKey ? ` (${hintKey})` : '');
   hdr.style.fontWeight = '600';
   hdr.style.fontSize = '12px';
   hdr.style.color = 'var(--text)';
@@ -58,6 +58,12 @@ export function renderEdgesPalette({ containerEl, circuit, onAdd }) {
       }
     }
   } catch {}
+  // Determine selected color for outline
+  let sel = selectedColor;
+  try { if (!sel) sel = localStorage.getItem('paletteSelected.edge') || ''; } catch {}
+  if (!sel || !sel.length) sel = [...colors][0] || normColor(DEFAULT_EDGE_COLOR);
+  try { localStorage.setItem('paletteSelected.edge', sel); } catch {}
+
   for (const c of colors) {
     const wrap = document.createElement('div');
     wrap.style.position = 'relative';
@@ -65,12 +71,13 @@ export function renderEdgesPalette({ containerEl, circuit, onAdd }) {
     box.title = c;
     box.style.width = '20px';
     box.style.height = '10px';
-    box.style.border = '1px solid var(--border)';
+    box.style.border = (sel && c === sel) ? '2px solid #000' : '1px solid var(--border)';
     box.style.background = c;
     box.style.borderRadius = '2px';
     box.style.cursor = 'pointer';
     box.onclick = (e) => {
       e.stopPropagation();
+      try { localStorage.setItem('paletteSelected.edge', c); } catch {}
       try { if (typeof onAdd === 'function') onAdd(c); } catch {}
     };
     wrap.appendChild(box);

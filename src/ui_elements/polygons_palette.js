@@ -34,12 +34,12 @@ function toCssRgba(fillStr) {
   }
 }
 
-export function renderPolygonsPalette({ containerEl, circuit, onAdd }) {
+export function renderPolygonsPalette({ containerEl, circuit, onAdd, hintKey, selectedColor }) {
   if (!containerEl || !circuit) return;
   containerEl.innerHTML = '';
   // Header
   const hdr = document.createElement('div');
-  hdr.textContent = 'Add Polygon';
+  hdr.textContent = 'Add Polygon' + (hintKey ? ` (${hintKey})` : '');
   hdr.style.fontWeight = '600';
   hdr.style.fontSize = '12px';
   hdr.style.color = 'var(--text)';
@@ -82,6 +82,12 @@ export function renderPolygonsPalette({ containerEl, circuit, onAdd }) {
     }
   } catch {}
 
+  // Determine selected color for outline
+  let sel = selectedColor;
+  try { if (!sel) sel = localStorage.getItem('paletteSelected.poly') || ''; } catch {}
+  if (!sel || !sel.length) sel = [...colors][0] || normCssColor(DEFAULT_POLY_COLORS[0]);
+  try { localStorage.setItem('paletteSelected.poly', sel); } catch {}
+
   for (const c of colors) {
     const boxWrap = document.createElement('div');
     boxWrap.style.position = 'relative';
@@ -89,12 +95,13 @@ export function renderPolygonsPalette({ containerEl, circuit, onAdd }) {
     box.title = c;
     box.style.width = '20px';
     box.style.height = '20px';
-    box.style.border = '1px solid var(--border)';
+    box.style.border = (sel && c === sel) ? '2px solid #000' : '1px solid var(--border)';
     box.style.background = c;
     box.style.borderRadius = '4px';
     box.style.cursor = 'pointer';
     box.onclick = (e) => {
       e.stopPropagation();
+      try { localStorage.setItem('paletteSelected.poly', c); } catch {}
       try { if (typeof onAdd === 'function') onAdd(c); } catch {}
     };
     boxWrap.appendChild(box);

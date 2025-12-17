@@ -24,6 +24,7 @@ import {
   embedding_must_be_at_top,
   embedding_invalid,
 } from '../diag/diag_factory.js';
+import { timestep_no_tick } from '../diag/diag_factory.js';
 import {make_mpp_gate, make_spp_gate} from '../gates/gateset_mpp.js';
 
 /**
@@ -249,6 +250,8 @@ export class AnnotatedCircuit {
     this.embedding = { type: 'PLANE' };
     /** @type {{droop?:number, colour?:string}} */
     this.gateStyle = {};
+    /** @type {Map<number, {label:string}>} */
+    this.timesteps = new Map();
   }
 
   /** @param {string} text */
@@ -434,6 +437,21 @@ export class AnnotatedCircuit {
           return;
         }
       }
+      if (kind === 'TIMESTEP') {
+        // ##! TIMESTEP LABEL="..." must be immediately followed by TICK.
+        const label = getStr(KVs, 'LABEL', '');
+        const hdrLine = lineNo;
+        pendingCallback = (cmdName, args, targets) => {
+          if (String(cmdName || '').toUpperCase() !== 'TICK') {
+            diag(timestep_no_tick(hdrLine));
+            return;
+          }
+          // Attach to the TICK index equal to the current number of layers before pushing the new one.
+          const tickIndex = circuit.layers.length; // 1..N-1
+          try { circuit.timesteps.set(tickIndex, { label: String(label || '') }); } catch {}
+        };
+        return;
+      }
       if (kind === 'CONN' || kind === 'CONN_SET' || (kind === 'CONN' && (rest[0] || '').toUpperCase() === 'SET')) {
         const sheet = getSheet(getStr(KVs, 'SHEET', undefined), lineNo);
         const droop = getNum(KVs, 'DROOP', undefined);
@@ -590,6 +608,9 @@ export class AnnotatedCircuit {
         }
       }
       if (name === 'TICK') {
+        if (pendingCallback) {
+          try { pendingCallback('TICK', args, targets); } finally { pendingCallback = null; }
+        }
         circuit.layers.push(new AnnotatedLayer());
         currentLayer = circuit.layers[circuit.layers.length - 1];
         return;
@@ -1002,7 +1023,8 @@ export class AnnotatedCircuit {
   allQubits() {
     // Copied verbatim from Circuit.allQubits
     let result = new Set();
-    for (let layer of this.layers) {
+    for (let i = 0; i < this.layers.length; i++) {
+      const layer = this.layers[i];
       for (let op of layer.iter_gates_and_markers()) {
         for (let t of op.id_targets) {
           result.add(t);
@@ -1111,6 +1133,8 @@ export class AnnotatedCircuit {
     for (const [id, q] of this.qubits.entries()) {
       out.qubits.set(id, q.copy({ coordTransform }));
     }
+    // Copy timesteps map verbatim (labels are independent of coords)
+    try { out.timesteps = new Map(this.timesteps); } catch { out.timesteps = new Map(); }
     return out;
   }
 
@@ -1134,6 +1158,7 @@ export class AnnotatedCircuit {
     // Copy qubit_coords and qubits as-is
     out.qubit_coords = new Map(this.qubit_coords);
     out.qubits = new Map([...this.qubits.entries()].map(([id, q]) => [id, q.copy()]));
+    try { out.timesteps = new Map(this.timesteps); } catch { out.timesteps = new Map(); }
     return out;
   }
 
@@ -1234,7 +1259,8 @@ export class AnnotatedCircuit {
     // Copied from Circuit.toStimCircuit
     // Collect all qubits to emit: any qubit referenced by ops/markers OR declared via QUBIT_COORDS OR present in metadata.
     let usedQubits = new Set();
-    for (let layer of this.layers) {
+    for (let i = 0; i < this.layers.length; i++) {
+      const layer = this.layers[i];
       for (let op of layer.iter_gates_and_markers()) {
         for (let t of op.id_targets) usedQubits.add(t);
       }
@@ -1344,7 +1370,8 @@ export class AnnotatedCircuit {
     let detectorLayer = 0;
     let usedDetectorCoords = new Set();
 
-    for (let layer of this.layers) {
+    for (let i = 0; i < this.layers.length; i++) {
+      const layer = this.layers[i];
       // Emit overlay annotations for this layer (ConnSet, Polygon)
       try {
         const anns = (layer.annotations || []).slice().sort((a, b) => {
@@ -1537,6 +1564,15 @@ export class AnnotatedCircuit {
         out.push(line.join(' '));
       }
 
+      // Emit TIMESTEP label before the TICK following this layer, if any.
+      const tickIndex = i + 1; // TICK after layer i
+      try {
+        if (this.timesteps && this.timesteps.has(tickIndex) && i < this.layers.length - 1) {
+          const lbl = this.timesteps.get(tickIndex)?.label ?? '';
+          const escaped = String(lbl).replace(/\"/g, '\\\"').replace(/"/g, '\\"');
+          out.push(`##! TIMESTEP LABEL="${escaped}"`);
+        }
+      } catch {}
       out.push(`TICK`);
     }
     while (out.length > 0 && out[out.length - 1] === 'TICK') {

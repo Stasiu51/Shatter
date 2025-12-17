@@ -63,7 +63,7 @@ function rowEl() {
   return { row, square, btnCl, btnO, btnD, btnX, btnY, btnZ };
 }
 
-export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType, onStartGatePlacement, activeGateId, flashGateId, getTargetSheet, setTargetSheet, onAddQubit, onAddEdge, onAddPolygon, chordHighlightCol = -1, chordMarksActive = false, chordHints = {}, chordHintMarks = '' }) {
+export function renderMarkers({ containerEl, circuit, currentLayer, propagated, canToggle, onClearIndex, onToggleType, onStartGatePlacement, activeGateId, flashGateId, getTargetSheet, setTargetSheet, onAddQubit, onAddEdge, onAddPolygon, chordHighlightCol = -1, chordMarksActive = false, chordHints = {}, chordHintMarks = '', placeHintQubit = '', placeHintEdge = '', placeHintPolygon = '', selQubitColor = '', selEdgeColor = '', selPolyColor = '' }) {
   if (!containerEl) return;
   containerEl.innerHTML='';
   // Center the toolbox contents.
@@ -549,7 +549,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
 
   // Palettes inside the subpanel (reordered: qubit, edge, polygon)
   const qubitContainer = document.createElement('div');
-  renderQubitsPalette({ containerEl: qubitContainer, circuit, onAdd: (color) => { try { onAddQubit && onAddQubit(color); } catch {} } });
+  renderQubitsPalette({ containerEl: qubitContainer, circuit, onAdd: (color) => { try { onAddQubit && onAddQubit(color); } catch {} }, hintKey: placeHintQubit, selectedColor: selQubitColor });
   styleBox.appendChild(qubitContainer);
 
   const edgeContainer = document.createElement('div');
@@ -559,7 +559,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
   const saveEdgeThickness = (v) => { try { localStorage.setItem(LS_EDGE_THICKNESS, String(v)); } catch {} };
   let edgeThickness = loadEdgeThickness();
 
-  renderEdgesPalette({ containerEl: edgeContainer, circuit, onAdd: (color) => { try { onAddEdge && onAddEdge(color, edgeThickness); } catch {} } });
+  renderEdgesPalette({ containerEl: edgeContainer, circuit, onAdd: (color) => { try { onAddEdge && onAddEdge(color, edgeThickness); } catch {} }, hintKey: placeHintEdge, selectedColor: selEdgeColor });
   styleBox.appendChild(edgeContainer);
 
   // Edge settings row (thickness input)
@@ -593,7 +593,7 @@ export function renderMarkers({ containerEl, circuit, currentLayer, propagated, 
   styleBox.appendChild(edgeCfg);
 
   const polyContainer = document.createElement('div');
-  renderPolygonsPalette({ containerEl: polyContainer, circuit, onAdd: (color) => { try { onAddPolygon && onAddPolygon(color); } catch {} } });
+  renderPolygonsPalette({ containerEl: polyContainer, circuit, onAdd: (color) => { try { onAddPolygon && onAddPolygon(color); } catch {} }, hintKey: placeHintPolygon, selectedColor: selPolyColor });
   styleBox.appendChild(polyContainer);
 
   containerEl.appendChild(styleBox);

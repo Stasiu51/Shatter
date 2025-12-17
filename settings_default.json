@@ -22,6 +22,9 @@
   },
   "keybindings": {
     "commands": {
+      "place.qubit": { "name": "Add Qubit", "bindings": ["O"] },
+      "place.polygon": { "name": "Add Polygon", "bindings": ["K"] },
+      "place.edge": { "name": "Add Edge", "bindings": ["L"] },
       "layer.prev": { "name": "Previous layer", "bindings": ["Q", "ArrowLeft"] },
       "layer.next": { "name": "Next layer", "bindings": ["E", "ArrowRight"] },
       "layer.prev.fast": { "name": "Previous layer (x5)", "bindings": ["Shift+Q", "Shift+ArrowLeft"] },
