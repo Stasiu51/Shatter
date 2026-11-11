@@ -24,6 +24,7 @@ import {
   embedding_must_be_at_top,
   embedding_invalid,
 } from '../diag/diag_factory.js';
+import { timestep_no_tick } from '../diag/diag_factory.js';
 import {make_mpp_gate, make_spp_gate} from '../gates/gateset_mpp.js';
 
 /**
@@ -232,6 +233,22 @@ function simplifiedSPP(tag, args, dag, combinedTargets, lineNo) {
 }
 
 
+/**
+ * Render a `##! TIMESTEP` pragma for one tick entry.
+ * @param {{label?:string, bookmark?:boolean}|undefined} entry
+ * @param {number|undefined} index When given, emits the standalone `INDEX=` form.
+ * @returns {string}
+ */
+function formatTimestepPragma(entry, index = undefined) {
+  const parts = ['##! TIMESTEP'];
+  if (index !== undefined) parts.push(`INDEX=${index}`);
+  const lbl = String(entry?.label ?? '');
+  const escaped = lbl.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  parts.push(`LABEL="${escaped}"`);
+  if (entry?.bookmark) parts.push('BOOKMARK=TRUE');
+  return parts.join(' ');
+}
+
 export class AnnotatedCircuit {
 
   constructor() {
@@ -249,6 +266,8 @@ export class AnnotatedCircuit {
     this.embedding = { type: 'PLANE' };
     /** @type {{droop?:number, colour?:string}} */
     this.gateStyle = {};
+    /** @type {Map<number, {label:string, bookmark:boolean}>} */
+    this.timesteps = new Map();
   }
 
   /** @param {string} text */
@@ -434,6 +453,34 @@ export class AnnotatedCircuit {
           return;
         }
       }
+      if (kind === 'TIMESTEP') {
+        // Two accepted forms:
+        //   ##! TIMESTEP LABEL="..." [BOOKMARK=TRUE]            -- must be immediately followed by TICK
+        //   ##! TIMESTEP INDEX=k LABEL="..." [BOOKMARK=TRUE]    -- standalone; names tick k directly.
+        // The standalone form exists because the boundaries before the first layer (tick 0) and
+        // after the last layer (tick N) have no TICK line to attach to.
+        const label = getStr(KVs, 'LABEL', '');
+        const bookmark = getBool(KVs, 'BOOKMARK', false);
+        const explicitIndex = getNum(KVs, 'INDEX', undefined);
+        if (explicitIndex !== undefined) {
+          const k = Math.trunc(explicitIndex);
+          if (k >= 0) {
+            try { circuit.timesteps.set(k, { label: String(label || ''), bookmark }); } catch {}
+          }
+          return;
+        }
+        const hdrLine = lineNo;
+        pendingCallback = (cmdName, args, targets) => {
+          if (String(cmdName || '').toUpperCase() !== 'TICK') {
+            diag(timestep_no_tick(hdrLine));
+            return;
+          }
+          // Attach to the TICK index equal to the current number of layers before pushing the new one.
+          const tickIndex = circuit.layers.length; // 1..N-1
+          try { circuit.timesteps.set(tickIndex, { label: String(label || ''), bookmark }); } catch {}
+        };
+        return;
+      }
       if (kind === 'CONN' || kind === 'CONN_SET' || (kind === 'CONN' && (rest[0] || '').toUpperCase() === 'SET')) {
         const sheet = getSheet(getStr(KVs, 'SHEET', undefined), lineNo);
         const droop = getNum(KVs, 'DROOP', undefined);
@@ -590,6 +637,9 @@ export class AnnotatedCircuit {
         }
       }
       if (name === 'TICK') {
+        if (pendingCallback) {
+          try { pendingCallback('TICK', args, targets); } finally { pendingCallback = null; }
+        }
         circuit.layers.push(new AnnotatedLayer());
         currentLayer = circuit.layers[circuit.layers.length - 1];
         return;
@@ -823,6 +873,12 @@ export class AnnotatedCircuit {
       const v = Number(kvs.get(key));
       return Number.isFinite(v) ? v : dflt;
     }
+    function getBool(kvs, key, dflt = false) {
+      if (!kvs.has(key)) return dflt;
+      const v = String(kvs.get(key)).trim().toUpperCase();
+      if (v === '' ) return true;
+      return v === 'TRUE' || v === '1' || v === 'YES';
+    }
 
     function processLine(raw, lineNo) {
       let s = raw.trim();
@@ -1002,7 +1058,8 @@ export class AnnotatedCircuit {
   allQubits() {
     // Copied verbatim from Circuit.allQubits
     let result = new Set();
-    for (let layer of this.layers) {
+    for (let i = 0; i < this.layers.length; i++) {
+      const layer = this.layers[i];
       for (let op of layer.iter_gates_and_markers()) {
         for (let t of op.id_targets) {
           result.add(t);
@@ -1111,6 +1168,8 @@ export class AnnotatedCircuit {
     for (const [id, q] of this.qubits.entries()) {
       out.qubits.set(id, q.copy({ coordTransform }));
     }
+    // Copy timesteps map verbatim (labels are independent of coords)
+    try { out.timesteps = new Map(this.timesteps); } catch { out.timesteps = new Map(); }
     return out;
   }
 
@@ -1134,6 +1193,7 @@ export class AnnotatedCircuit {
     // Copy qubit_coords and qubits as-is
     out.qubit_coords = new Map(this.qubit_coords);
     out.qubits = new Map([...this.qubits.entries()].map(([id, q]) => [id, q.copy()]));
+    try { out.timesteps = new Map(this.timesteps); } catch { out.timesteps = new Map(); }
     return out;
   }
 
@@ -1234,7 +1294,8 @@ export class AnnotatedCircuit {
     // Copied from Circuit.toStimCircuit
     // Collect all qubits to emit: any qubit referenced by ops/markers OR declared via QUBIT_COORDS OR present in metadata.
     let usedQubits = new Set();
-    for (let layer of this.layers) {
+    for (let i = 0; i < this.layers.length; i++) {
+      const layer = this.layers[i];
       for (let op of layer.iter_gates_and_markers()) {
         for (let t of op.id_targets) usedQubits.add(t);
       }
@@ -1301,6 +1362,20 @@ export class AnnotatedCircuit {
         }
       }
     } catch {}
+    // Emit TIMESTEP entries that have no TICK line to attach to: the boundary before the
+    // first layer (tick 0) and any boundary at or past the end (tick >= layers.length).
+    // These use the standalone INDEX= form so every tick can carry a label.
+    try {
+      if (this.timesteps && this.timesteps.size > 0) {
+        const lastInline = this.layers.length - 1; // inline form covers ticks 1..lastInline
+        const detached = [...this.timesteps.keys()]
+          .filter(k => Number.isFinite(k) && (k <= 0 || k > lastInline))
+          .sort((a, b) => a - b);
+        for (const k of detached) {
+          out.push(formatTimestepPragma(this.timesteps.get(k), k));
+        }
+      }
+    } catch {}
     // Emit global gate style directive if present (after EMBEDDING/SHEET headers).
     try {
       const gs = this.gateStyle || {};
@@ -1344,7 +1419,8 @@ export class AnnotatedCircuit {
     let detectorLayer = 0;
     let usedDetectorCoords = new Set();
 
-    for (let layer of this.layers) {
+    for (let i = 0; i < this.layers.length; i++) {
+      const layer = this.layers[i];
       // Emit overlay annotations for this layer (ConnSet, Polygon)
       try {
         const anns = (layer.annotations || []).slice().sort((a, b) => {
@@ -1537,6 +1613,13 @@ export class AnnotatedCircuit {
         out.push(line.join(' '));
       }
 
+      // Emit TIMESTEP label before the TICK following this layer, if any.
+      const tickIndex = i + 1; // TICK after layer i
+      try {
+        if (this.timesteps && this.timesteps.has(tickIndex) && i < this.layers.length - 1) {
+          out.push(formatTimestepPragma(this.timesteps.get(tickIndex)));
+        }
+      } catch {}
       out.push(`TICK`);
     }
     while (out.length > 0 && out[out.length - 1] === 'TICK') {

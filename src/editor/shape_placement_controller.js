@@ -11,6 +11,7 @@ export class EdgeChainPlacementController {
     this._getTargetSheet = deps.getTargetSheet || (()=>'DEFAULT');
     this._pushStatus = deps.pushStatus || (()=>{});
     this._onStateChange = deps.onStateChange || (()=>{});
+    this._getPlacementKey = deps.getPlacementKey || (()=>'L');
     this.reset();
   }
   reset() {
@@ -28,7 +29,7 @@ export class EdgeChainPlacementController {
     this.active = true;
     if (typeof color === 'string' && color.length) this.color = color;
     if (typeof thickness === 'number' && isFinite(thickness)) this.thickness = thickness;
-    this._pushStatus('Edge placement: click first point, then next; Enter to finish, Esc to cancel.', 'info');
+    this._pushStatus(`Edge placement: click first point, then next; Enter to finish, Esc to cancel. Press ${this._getPlacementKey()} again to cycle colours.`, 'info');
     this._onStateChange();
   }
   cancel() { if (!this.active) return; this.reset(); this._onStateChange(); this._pushStatus('Edge placement canceled.', 'info'); }
@@ -121,6 +122,7 @@ export class PolygonChainPlacementController {
     this._getTargetSheet = deps.getTargetSheet || (()=>'DEFAULT');
     this._pushStatus = deps.pushStatus || (()=>{});
     this._onStateChange = deps.onStateChange || (()=>{});
+    this._getPlacementKey = deps.getPlacementKey || (()=>'K');
     this.reset();
   }
   reset() {
@@ -135,7 +137,7 @@ export class PolygonChainPlacementController {
     this.reset();
     this.active = true;
     if (typeof fill === 'string' && fill.length) this.fill = fill;
-    this._pushStatus('Polygon placement: click to add vertices, Enter to finish, Esc to cancel.', 'info');
+    this._pushStatus(`Polygon placement: click to add vertices, Enter to finish, Esc to cancel. Press ${this._getPlacementKey()} again to cycle colours.`, 'info');
     this._onStateChange();
   }
   cancel() { if (!this.active) return; this.reset(); this._onStateChange(); this._pushStatus('Polygon placement canceled.', 'info'); }
@@ -219,6 +221,7 @@ export class QubitPlacementController {
     this._getTargetSheet = deps.getTargetSheet || (()=>'DEFAULT');
     this._pushStatus = deps.pushStatus || (()=>{});
     this._onStateChange = deps.onStateChange || (()=>{});
+    this._getPlacementKey = deps.getPlacementKey || (()=>'O');
     this.reset();
   }
   reset() {
@@ -231,7 +234,7 @@ export class QubitPlacementController {
     this.reset();
     this.active = true;
     if (typeof color === 'string' && color.length) this.color = color;
-    this._pushStatus('Qubit placement: click on empty lattice to add. Enter to finish, Esc to cancel.', 'info');
+    this._pushStatus(`Qubit placement: click on empty lattice to add. Enter to finish, Esc to cancel. Press ${this._getPlacementKey()} again to cycle colours.`, 'info');
     this._onStateChange();
   }
   cancel() { if (!this.active) return; this.reset(); this._onStateChange(); this._pushStatus('Qubit placement canceled.', 'info'); }

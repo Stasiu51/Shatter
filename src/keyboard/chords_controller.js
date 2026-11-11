@@ -20,7 +20,7 @@ function binderSatisfied(held, binder) {
 const COL_ID_TO_INDEX = new Map([
   ['H', 0],
   ['S', 1],
-  // 2 is Reset; we intentionally don't chord it unless configured
+  ['R', 2],
   ['M', 3],
   ['MR', 4],
   ['C', 5],
@@ -55,7 +55,7 @@ export function createChordsController(opts) {
     const chords = (s && s.chords) || {};
     // Default binders
     const d = {
-      H: 'H', S: 'S', M: 'M', MR: 'M+R', C: 'C', W: 'W', SC: 'S+C', MC: 'M+C', MP: 'M+P',
+      H: 'H', S: 'S', R: 'R', M: 'M', MR: 'M+R', C: 'C', W: 'W', SC: 'S+C', MC: 'M+C', MP: 'M+P',
       P: 'P', X: 'X', Y: 'Y', Z: 'Z',
     };
     return { ...d, ...chords };
@@ -64,7 +64,7 @@ export function createChordsController(opts) {
   function computeActiveColumnBinder() {
     const cfg = getChordsConfig();
     // Evaluate binders in descending length to prefer combos (e.g., MC over M)
-    const entries = Object.entries({ H: cfg.H, S: cfg.S, M: cfg.M, MR: cfg.MR, C: cfg.C, W: cfg.W, SC: cfg.SC, MC: cfg.MC, MP: cfg.MP });
+    const entries = Object.entries({ H: cfg.H, S: cfg.S, R: cfg.R, M: cfg.M, MR: cfg.MR, C: cfg.C, W: cfg.W, SC: cfg.SC, MC: cfg.MC, MP: cfg.MP });
     const sorted = entries.sort((a,b) => normBinder(b[1]).length - normBinder(a[1]).length);
     for (const [id, bind] of sorted) {
       const b = normBinder(bind);

@@ -9,12 +9,12 @@ const DEFAULT_QUBIT_COLOR = '#ffffff';
 
 function normColor(c) { try { return String(parseCssColor(c) || c).toLowerCase(); } catch { return String(c || '').toLowerCase(); } }
 
-export function renderQubitsPalette({ containerEl, circuit, onAdd }) {
+export function renderQubitsPalette({ containerEl, circuit, onAdd, hintKey, selectedColor }) {
   if (!containerEl || !circuit) return;
   containerEl.innerHTML = '';
   // Header
   const hdr = document.createElement('div');
-  hdr.textContent = 'Add Qubit';
+  hdr.textContent = 'Add Qubit' + (hintKey ? ` (${hintKey})` : '');
   hdr.style.fontWeight = '600';
   hdr.style.fontSize = '12px';
   hdr.style.color = 'var(--text)';
@@ -43,6 +43,12 @@ export function renderQubitsPalette({ containerEl, circuit, onAdd }) {
   grid.style.gap = '6px';
   grid.style.justifyContent = 'center';
   grid.style.padding = '2px 0 4px 0';
+  // Determine currently selected color (persisted)
+  let sel = selectedColor;
+  try { if (!sel) sel = localStorage.getItem('paletteSelected.qubit') || ''; } catch {}
+  if (!sel || !sel.length) sel = [...colors][0] || normColor(DEFAULT_QUBIT_COLOR);
+  try { localStorage.setItem('paletteSelected.qubit', sel); } catch {}
+
   for (const c of colors) {
     const wrap = document.createElement('div');
     wrap.style.position = 'relative';
@@ -50,11 +56,15 @@ export function renderQubitsPalette({ containerEl, circuit, onAdd }) {
     box.title = c;
     box.style.width = '20px';
     box.style.height = '20px';
-    box.style.border = '1px solid var(--border)';
+    box.style.border = (sel && c === sel) ? '2px solid #000' : '1px solid var(--border)';
     box.style.background = c;
     box.style.borderRadius = '4px';
     box.style.cursor = 'pointer';
-    box.onclick = (e) => { e.stopPropagation(); try { if (typeof onAdd === 'function') onAdd(c); } catch {} };
+    box.onclick = (e) => {
+      e.stopPropagation();
+      try { localStorage.setItem('paletteSelected.qubit', c); } catch {}
+      try { if (typeof onAdd === 'function') onAdd(c); } catch {}
+    };
     wrap.appendChild(box);
     const isCustom = custom.has(c);
     const isExtant = extant.has(c);
