@@ -72,9 +72,10 @@ export function deleteSelection(editorState, currentLayer, pushStatus = ()=>{}) 
     } catch {}
     return false;
   };
+  let refusedQubitDueToReferences = false;
   const removeQubitIfUnused = (qid) => {
     const q = parseInt(qid);
-    if (qubitIsReferenced(q)) return;
+    if (qubitIsReferenced(q)) { refusedQubitDueToReferences = true; return; }
     try { if (c.qubit_coords) c.qubit_coords.delete(q); } catch {}
     try { if (c.qubits) c.qubits.delete(q); } catch {}
     changed = true;
@@ -108,7 +109,88 @@ export function deleteSelection(editorState, currentLayer, pushStatus = ()=>{}) 
     pushStatus('Deleted selection.', 'info');
     return true;
   } else {
-    pushStatus('Nothing to delete.', 'warning');
+    if (refusedQubitDueToReferences) {
+      pushStatus('Cannot delete qubit: referenced by gates, connections, or polygons. Press Shift+Backspace to force delete.', 'warning');
+    } else {
+      pushStatus('Nothing to delete.', 'warning');
+    }
     return false;
   }
+}
+
+/** Force delete selected qubits and all items referencing them; other kinds fall back to normal delete. */
+export function forceDeleteSelection(editorState, currentLayer, pushStatus = ()=>{}) {
+  if (!editorState) return false;
+  const snap = selectionStore.snapshot();
+  if (!snap || !snap.kind || snap.selected.size === 0) return false;
+  const c = editorState.copyOfCurAnnotatedCircuit();
+  let changed = false;
+
+  const removeEdgesTouching = (q) => {
+    for (let r = 0; r < c.layers.length; r++) {
+      const anns = c.layers[r].annotations || [];
+      for (let i = anns.length - 1; i >= 0; i--) {
+        const a = anns[i]; if (!a || a.kind !== 'ConnSet') continue;
+        const edges = Array.isArray(a.edges) ? a.edges : [];
+        const next = edges.filter(e => !(Array.isArray(e) && e.length===2 && (parseInt(e[0])===q || parseInt(e[1])===q)));
+        if (next.length !== edges.length) { a.edges = next; changed = true; }
+        if (!a.edges || a.edges.length === 0) { anns.splice(i,1); changed = true; }
+      }
+    }
+  };
+  const removeQFromPolygons = (q) => {
+    for (let r = 0; r < c.layers.length; r++) {
+      const anns = c.layers[r].annotations || [];
+      for (let i = anns.length - 1; i >= 0; i--) {
+        const a = anns[i]; if (!a || a.kind !== 'Polygon') continue;
+        const ids = Array.isArray(a.targets) ? a.targets : [];
+        if (ids.some(v => parseInt(v) === q)) {
+          const next = ids.filter(v => parseInt(v) !== q);
+          if (next.length <= 0) { anns.splice(i,1); changed = true; }
+          else { a.targets = next; changed = true; }
+        }
+      }
+    }
+  };
+  const removeGatesOnQubit = (q) => {
+    for (let r = 0; r < c.layers.length; r++) {
+      const layer = c.layers[r];
+      try {
+        // Collect ops whose targets include q
+        const firsts = [];
+        for (const [first, op] of layer.id_ops.entries()) {
+          if (op?.id_targets && [...op.id_targets].includes(q)) firsts.push(first);
+        }
+        for (const first of firsts) { if (layer.id_pop_at) layer.id_pop_at(first); else layer.id_ops.delete(first); changed = true; }
+      } catch {}
+    }
+  };
+
+  const forceDeleteQubit = (qid) => {
+    const q = parseInt(qid);
+    removeEdgesTouching(q);
+    removeQFromPolygons(q);
+    removeGatesOnQubit(q);
+    try { if (c.qubit_coords) c.qubit_coords.delete(q); } catch {}
+    try { if (c.qubits) c.qubits.delete(q); } catch {}
+    changed = true;
+  };
+
+  if (snap.kind === 'qubit') {
+    for (const id of snap.selected) {
+      const parts = String(id).split(':');
+      if (parts[0] !== 'q' && parts[0] !== 'qubit') continue;
+      forceDeleteQubit(parts[1]);
+    }
+  } else {
+    // Fallback to normal delete for non-qubits.
+    return deleteSelection(editorState, currentLayer, pushStatus);
+  }
+
+  if (!changed) { pushStatus('Nothing to delete.', 'warning'); return false; }
+  editorState._pendingDesc = 'Force delete selection';
+  editorState.commit(c);
+  try { selectionStore.clear(); } catch {}
+  pushStatus('Force-deleted qubit(s) and related items.', 'info');
+  return true;
 }

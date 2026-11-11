@@ -7,6 +7,21 @@ Shatter is a visualiser/editor for quantum circuits that is based on [Crumble](h
 
 It expands on the rendering capabilities of Crumble by adding multiple panels and the ability to render different components of the quantum circuit to 'sheets' which can be toggled per-panel. It also adds the ability to render edges between qubits, and additional styling options for gates and qubits. It inherits the ability to render Pauli marks from Crumble, as well as its key-chord system for adding gates. Note that unlike in crumble, the gate specifier key(s) must be held before the Pauli specifier key (x/y/z), and thereafter all keys can be released.
 
+Ticks can be given a text label describing that point in the circuit, and optionally flagged as a
+bookmark; `Ctrl+Q` / `Ctrl+E` then hop between bookmarks while `Q`/`E` step one layer at a time. See
+[`docs/timestep-bookmarks.md`](docs/timestep-bookmarks.md) for the syntax and [`SPEC.md`](SPEC.md) for the full overlay reference.
+
+### Running locally
+
+Shatter is a static, zero-backend app, so any static file server works:
+
+```
+python3 devserver.py 8777
+```
+
+then open <http://localhost:8777>. `devserver.py` sends `no-store`; plain `python3 -m http.server`
+lets the browser cache ES modules, so edits under `src/` silently fail to appear on reload.
+
 *TODO*: Implement conversion between marks and detectors/observables.
 
 *Attribution:* the source code of Shatter is inextricable from that of Crumble. I have variously vendored and modified the files available under an Apache license [here](https://github.com/quantumlib/Stim/blob/main/glue/crumble/).
