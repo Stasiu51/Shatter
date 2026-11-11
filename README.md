@@ -22,6 +22,18 @@ python3 devserver.py 8777
 then open <http://localhost:8777>. `devserver.py` sends `no-store`; plain `python3 -m http.server`
 lets the browser cache ES modules, so edits under `src/` silently fail to appear on reload.
 
+## Hosted circuits
+
+A circuit too big for the URL can be served from this site and opened by a
+short id:
+
+```
+python3 publish_circuit.py circuit.stim --id my-circuit --title "Readable name"
+```
+
+then <https://stasiu51.github.io/Shatter/#id=my-circuit>. `circuits/index.html`
+lists what is published. See [docs/hosted-circuits.md](docs/hosted-circuits.md).
+
 *TODO*: Implement conversion between marks and detectors/observables.
 
 *Attribution:* the source code of Shatter is inextricable from that of Crumble. I have variously vendored and modified the files available under an Apache license [here](https://github.com/quantumlib/Stim/blob/main/glue/crumble/).
