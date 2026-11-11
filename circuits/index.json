@@ -1,0 +1,16 @@
+{
+ "circuits": [
+  {
+   "id": "bb144-bb2zz-v7",
+   "title": "Gross-code ZZ surgery, v7",
+   "note": "two bb144 blocks, 12 stitch rounds, idle noise at p",
+   "file": "bb144-bb2zz-v7.stim",
+   "qubits": 600,
+   "detectors": 6,
+   "observables": 4,
+   "ticks": 153,
+   "bookmarks": 16,
+   "bytes": 672214
+  }
+ ]
+}
