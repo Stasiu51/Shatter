@@ -155,6 +155,19 @@
    "bookmarks": 10,
    "bytes": 148253,
    "start_bookmark": 1
+  },
+  {
+   "id": "fig2-bb72-bb2generic-1087-viz",
+   "title": "Figure 2: two-block bb72 generic quilt (visualisation copy)",
+   "note": "VISUALISATION COPY -- the quilt drawn in Figure 2 of the manuscript, BB2_GENERIC-1087, weight-18 representatives, 18 stitching operators, 6 stitch rounds, idle noise at p=0.003",
+   "file": "fig2-bb72-bb2generic-1087-viz.stim",
+   "qubits": 312,
+   "detectors": 8,
+   "observables": 4,
+   "ticks": 99,
+   "bookmarks": 10,
+   "bytes": 233283,
+   "start_bookmark": 1
   }
  ]
 }
