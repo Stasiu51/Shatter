@@ -1,0 +1,76 @@
+{
+ "circuits": [
+  {
+   "id": "bb144-bb2genericmatched-v7",
+   "title": "bb144 two-block generic matched surgery (v7)",
+   "note": "bb, bb, 12 stitch rounds, idle noise at p=0.003",
+   "file": "bb144-bb2genericmatched-v7.stim",
+   "qubits": 600,
+   "detectors": 10,
+   "observables": 4,
+   "ticks": 177,
+   "bookmarks": 16,
+   "bytes": 748507
+  },
+  {
+   "id": "bb144-bb2zz-v7",
+   "title": "bb144 two-block ZZ surgery (v7)",
+   "note": "bb, bb, 12 stitch rounds, idle noise at p=0.003",
+   "file": "bb144-bb2zz-v7.stim",
+   "qubits": 600,
+   "detectors": 6,
+   "observables": 4,
+   "ticks": 153,
+   "bookmarks": 16,
+   "bytes": 672214
+  },
+  {
+   "id": "bb144-scbb2zzz-v7",
+   "title": "bb144 surface-to-two-bicycle ZZZ surgery (v7)",
+   "note": "surface, bb, bb, 12 stitch rounds, idle noise at p=0.003",
+   "file": "bb144-scbb2zzz-v7.stim",
+   "qubits": 888,
+   "detectors": 6,
+   "observables": 4,
+   "ticks": 177,
+   "bookmarks": 16,
+   "bytes": 1040194
+  },
+  {
+   "id": "bb144-scbbzz-v7",
+   "title": "bb144 surface-to-bicycle ZZ surgery (v7)",
+   "note": "surface, bb, 12 stitch rounds, idle noise at p=0.003",
+   "file": "bb144-scbbzz-v7.stim",
+   "qubits": 588,
+   "detectors": 6,
+   "observables": 4,
+   "ticks": 153,
+   "bookmarks": 16,
+   "bytes": 616597
+  },
+  {
+   "id": "bb288-bb2genericmatched-v7",
+   "title": "bb288 two-block generic matched surgery (v7)",
+   "note": "bb, bb, 18 stitch rounds, idle noise at p=0.003",
+   "file": "bb288-bb2genericmatched-v7.stim",
+   "qubits": 1176,
+   "detectors": 11,
+   "observables": 4,
+   "ticks": 255,
+   "bookmarks": 22,
+   "bytes": 2137344
+  },
+  {
+   "id": "bb288-bb2zz-v7",
+   "title": "bb288 two-block ZZ surgery (v7)",
+   "note": "bb, bb, 18 stitch rounds, idle noise at p=0.003",
+   "file": "bb288-bb2zz-v7.stim",
+   "qubits": 1176,
+   "detectors": 6,
+   "observables": 4,
+   "ticks": 219,
+   "bookmarks": 22,
+   "bytes": 1907674
+  }
+ ]
+}

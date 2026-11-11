@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Shatter circuits</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light dark; --fg:#111; --mut:#666; --line:#ddd; --bg:#fff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e8e8e8; --mut:#9a9a9a; --line:#333; --bg:#141414; }
+  }
+  body { background:var(--bg); color:var(--fg); margin:0 auto; padding:2rem 1rem;
+         max-width:52rem; font:15px/1.5 system-ui, sans-serif; }
+  h1 { font-size:1.3rem; margin:0 0 .25rem; }
+  p.sub { color:var(--mut); margin:0 0 1.5rem; }
+  table { border-collapse:collapse; width:100%; }
+  th, td { text-align:left; padding:.45rem .6rem; border-bottom:1px solid var(--line); }
+  th { color:var(--mut); font-weight:600; font-size:.82rem; text-transform:uppercase;
+       letter-spacing:.04em; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; color:var(--mut); }
+  a { color:inherit; }
+  code { font:13px/1.4 ui-monospace, monospace; color:var(--mut); }
+  .empty { color:var(--mut); padding:2rem 0; }
+</style>
+<h1>Hosted circuits</h1>
+<p class="sub">Open any of these in Shatter with <code>#id=&lt;id&gt;</code>.</p>
+<div id="out"><p class="empty">Loading&hellip;</p></div>
+<script type="module">
+  const out = document.getElementById('out');
+  try {
+    const res = await fetch('index.json', { cache: 'no-cache' });
+    const list = res.ok ? (await res.json()).circuits || [] : [];
+    if (!list.length) { out.innerHTML = '<p class="empty">Nothing published yet.</p>'; }
+    else {
+      const rows = list.map(c => `<tr>
+        <td><a href="../#id=${encodeURIComponent(c.id)}">${c.title || c.id}</a><br>
+            <code>${c.id}</code>${c.note ? `<br><span style="color:var(--mut)">${c.note}</span>` : ''}</td>
+        <td class="num">${c.qubits ?? ''}</td><td class="num">${c.detectors ?? ''}</td>
+        <td class="num">${c.observables ?? ''}</td>
+        <td class="num">${c.bytes ? (c.bytes/1e6).toFixed(2) + ' MB' : ''}</td></tr>`).join('');
+      out.innerHTML = `<table><thead><tr><th>Circuit</th><th class="num">Qubits</th>
+        <th class="num">Detectors</th><th class="num">Observables</th>
+        <th class="num">Size</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+  } catch (e) {
+    out.innerHTML = `<p class="empty">Could not load the index: ${e.message}</p>`;
+  }
+</script>

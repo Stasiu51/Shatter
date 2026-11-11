@@ -33,6 +33,16 @@ import { selectionStore } from './editor/selection_store.js';
 import { hitTestAt } from './draw/hit_test.js';
 import { xyToPos } from './draw/draw_panel.js';
 import { parseHashParams, writeHashFromCircuit, encodeCircuitToHash } from './io/url_sync.js';
+import { fetchHostedCircuit } from './io/hosted.js';
+
+// When the circuit came from `#id=`, the URL must keep saying `#id=`: rewriting
+// it to the whole circuit would turn a link a paper can print into a megabyte
+// of hash, which is the thing hosting was for.
+let hostedCircuitId = null;
+function syncHash(text) {
+  if (hostedCircuitId) return;
+  writeHashFromCircuit(text);
+}
 import { parseCssColor } from './util/color.js';
 
 const panelsEl = document.getElementById('panels');
@@ -711,7 +721,7 @@ function loadStimText(stimText) {
     if (editorTextareaEl) {
       editorTextareaEl.value = currentText;
       setEditorDirty(false);
-      try { writeHashFromCircuit(currentText); } catch {}
+      try { syncHash(currentText); } catch {}
     }
 
     // Init or update EditorState (source of interactive edits ⇒ text). Start fresh baseline.
@@ -1504,21 +1514,36 @@ editorReloadBtn?.addEventListener('click', () => {
 
 // Load from URL hash on startup and when navigating history
 (function initCircuitFromHash() {
-  try {
-    const m = parseHashParams();
+  // `#id=<name>` names a circuit hosted in circuits/; `#circuit=<text>` carries
+  // the circuit itself. The id form is fetched, so it lands after the empty
+  // circuit below has already drawn, which is what keeps the UI responsive.
+  const applyHash = () => {
+    let m;
+    try { m = parseHashParams(); } catch { return; }
+    const id = m.get('id');
+    if (typeof id === 'string' && id.length > 0) {
+      if (id === hostedCircuitId) return;   // our own hash, already loaded
+      hostedCircuitId = id;
+      pushStatus(`Loading hosted circuit "${id}"...`, 'info');
+      fetchHostedCircuit(id).then(text => {
+        loadStimText(text);
+        pushStatus(`Loaded hosted circuit "${id}".`, 'info');
+      }).catch(err => {
+        hostedCircuitId = null;
+        pushStatus(String(err && err.message ? err.message : err), 'error');
+      });
+      return;
+    }
+    hostedCircuitId = null;
     const v = m.get('circuit');
     if (typeof v === 'string' && v.length > 0) {
       loadStimText(v);
       pushStatus('Loaded circuit from URL.', 'info');
     }
-  } catch {}
-  window.addEventListener('popstate', () => {
-    try {
-      const m = parseHashParams();
-      const v = m.get('circuit');
-      loadStimText(v || '');
-    } catch {}
-  });
+  };
+  try { applyHash(); } catch {}
+  window.addEventListener('popstate', applyHash);
+  window.addEventListener('hashchange', applyHash);
 })();
 
 // If nothing loaded yet, start with an empty circuit so the UI is visible immediately.
@@ -1571,7 +1596,7 @@ function ensureEditorState() {
         if (editorTextareaEl) {
           editorTextareaEl.value = currentText;
           setEditorDirty(false);
-          try { writeHashFromCircuit(currentText); } catch {}
+          try { syncHash(currentText); } catch {}
         }
       } catch (e) {
         pushStatus(`Parse error: ${e?.message || e}`, 'error');
