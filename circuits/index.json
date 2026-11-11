@@ -71,6 +71,78 @@
    "ticks": 219,
    "bookmarks": 22,
    "bytes": 1907674
+  },
+  {
+   "id": "bb288-scbb2zzz-v7",
+   "title": "bb288 surface-to-two-bicycle ZZZ surgery (v7)",
+   "note": "surface, bb, bb, 18 stitch rounds, idle noise at p=0.003",
+   "file": "bb288-scbb2zzz-v7.stim",
+   "qubits": 1824,
+   "detectors": 7,
+   "observables": 4,
+   "ticks": 255,
+   "bookmarks": 22,
+   "bytes": 3331797
+  },
+  {
+   "id": "bb288-scbbzz-v7",
+   "title": "bb288 surface-to-bicycle ZZ surgery (v7)",
+   "note": "surface, bb, 18 stitch rounds, idle noise at p=0.003",
+   "file": "bb288-scbbzz-v7.stim",
+   "qubits": 1236,
+   "detectors": 7,
+   "observables": 4,
+   "ticks": 219,
+   "bookmarks": 22,
+   "bytes": 1896293
+  },
+  {
+   "id": "bb72-bb2genericmatched-v7",
+   "title": "bb72 two-block generic matched surgery (v7)",
+   "note": "bb, bb, 6 stitch rounds, idle noise at p=0.003",
+   "file": "bb72-bb2genericmatched-v7.stim",
+   "qubits": 312,
+   "detectors": 9,
+   "observables": 4,
+   "ticks": 99,
+   "bookmarks": 10,
+   "bytes": 234706
+  },
+  {
+   "id": "bb72-bb2zz-v7",
+   "title": "bb72 two-block ZZ surgery (v7)",
+   "note": "bb, bb, 6 stitch rounds, idle noise at p=0.003",
+   "file": "bb72-bb2zz-v7.stim",
+   "qubits": 312,
+   "detectors": 6,
+   "observables": 4,
+   "ticks": 87,
+   "bookmarks": 10,
+   "bytes": 213808
+  },
+  {
+   "id": "bb72-scbb2zzz-v7",
+   "title": "bb72 surface-to-two-bicycle ZZZ surgery (v7)",
+   "note": "surface, bb, bb, 6 stitch rounds, idle noise at p=0.003",
+   "file": "bb72-scbb2zzz-v7.stim",
+   "qubits": 384,
+   "detectors": 6,
+   "observables": 4,
+   "ticks": 99,
+   "bookmarks": 10,
+   "bytes": 273938
+  },
+  {
+   "id": "bb72-scbbzz-v7",
+   "title": "bb72 surface-to-bicycle ZZ surgery (v7)",
+   "note": "surface, bb, 6 stitch rounds, idle noise at p=0.003",
+   "file": "bb72-scbbzz-v7.stim",
+   "qubits": 228,
+   "detectors": 6,
+   "observables": 4,
+   "ticks": 87,
+   "bookmarks": 10,
+   "bytes": 148253
   }
  ]
 }
