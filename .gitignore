@@ -4,3 +4,5 @@ SPEC.md
 /stim_crumble/
 .DS_Store
 .vscode
+__pycache__/
+*.pyc

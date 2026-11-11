@@ -29,16 +29,19 @@
       "layer.next": { "name": "Next layer", "bindings": ["E", "ArrowRight"] },
       "layer.prev.fast": { "name": "Previous layer (x5)", "bindings": ["Shift+Q", "Shift+ArrowLeft"] },
       "layer.next.fast": { "name": "Next layer (x5)", "bindings": ["Shift+E", "Shift+ArrowRight"] },
+      "bookmark.prev": { "name": "Previous bookmark", "bindings": ["Ctrl+Q", "Ctrl+ArrowLeft"] },
+      "bookmark.next": { "name": "Next bookmark", "bindings": ["Ctrl+E", "Ctrl+ArrowRight"] },
       "edit.undo": { "name": "Undo", "bindings": ["Mod+Z"] },
       "edit.redo": { "name": "Redo", "bindings": ["Shift+Mod+Z", "Mod+Y"] },
       "selection.clear": { "name": "Clear selection", "bindings": ["Escape"] },
-      "edit.delete": { "name": "Delete selection", "bindings": ["Backspace", "Delete"] },
+      "edit.delete": { "name": "Delete selection", "bindings": ["Backspace", "Delete", "Shift+Backspace", "Shift+Delete"] },
       "panel.zoom.in": { "name": "Panel zoom in", "bindings": ["Mod+="] },
       "panel.zoom.out": { "name": "Panel zoom out", "bindings": ["Mod+-"] },
       "panel.zoom.reset": { "name": "Panel zoom reset", "bindings": ["Mod+0"] }
       ,
       "layer.insert": { "name": "Insert layer", "bindings": ["Mod+Insert"] },
-      "layer.delete": { "name": "Delete layer", "bindings": ["Mod+Delete"] }
+      "layer.delete": { "name": "Delete layer", "bindings": ["Mod+Delete"] },
+      "edit.delete.force": { "name": "Force delete selection", "bindings": ["Shift+Backspace", "Shift+Delete"] }
     }
   }
 }

@@ -80,3 +80,7 @@ export default Diag;
 // TIMESTEP ---
 /** TIMESTEP must immediately precede a TICK. */
 export const timestep_no_tick = (line) => make(line, 'error', 'TIME001', 'TIMESTEP must attach to next TICK.');
+
+// BOOKMARK ---
+/** BOOKMARK must immediately precede a TICK. */
+export const bookmark_no_tick = (line) => make(line, 'error', 'BOOK001', 'BOOKMARK must attach to next TICK.');

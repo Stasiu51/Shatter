@@ -24,7 +24,7 @@ import { GatePlacementController } from './editor/gate_placement_controller.js';
 import { EdgeChainPlacementController, PolygonChainPlacementController, QubitPlacementController } from './editor/shape_placement_controller.js';
 import { GATE_MAP } from './gates/gateset.js';
 import { Operation } from './circuit/operation.js';
-import { deleteSelection } from './editor/delete_controller.js';
+import { deleteSelection, forceDeleteSelection } from './editor/delete_controller.js';
 import { setupSettingsUI } from './ui_elements/settings_controller.js';
 import { pitch, OFFSET_X, OFFSET_Y, rad } from './draw/config.js';
 import { draw_x_control, draw_y_control, draw_z_control, draw_swap_control, draw_iswap_control, draw_xswap_control, draw_zswap_control } from './gates/gate_draw_util.js';
@@ -66,6 +66,7 @@ const panelsZoomOutBtn = document.getElementById('panels-zoom-out');
 const panelsZoomResetBtn = document.getElementById('panels-zoom-reset');
 const nameEl = document.getElementById('circuit-name');
 const timestepInputEl = document.getElementById('timestep-label');
+const timestepBookmarkEl = document.getElementById('timestep-bookmark');
 const statusEl = document.getElementById('statusbar');
 const statusText = document.getElementById('status-text');
 const statusDot = document.getElementById('status-dot');
@@ -822,21 +823,23 @@ btnCopyUrl?.addEventListener('click', async () => {
 });
 
 
-/** Update timeline layer indicator text. */
+/** Update timeline layer indicator text (two lines: position, then bookmark state). */
 function updateLayerIndicator() {
   const el = document.getElementById('timeline-layer-info');
   if (!el) return;
+  const f = el.querySelector('.full');
+  const c = el.querySelector('.compact');
+  const bk = el.querySelector('.bk');
+  const hint = el.querySelector('.hint');
   if (!circuit) {
-    const f = el.querySelector('.full');
-    const c = el.querySelector('.compact');
     if (f) f.textContent = '';
     if (c) c.textContent = '';
+    if (bk) bk.textContent = '';
+    if (hint) hint.textContent = '';
     return;
   }
   // Show a virtual final TICK by reporting one extra layer column.
   const last = Math.max(0, circuit.layers.length);
-  const f = el.querySelector('.full');
-  const c = el.querySelector('.compact');
   const getFirstBinding = (id, fallback) => {
     try {
       const b = appSettings?.keybindings?.commands?.[id]?.bindings;
@@ -844,12 +847,44 @@ function updateLayerIndicator() {
     } catch {}
     return fallback;
   };
+  const shortKey = (pattern) => String(pattern).split('+').pop();
   const prevKey = getFirstBinding('layer.prev', 'Q');
   const nextKey = getFirstBinding('layer.next', 'E');
   const fullTxt = `Layer ${currentLayer}/${last}. Use ${prevKey}/${nextKey} to move.`;
   const compactTxt = `${currentLayer}/${last} (${prevKey}/${nextKey})`;
   if (f) f.textContent = fullTxt; else el.textContent = fullTxt;
   if (c) c.textContent = compactTxt;
+
+  // Line 2a: bookmark state at (or most recently before) the current tick.
+  if (bk) {
+    const ticks = bookmarkTicks();
+    const atHere = ticks.includes(currentLayer);
+    const prior = atHere ? currentLayer : [...ticks].reverse().find(t => t < currentLayer);
+    bk.textContent = '';
+    if (prior === undefined) {
+      bk.classList.add('none');
+      bk.textContent = 'No bookmark yet';
+    } else {
+      bk.classList.remove('none');
+      const name = getTimestep(prior).label.trim() || '(unnamed)';
+      bk.appendChild(document.createTextNode(atHere ? 'At bookmark [' : 'Last bookmark ['));
+      const nameEl = document.createElement('span');
+      nameEl.className = 'bk-name';
+      nameEl.textContent = name;
+      bk.appendChild(nameEl);
+      bk.appendChild(document.createTextNode(']'));
+      bk.title = `Tick ${prior}: ${name}`;
+    }
+  }
+
+  // Line 2b: modifier hint under "Use Q/E to move".
+  if (hint) {
+    const fastPrev = getFirstBinding('layer.prev.fast', 'Shift+Q');
+    const bmPrev = getFirstBinding('bookmark.prev', 'Ctrl+Q');
+    const fastMod = String(fastPrev).includes('+') ? String(fastPrev).split('+').slice(0, -1).join('+') : 'Shift';
+    const bmMod = String(bmPrev).includes('+') ? String(bmPrev).split('+').slice(0, -1).join('+') : 'Ctrl';
+    hint.textContent = `${fastMod} to jump 5, ${bmMod.toLowerCase()} for bookmarks`;
+  }
 }
 
 function setLayer(layer) {
@@ -886,45 +921,121 @@ function recomputePropagationAndRender() {
   } catch {}
 }
 
-// ---- TIMESTEP label UI ----
-function updateTimestepInput() {
-  if (!timestepInputEl) return;
-  const maxLayer = circuit ? circuit.layers.length : 0;
-  const tickIdx = currentLayer; // label for TICK at this index
-  const enabled = !!circuit && tickIdx >= 1 && tickIdx < maxLayer;
-  timestepInputEl.disabled = !enabled;
-  let val = '';
-  try { if (enabled) val = String(circuit.timesteps?.get?.(tickIdx)?.label ?? ''); } catch {}
-  timestepInputEl.value = val;
+// ---- TIMESTEP label / bookmark UI ----
+//
+// A timestep annotates a tick: the boundary sitting immediately before layer k, for
+// k in 0..layers.length. It carries an optional free-text label describing that tick and
+// an optional bookmark flag, which is what Ctrl+Q / Ctrl+E hop between.
+
+/** Highest valid tick index for the loaded circuit. */
+function maxTickIndex() {
+  return circuit ? circuit.layers.length : 0;
 }
+
+/** @returns {{label:string, bookmark:boolean}} The timestep entry for a tick (defaults when absent). */
+function getTimestep(tickIdx, c = circuit) {
+  try {
+    const e = c?.timesteps?.get?.(tickIdx);
+    if (e) return { label: String(e.label ?? ''), bookmark: !!e.bookmark };
+  } catch {}
+  return { label: '', bookmark: false };
+}
+
+/** @returns {number[]} Ascending tick indices flagged as bookmarks. */
+function bookmarkTicks() {
+  if (!circuit?.timesteps) return [];
+  const out = [];
+  try {
+    for (const [k, v] of circuit.timesteps.entries()) {
+      if (v && v.bookmark && Number.isFinite(k) && k >= 0 && k <= maxTickIndex()) out.push(k);
+    }
+  } catch {}
+  out.sort((a, b) => a - b);
+  return out;
+}
+
+/** Write a timestep entry for a tick, dropping it when it carries nothing. */
+function commitTimestepEntry(tickIdx, { label, bookmark }, desc) {
+  if (!editorState || !circuit) return;
+  if (!Number.isFinite(tickIdx) || tickIdx < 0 || tickIdx > maxTickIndex()) return;
+  const es = ensureEditorState();
+  const c = es.copyOfCurAnnotatedCircuit();
+  if (!c.timesteps) c.timesteps = new Map();
+  const lbl = String(label ?? '');
+  if (lbl.trim().length > 0 || bookmark) c.timesteps.set(tickIdx, { label: lbl, bookmark: !!bookmark });
+  else c.timesteps.delete(tickIdx);
+  es._pendingDesc = desc;
+  es.commit(c);
+}
+
+function updateTimestepInput() {
+  const enabled = !!circuit;
+  const tickIdx = currentLayer;
+  const { label, bookmark } = enabled ? getTimestep(tickIdx) : { label: '', bookmark: false };
+  if (timestepInputEl) {
+    timestepInputEl.disabled = !enabled;
+    timestepInputEl.value = enabled ? label : '';
+  }
+  if (timestepBookmarkEl) {
+    timestepBookmarkEl.disabled = !enabled;
+    timestepBookmarkEl.checked = enabled && bookmark;
+  }
+}
+
 if (timestepInputEl) {
-  const commitTimestep = () => {
+  const commitTimestepLabel = () => {
     try {
-      const maxLayer = circuit ? circuit.layers.length : 0;
+      if (!editorState || !circuit) return;
       const tickIdx = currentLayer;
-      const enabled = !!editorState && !!circuit && tickIdx >= 1 && tickIdx < maxLayer;
-      if (!enabled) return;
       const newLabel = String(timestepInputEl.value || '');
-      const es = ensureEditorState();
-      const c = es.copyOfCurAnnotatedCircuit();
-      if (!c.timesteps) c.timesteps = new Map();
-      if (newLabel.trim().length > 0) c.timesteps.set(tickIdx, { label: newLabel });
-      else c.timesteps.delete(tickIdx);
-      es._pendingDesc = 'Set timestep label';
-      es.commit(c);
+      const { label: oldLabel, bookmark } = getTimestep(tickIdx);
+      if (newLabel === oldLabel) return;
+      commitTimestepEntry(tickIdx, { label: newLabel, bookmark }, 'Set timestep label');
       pushStatus('Updated timestep label.', 'info');
       updateTimestepInput();
+      updateLayerIndicator();
     } catch (e) { try { pushStatus(`Failed to set label: ${e?.message||e}`, 'error'); } catch {} }
   };
-  timestepInputEl.addEventListener('change', commitTimestep);
+  timestepInputEl.addEventListener('change', commitTimestepLabel);
   timestepInputEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
-      commitTimestep();
+      commitTimestepLabel();
       try { timestepInputEl.blur(); } catch {}
       e.preventDefault();
       e.stopPropagation();
     }
   });
+}
+
+if (timestepBookmarkEl) {
+  timestepBookmarkEl.addEventListener('change', () => {
+    try {
+      if (!editorState || !circuit) { updateTimestepInput(); return; }
+      const tickIdx = currentLayer;
+      const wanted = !!timestepBookmarkEl.checked;
+      const { label } = getTimestep(tickIdx);
+      commitTimestepEntry(tickIdx, { label, bookmark: wanted }, wanted ? 'Add bookmark' : 'Remove bookmark');
+      pushStatus(wanted ? `Bookmarked tick ${tickIdx}.` : `Removed bookmark at tick ${tickIdx}.`, 'info');
+      updateTimestepInput();
+      updateLayerIndicator();
+    } catch (e) { try { pushStatus(`Failed to set bookmark: ${e?.message||e}`, 'error'); } catch {} }
+  });
+}
+
+/** Jump to the nearest bookmarked tick in `dir` (-1 back, +1 forward). */
+function gotoBookmark(dir) {
+  const ticks = bookmarkTicks();
+  if (ticks.length === 0) { pushStatus('No bookmarks in this circuit.', 'info'); return; }
+  const target = dir < 0
+    ? [...ticks].reverse().find(t => t < currentLayer)
+    : ticks.find(t => t > currentLayer);
+  if (target === undefined) {
+    pushStatus(dir < 0 ? 'No earlier bookmark.' : 'No later bookmark.', 'info');
+    return;
+  }
+  setLayer(target);
+  const { label } = getTimestep(target);
+  pushStatus(`Bookmark: ${label.trim() || '(unnamed)'} (tick ${target}).`, 'info');
 }
 
 function shouldReloadOnFeature(name) {
@@ -949,6 +1060,8 @@ keymap.registerCommand('layer.prev', () => setLayer(currentLayer - 1), { when: (
 keymap.registerCommand('layer.next', () => setLayer(currentLayer + 1), { when: () => !isEditing() && !!circuit });
   keymap.registerCommand('layer.prev.fast', () => setLayer(currentLayer - 5), { when: () => !isEditing() && !!circuit });
   keymap.registerCommand('layer.next.fast', () => setLayer(currentLayer + 5), { when: () => !isEditing() && !!circuit });
+  keymap.registerCommand('bookmark.prev', () => gotoBookmark(-1), { when: () => !isEditing() && !!circuit });
+  keymap.registerCommand('bookmark.next', () => gotoBookmark(+1), { when: () => !isEditing() && !!circuit });
   keymap.registerCommand('edit.undo', () => { const d = editorState?.undo?.(); if (d !== undefined) pushStatus(`Undid ${d || 'change'}`, 'info'); }, { when: () => !isEditing() && !!editorState });
   keymap.registerCommand('edit.redo', () => { const d = editorState?.redo?.(); if (d !== undefined) pushStatus(`Redid ${d || 'change'}`, 'info'); }, { when: () => !isEditing() && !!editorState });
   // Clear selection (Escape) only when not actively placing a gate (that handler owns Escape).
@@ -964,7 +1077,40 @@ keymap.registerCommand('layer.next', () => setLayer(currentLayer + 1), { when: (
     },
     { when: () => !isEditing() && !(gatePlacement?.isActive?.() || edgePlacement?.isActive?.() || polyPlacement?.isActive?.()) }
   );
-  keymap.registerCommand('edit.delete', () => { try { if (deleteSelection(editorState, currentLayer, pushStatus)) { schedulePanelsRender(); renderToolboxUI(); renderInspectorUI(); } } catch (e) { try { pushStatus(`Delete failed: ${e?.message||e}`, 'error'); } catch {} } }, { when: () => !isEditing() && !!editorState });
+  keymap.registerCommand('edit.delete', (ev) => {
+    try {
+      try { pushStatus(`[DBG] edit.delete handler: key=${ev?.key||''} shift=${!!ev?.shiftKey} ctrl=${!!ev?.ctrlKey} alt=${!!ev?.altKey} meta=${!!ev?.metaKey} heldShift=${!!window.__dbgShiftHeld}`, 'info'); } catch {}
+      if ((ev && ev.shiftKey) || window.__dbgShiftHeld === true) {
+        try { pushStatus('[DBG] routing to force delete', 'info'); } catch {}
+        if (forceDeleteSelection(editorState, currentLayer, pushStatus)) { schedulePanelsRender(); renderToolboxUI(); renderInspectorUI(); }
+      } else {
+        try { pushStatus('[DBG] routing to normal delete', 'info'); } catch {}
+        if (deleteSelection(editorState, currentLayer, pushStatus)) { schedulePanelsRender(); renderToolboxUI(); renderInspectorUI(); }
+      }
+    } catch (e) { try { pushStatus(`Delete failed: ${e?.message||e}`, 'error'); } catch {} }
+  }, { when: () => !isEditing() && !!editorState });
+  keymap.registerCommand('edit.delete.force', () => { try { if (forceDeleteSelection(editorState, currentLayer, pushStatus)) { schedulePanelsRender(); renderToolboxUI(); renderInspectorUI(); } } catch (e) { try { pushStatus(`Force delete failed: ${e?.message||e}`, 'error'); } catch {} } }, { when: () => !isEditing() && !!editorState });
+
+  // Debug logging for Delete/Backspace keydown to inspect matching tokens and candidates in keymap.
+  window.addEventListener('keydown', (e) => {
+    try {
+      // Track shift held across events; some platforms don't set shiftKey on Backspace
+      if (e.key === 'Shift') { window.__dbgShiftHeld = true; }
+      if (isEditing()) return;
+      const key = String(e.key || '');
+      if (key !== 'Backspace' && key !== 'Delete') return;
+      const mods = [];
+      if (e.ctrlKey) mods.push('Ctrl');
+      if (e.altKey) mods.push('Alt');
+      if (e.shiftKey) mods.push('Shift');
+      if (e.metaKey) mods.push('Meta');
+      const token = mods.concat([key.toLowerCase()]).join('+');
+      let cands = [];
+      try { const set = keymap.index?.get?.(token); if (set && typeof set.forEach === 'function') set.forEach((v)=>cands.push(v)); } catch {}
+      pushStatus(`[DBG] keydown token=${token} heldShift=${!!window.__dbgShiftHeld} candidates=[${cands.join(', ')}]`, 'info');
+    } catch {}
+  }, true);
+  window.addEventListener('keyup', (e) => { try { if (e.key === 'Shift') window.__dbgShiftHeld = false; } catch {} }, true);
   keymap.registerCommand('panel.zoom.in', () => setPanelZoom(panelZoom * 1.25), { when: () => !isEditing() });
 keymap.registerCommand('panel.zoom.out', () => setPanelZoom(panelZoom / 1.25), { when: () => !isEditing() });
 keymap.registerCommand('panel.zoom.reset', () => setPanelZoom(2), { when: () => !isEditing() });

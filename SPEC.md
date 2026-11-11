@@ -128,6 +128,41 @@ Syntax:
 
 Status: Implemented (panel and timeline). MPP and standard two‑qubit gates respect this style.
 
+## 7.2) Timestep labels & bookmarks
+
+A *timestep* annotates a **tick**: the boundary immediately before layer `k`, for `k` in `0..layers.length`.
+It carries an optional free‑text `LABEL` describing that moment in the circuit, and an optional
+`BOOKMARK` flag marking it as a navigation target.
+
+Syntax:
+```
+##! TIMESTEP [LABEL="..."] [BOOKMARK=TRUE]            # anchored: must be followed by TICK
+##! TIMESTEP INDEX=<k> [LABEL="..."] [BOOKMARK=TRUE]  # standalone: names tick k directly
+```
+
+- **Anchored form** attaches to the very next `TICK`, which fixes its index. This covers the interior
+  ticks `1..N-1` and is what Shatter emits for them, so labels stay next to the tick they describe.
+- **Standalone form** carries its own `INDEX=`, so it needs no `TICK`. This exists because the
+  boundary before the first layer (tick `0`) and the boundary at or after the last layer (tick `N`)
+  have no `TICK` line to attach to. Shatter emits these with the header overlays.
+- `BOOKMARK` accepts `TRUE`/`1`/`YES` (case‑insensitive); a bare `BOOKMARK` is also true. Absent means false.
+- A tick may be labelled without being a bookmark, and bookmarked without a label.
+- An entry carrying neither a label nor the bookmark flag is dropped.
+- Last‑write‑wins when two directives name the same tick.
+
+UI:
+- The subbar's `Timestep` box edits the current tick's label; the adjacent `Bookmark` checkbox toggles the flag.
+  Both are enabled on every tick, including `0` and `N`.
+- The timeline header shows `Layer n/m` on its first line and `At bookmark [name]` or
+  `Last bookmark [name]` on its second.
+- `bookmark.prev` / `bookmark.next` (default `Ctrl+Q` / `Ctrl+E`, also `Ctrl+Arrow`) hop between
+  bookmarked ticks. Rebind them like any other command in Settings → Keybindings.
+
+Status: Implemented (parse, export, round‑trip, UI, navigation).
+
+Diagnostics:
+- TIME001: anchored `##! TIMESTEP` not followed by `TICK`.
+
 ## 8) Repeat & attachment behavior
 
 - Anchored overlays (QUBIT without Q, HIGHLIGHT GATE, POLY header) set a callback that must attach to the next crumble instruction of the expected kind (QUBIT_COORDS, a gate, POLYGON respectively). Otherwise, diagnostics are emitted.
@@ -180,7 +215,9 @@ Status: Layout helpers Planned.
   - `##! GATESTYLE` when present (DROOP/COLOUR/THICKNESS),
   - per‑qubit overlays `##! QUBIT` (when non‑default metadata exists),
   - `##! CONN SET` overlays,
-  - `##! POLY` headers paired with `#!pragma POLYGON(...)` bodies.
+  - `##! POLY` headers paired with `#!pragma POLYGON(...)` bodies,
+  - `##! TIMESTEP` labels/bookmarks: inline before the relevant `TICK` for interior ticks,
+    and in the standalone `INDEX=` form (with the header overlays) for ticks `0` and `N`.
 
 ## 13) Diagnostics (summary)
 
@@ -193,6 +230,7 @@ Status: Layout helpers Planned.
 - FEED001 (warning): feedback not supported.
 - GATE001 (warning): ignoring unrecognized instruction.
 - REP001/002: repeat errors.
+- TIME001: `##! TIMESTEP` not attached to a `TICK`.
 
 ## 14) Examples
 

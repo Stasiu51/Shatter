@@ -559,12 +559,38 @@
       margin-left: 0;
       font-weight: 500;
       color: #57606a;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+      line-height: 1.25;
     }
+    /* Line 1: "Layer n/m. Use Q/E to move." — smaller than the panel title. */
+    .timeline-header .layer-info .li-line1 { font-size: 11px; white-space: nowrap; }
+    /* Line 2: bookmark state, then a smaller modifier hint. */
+    .timeline-header .layer-info .li-line2 {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      min-width: 0;
+      white-space: nowrap;
+    }
+    .timeline-header .layer-info .li-line2 .bk {
+      font-size: 10.5px;
+      font-weight: 500;
+      color: #57606a;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .timeline-header .layer-info .li-line2 .bk.none { color: #8b949e; font-weight: 400; }
+    .timeline-header .layer-info .li-line2 .bk .bk-name { font-weight: 600; }
+    .timeline-header .layer-info .li-line2 .hint { font-size: 9px; color: #8b949e; font-weight: 400; }
     .timeline-header .layer-info .full { display: inline; }
     .timeline-header .layer-info .compact { display: none; }
     @container (max-width: 570px) {
       .timeline-header .layer-info .full { display: none; }
       .timeline-header .layer-info .compact { display: inline; }
+      .timeline-header .layer-info .li-line2 .hint { display: none; }
     }
 
     .timeline-body {
@@ -747,6 +773,9 @@
     <span id="circuit-name" class="name" title="Click to edit">circuit</span>
     <span class="label" style="margin-left:12px;">Timestep:</span>
     <input id="timestep-label" type="text" placeholder="(no label)" style="height:24px; padding:2px 6px; border:1px solid var(--border); border-radius:4px; background:var(--bg); color:var(--text); min-width:140px;" />
+    <label id="timestep-bookmark-wrap" class="label" title="Bookmark this tick (hop with Ctrl+Q / Ctrl+E)" style="margin-left:6px; display:inline-flex; align-items:center; gap:4px; cursor:pointer; user-select:none;">
+      <input id="timestep-bookmark" type="checkbox" style="margin:0; cursor:pointer;" />Bookmark
+    </label>
     <span class="label" style="margin-left:12px;">Tools:</span>
     <button class="btn" id="btn-import" style="background-color:#28a745; color:white;">Import</button>
     <button class="btn" id="btn-export">Export</button>
@@ -791,7 +820,7 @@
         <div class="timeline-header">
           <div class="timeline-left">
             <div class="timeline-title">Timeline</div>
-            <span id="timeline-layer-info" class="layer-info"><span class="full"></span><span class="compact"></span></span>
+            <span id="timeline-layer-info" class="layer-info"><span class="li-line1"><span class="full"></span><span class="compact"></span></span><span class="li-line2"><span class="bk"></span><span class="hint"></span></span></span>
           </div>
           <span class="right">
             <div class="seg" id="timeline-zoom-seg">
