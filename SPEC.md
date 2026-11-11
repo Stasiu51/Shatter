@@ -53,7 +53,7 @@ Diagnostics:
 Syntax:
 ```
 ##! CONN SET SHEET=<name> EDGES=(q1-q2, q3-q4, ...)
-    [COLOUR=<css>] [DROOP=<float>] [DEFECTIVE=<bool>] [TEXT="..."] [MOUSEOVER="..."]
+    [COLOUR=<css>[|<css>...]] [DROOP=<float>] [DEFECTIVE=<bool>] [TEXT="..."] [MOUSEOVER="..."]
 ```
 - Declares connections between qubit id pairs on the given sheet.
 - Visibility: depends only on the connection’s `SHEET` (endpoints’ sheets are ignored).
@@ -62,7 +62,39 @@ Syntax:
   - Implemented: `COLOUR`, `THICKNESS`, and `DROOP` (curved rendering). Defaults: color light grey, thickness 4, droop 0 (straight).
   - Planned: `DEFECTIVE`, text/hover labels.
 
-Status: Implemented (sheet filtering + colour/thickness/droop). Enhancements Planned.
+### 4.1) Gradient connections
+
+`COLOUR` accepts several colours separated by `|`, and the line is then drawn as
+a linear gradient through them:
+
+```
+##! CONN SET EDGES=(0-1) SHEET=DEFAULT COLOUR=#ff0000|#0000ff
+##! CONN SET EDGES=(0-1) SHEET=DEFAULT COLOUR=(255,0,0)|(0,0,255)
+##! CONN SET EDGES=(0-1) SHEET=DEFAULT COLOUR=gold|violet|cornflowerblue
+```
+
+- Each stop is an ordinary colour value, so CSS names, `#rrggbb`, and the
+  `(r,g,b[,a])` tuple form all work and may be mixed. As elsewhere in a pragma,
+  a value may not contain spaces: write `(255,0,0)`, never `(255, 0, 0)`.
+- Stops are spaced evenly from end to end. Explicit stop positions are Planned.
+- **Direction**: the gradient runs from the *first-named* endpoint of the edge to
+  the second, so `EDGES=(0-1)` and `EDGES=(1-0)` are mirror images. Endpoint
+  order has no other effect, and a single-colour edge has no direction, so no
+  pre-existing circuit is affected.
+- A value with no `|` is a single colour and is parsed exactly as before. In
+  particular a bare `COLOUR=255,0,0` tuple is still one colour, not three.
+- An edge that wraps across a torus seam is drawn in several pieces; the
+  gradient spans the whole edge, not each piece.
+- Where only a flat colour can be used — the connection highlight underlay, and
+  the swatch identity in the edges palette — the first stop is used.
+- `|` survives both the pragma tokenizer and the `#circuit=` URL codec, so
+  gradient edges round-trip through shared links.
+- This is a text-only feature for now: the toolbox has no gradient picker, and
+  edges added through the UI are single-coloured. The edges palette does render
+  a multi-stop swatch as a gradient so gradients already in a circuit are
+  visible and re-selectable.
+
+Status: Implemented (sheet filtering + colour/thickness/droop + gradients). Enhancements Planned.
 
 ## 5) Polygons
 
@@ -254,6 +286,7 @@ QUBIT_COORDS(0, 0) 0
 Connections:
 ```
 ##! CONN SET SHEET=DEFAULT EDGES=(0-1, 1-2) COLOUR=#b0b5ba
+##! CONN SET SHEET=DEFAULT EDGES=(2-3) COLOUR=#ff0000|#0000ff
 ```
 
 Highlight next gate:

@@ -1,4 +1,4 @@
-import { parseCssColor } from '../util/color.js';
+import { parseCssColor, colourSwatchCss } from '../util/color.js';
 const LS_KEY = 'customEdgeColors.v1';
 function loadCustom() { try { const raw = localStorage.getItem(LS_KEY); return Array.isArray(JSON.parse(raw)) ? new Set(JSON.parse(raw)) : new Set(); } catch { return new Set(); } }
 function saveCustom(set) { try { localStorage.setItem(LS_KEY, JSON.stringify([...set])); } catch {} }
@@ -72,7 +72,8 @@ export function renderEdgesPalette({ containerEl, circuit, onAdd, hintKey, selec
     box.style.width = '20px';
     box.style.height = '10px';
     box.style.border = (sel && c === sel) ? '2px solid #000' : '1px solid var(--border)';
-    box.style.background = c;
+    // A multi-stop COLOUR is not a valid CSS colour, so preview it as a gradient.
+    box.style.background = colourSwatchCss(c);
     box.style.borderRadius = '2px';
     box.style.cursor = 'pointer';
     box.onclick = (e) => {

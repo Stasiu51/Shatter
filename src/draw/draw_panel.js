@@ -4,7 +4,7 @@ import {PropagatedPauliFrames} from "../circuit/propagated_pauli_frames.js";
 import {stroke_connector_to, draw_x_control, draw_y_control, draw_z_control, draw_swap_control, draw_iswap_control, draw_xswap_control, draw_zswap_control} from "../gates/gate_draw_util.js"
 import { getGateStyle } from "../draw/gate_style.js";
 import {beginPathPolygon} from './draw_util.js';
-import { parseCssColor } from '../util/color.js';
+import { parseCssColor, parseColourStops } from '../util/color.js';
 import { selectionStore } from '../editor/selection_store.js';
 
 /**
@@ -226,6 +226,22 @@ function drawAnnotations(ctx, snap, qubitCoordsFunc, visibleSheetNames, focusDim
 
 // --- Connections (under qubits, above polygons) ----------------------------
 /**
+ * Normalise a ConnSet COLOUR for the connector stroker.
+ * A single colour is resolved here as before; a multi-stop value is passed
+ * through verbatim so stroke_connector_to can build the gradient in the
+ * device space it ends up drawing in.
+ * @param {*} colour
+ * @returns {string}
+ */
+function resolveConnColour(colour) {
+    const stops = parseColourStops(colour);
+    if (stops.length === 0) return '#b0b5ba';
+    if (stops.length === 1) return stops[0];
+    return String(colour);
+}
+
+
+/**
  * @param {!CanvasRenderingContext2D} ctx
  * @param {!StateSnapshot} snap
  * @param {!function(q: !int): ![!number, !number]} qubitCoordsFunc
@@ -254,6 +270,10 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames, focusDim
                     q1: a1,
                     q2: a2,
                     colour: a.COLOUR || a.colour || '#9aa0a6',
+                    // Edges are keyed and drawn low-id -> high-id, but a multi-stop
+                    // COLOUR runs from the first-named endpoint to the second, so
+                    // remember whether the declaration ran the other way.
+                    reversed: q1 > q2,
                     thickness: (typeof a.thickness === 'number' && isFinite(a.thickness)) ? a.thickness : undefined,
                     droop: (typeof a.droop === 'number' && isFinite(a.droop)) ? a.droop : 0,
                 });
@@ -265,7 +285,7 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames, focusDim
     ctx.save();
     try {
         ctx.lineCap = 'round';
-        for (const { q1, q2, colour, thickness, droop } of edgeMap.values()) {
+        for (const { q1, q2, colour, reversed, thickness, droop } of edgeMap.values()) {
             let p1, p2;
             try {
                 p1 = qubitCoordsFunc(q1);
@@ -275,13 +295,15 @@ function drawConnections(ctx, snap, qubitCoordsFunc, visibleSheetNames, focusDim
                 continue;
             }
             // Draw using shared connector, honoring THICKNESS and DROOP, and color.
+            // Pass the colour through unresolved: it may carry several stops.
             const params = [
                 ctx,
                 p1[0], p1[1], p2[0], p2[1],
                 {
                     thickness: (typeof thickness === 'number' && isFinite(thickness)) ? thickness : 4,
                     droop: (typeof droop === 'number' && isFinite(droop)) ? droop : 0,
-                    color: parseCssColor(colour) || '#b0b5ba',
+                    color: resolveConnColour(colour),
+                    gradientReversed: !!reversed,
                 }
             ];
             if (focusDimmed) {
@@ -323,7 +345,9 @@ function drawConnectionHighlights(ctx, snap, c2dCoordTransform, getPanelXY, visi
             if (!visibleSheetNames.has(sheetName)) continue;
             const edges = Array.isArray(a.edges) ? a.edges : [];
             const baseColor = a.highlight?.color || a.COLOUR || a.colour || '#FFD500';
-            ctx.strokeStyle = parseCssColor(baseColor) || '#FFD500';
+            // The highlight is a flat underlay; a multi-stop colour contributes
+            // only its first stop.
+            ctx.strokeStyle = parseColourStops(baseColor)[0] || '#FFD500';
             ctx.globalAlpha *= 0.6;
             ctx.lineWidth = 6; // underlay thicker than connection line
             for (const e of edges) {
@@ -1108,6 +1132,10 @@ function drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleS
                     q1: a1,
                     q2: a2,
                     colour: a.COLOUR || a.colour || '#9aa0a6',
+                    // Edges are keyed and drawn low-id -> high-id, but a multi-stop
+                    // COLOUR runs from the first-named endpoint to the second, so
+                    // remember whether the declaration ran the other way.
+                    reversed: q1 > q2,
                     thickness: (typeof a.thickness === 'number' && isFinite(a.thickness)) ? a.thickness : undefined,
                     droop: (typeof a.droop === 'number' && isFinite(a.droop)) ? a.droop : 0,
                 });
@@ -1118,20 +1146,31 @@ function drawConnectionsTorus(ctx, snap, c2dCoordTransform, getPanelXY, visibleS
     ctx.save();
     try {
         ctx.lineCap = 'round';
-        for (const { q1, q2, colour, thickness, droop } of edgeMap.values()) {
+        for (const { q1, q2, colour, reversed, thickness, droop } of edgeMap.values()) {
             let p1, p2;
             try {
                 p1 = getPanelXY(q1);
                 p2 = getPanelXY(q2);
             } catch { continue; }
             const segs = torusSegmentsBetween(p1, p2, embedding.Lx, embedding.Ly);
-            for (const [[sx, sy], [tx, ty]] of segs) {
+            // A wrapped edge is drawn as several pieces, but a multi-stop COLOUR
+            // must span the whole edge, so give each piece its share by length.
+            const segLens = segs.map(([[sx, sy], [tx, ty]]) => Math.hypot(tx - sx, ty - sy));
+            const totalLen = segLens.reduce((a, b) => a + b, 0);
+            let walked = 0;
+            for (let si = 0; si < segs.length; si++) {
+                const [[sx, sy], [tx, ty]] = segs[si];
+                const t0 = totalLen > 0 ? walked / totalLen : 0;
+                walked += segLens[si];
+                const t1 = totalLen > 0 ? walked / totalLen : 1;
                 const [dx1, dy1] = c2dCoordTransform(sx, sy);
                 const [dx2, dy2] = c2dCoordTransform(tx, ty);
                 const params = [ctx, dx1, dy1, dx2, dy2, {
                     thickness: (typeof thickness === 'number' && isFinite(thickness)) ? thickness : 4,
                     droop: (typeof droop === 'number' && isFinite(droop)) ? droop : 0,
-                    color: parseCssColor(colour) || '#b0b5ba',
+                    color: resolveConnColour(colour),
+                    gradientReversed: !!reversed,
+                    gradientSpan: [t0, t1],
                 }];
                 if (focusDimmed) {
                     ctx.save(); ctx.globalAlpha *= 0.7; stroke_connector_to(...params); ctx.restore();

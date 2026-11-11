@@ -1,5 +1,6 @@
 import {pitch, rad} from "../draw/config.js"
 import { getGateStyle } from "../draw/gate_style.js";
+import { parseColourStops } from "../util/color.js";
 
 /**
  * @param {!CanvasRenderingContext2D} ctx
@@ -191,6 +192,78 @@ function stroke_degenerate_connector(ctx, x, y) {
  * @param {undefined|!number} y2
  */
 /**
+ * Mirror the gradient-related options when a connector's endpoints are swapped.
+ * Reversing the direction of travel flips the stop order and mirrors the span
+ * this call covers within the whole conceptual edge.
+ * @param {object|undefined} opts
+ * @returns {object|undefined}
+ */
+function mirrorGradientOpts(opts) {
+    if (!opts) return opts;
+    const span = Array.isArray(opts.gradientSpan) && opts.gradientSpan.length === 2
+        ? [1 - opts.gradientSpan[1], 1 - opts.gradientSpan[0]]
+        : undefined;
+    const out = Object.assign({}, opts, { gradientReversed: !opts.gradientReversed });
+    if (span) out.gradientSpan = span; else delete out.gradientSpan;
+    return out;
+}
+
+/**
+ * Resolve a connector's stroke style, building a CanvasGradient when the colour
+ * value carries more than one stop (see parseColourStops).
+ *
+ * `opts.gradientSpan` is the [t0,t1] fraction of the whole conceptual edge that
+ * this call draws; it is [0,1] for an ordinary edge and a sub-range for each
+ * piece of an edge that wraps across a torus seam. Rather than clipping stops
+ * (which would need colour interpolation), the gradient line is extrapolated
+ * back out to the virtual full-edge endpoints, so canvas interpolates for us.
+ *
+ * @param {!CanvasRenderingContext2D} ctx
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} x2
+ * @param {number} y2
+ * @param {string|undefined} color
+ * @param {object|undefined} opts
+ * @returns {string|CanvasGradient|undefined}
+ */
+function resolveConnectorStroke(ctx, x1, y1, x2, y2, color, opts) {
+    if (color === undefined) return undefined;
+    const stops = parseColourStops(color);
+    if (stops.length === 0) return undefined;
+    if (stops.length === 1) return stops[0];
+
+    const ordered = opts?.gradientReversed ? stops.slice().reverse() : stops;
+
+    let t0 = 0, t1 = 1;
+    const sp = opts?.gradientSpan;
+    if (Array.isArray(sp) && sp.length === 2 && isFinite(sp[0]) && isFinite(sp[1])) {
+        t0 = Math.max(0, Math.min(1, sp[0]));
+        t1 = Math.max(0, Math.min(1, sp[1]));
+    }
+    const span = Math.max(1e-6, t1 - t0);
+
+    // Extrapolate this segment out to where the full edge would start and end.
+    const sdx = x2 - x1;
+    const sdy = y2 - y1;
+    const fx1 = x1 - (sdx / span) * t0;
+    const fy1 = y1 - (sdy / span) * t0;
+    const fx2 = x1 + (sdx / span) * (1 - t0);
+    const fy2 = y1 + (sdy / span) * (1 - t0);
+
+    try {
+        const g = ctx.createLinearGradient(fx1, fy1, fx2, fy2);
+        const n = ordered.length - 1;
+        ordered.forEach((c, i) => {
+            try { g.addColorStop(i / n, c); } catch { /* skip an unparseable stop */ }
+        });
+        return g;
+    } catch {
+        return ordered[0];
+    }
+}
+
+/**
  * Strokes a connector from (x1,y1) to (x2,y2).
  * Backward compatible default behavior (no options) matches previous drooping bezier for long spans.
  *
@@ -207,15 +280,17 @@ function stroke_connector_to(ctx, x1, y1, x2, y2, opts) {
         stroke_degenerate_connector(ctx, x2, y2);
         return;
     }
-    // Ensure ordering (for consistent control point computation)
+    // Ensure ordering (for consistent control point computation). Reversing the
+    // endpoints also reverses the gradient, so mirror the gradient options too.
     if (x2 < x1 || (x2 === x1 && y2 < y1)) {
-        stroke_connector_to(ctx, x2, y2, x1, y1, opts);
+        stroke_connector_to(ctx, x2, y2, x1, y1, mirrorGradientOpts(opts));
         return;
     }
 
     const droop = typeof opts?.droop === 'number' && isFinite(opts.droop) ? opts.droop : undefined;
     const thickness = typeof opts?.thickness === 'number' && isFinite(opts.thickness) ? Math.max(0.5, Math.min(16, opts.thickness)) : undefined;
     const color = typeof opts?.color === 'string' ? opts.color : undefined;
+    const strokeStyle = resolveConnectorStroke(ctx, x1, y1, x2, y2, color, opts);
     const cap = opts?.cap;
     const straightThreshold = typeof opts?.straightThreshold === 'number' && isFinite(opts.straightThreshold)
         ? opts.straightThreshold
@@ -237,11 +312,11 @@ function stroke_connector_to(ctx, x1, y1, x2, y2, opts) {
     py *= droopScale;
 
     // Save styles if overriding.
-    const needSave = (thickness !== undefined) || (color !== undefined) || (cap !== undefined);
+    const needSave = (thickness !== undefined) || (strokeStyle !== undefined) || (cap !== undefined);
     if (needSave) ctx.save();
     try {
         if (thickness !== undefined) ctx.lineWidth = thickness;
-        if (color !== undefined) ctx.strokeStyle = color;
+        if (strokeStyle !== undefined) ctx.strokeStyle = strokeStyle;
         if (cap !== undefined) ctx.lineCap = cap;
 
         ctx.beginPath();

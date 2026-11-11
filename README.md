@@ -11,6 +11,11 @@ Ticks can be given a text label describing that point in the circuit, and option
 bookmark; `Ctrl+Q` / `Ctrl+E` then hop between bookmarks while `Q`/`E` step one layer at a time. See
 [`docs/timestep-bookmarks.md`](docs/timestep-bookmarks.md) for the syntax and [`SPEC.md`](SPEC.md) for the full overlay reference.
 
+Edges can carry several colours and are then drawn as a gradient, written
+`COLOUR=#ff0000|#0000ff` and running from the first-named endpoint to the
+second. This is a text-only feature for now; see
+[`docs/gradient-edges.md`](docs/gradient-edges.md).
+
 ### Running locally
 
 Shatter is a static, zero-backend app, so any static file server works:
