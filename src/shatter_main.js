@@ -1524,9 +1524,24 @@ editorReloadBtn?.addEventListener('click', () => {
     if (typeof id === 'string' && id.length > 0) {
       if (id === hostedCircuitId) return;   // our own hash, already loaded
       hostedCircuitId = id;
+      // `&bookmark=<n>` opens on the n-th bookmark instead of the start. It is
+      // an index into the bookmark list rather than a tick, because the viewer
+      // expands an MPP into many layers and so does not share stim's tick
+      // numbering: the circuit cannot know which layer it will land on, but it
+      // does know which bookmark it wants.
+      const startBookmark = Number(m.get('bookmark'));
       pushStatus(`Loading hosted circuit "${id}"...`, 'info');
       fetchHostedCircuit(id).then(text => {
         loadStimText(text);
+        if (Number.isInteger(startBookmark) && startBookmark >= 0) {
+          const ticks = bookmarkTicks();
+          if (startBookmark < ticks.length) {
+            setLayer(ticks[startBookmark]);
+            const { label } = getTimestep(ticks[startBookmark]);
+            pushStatus(`Loaded "${id}" at ${label.trim() || '(unnamed)'}.`, 'info');
+            return;
+          }
+        }
         pushStatus(`Loaded hosted circuit "${id}".`, 'info');
       }).catch(err => {
         hostedCircuitId = null;

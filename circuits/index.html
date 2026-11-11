@@ -31,7 +31,7 @@
     if (!list.length) { out.innerHTML = '<p class="empty">Nothing published yet.</p>'; }
     else {
       const rows = list.map(c => `<tr>
-        <td><a href="../#id=${encodeURIComponent(c.id)}">${c.title || c.id}</a><br>
+        <td><a href="../#id=${encodeURIComponent(c.id)}${c.start_bookmark != null ? `&bookmark=${c.start_bookmark}` : ''}">${c.title || c.id}</a><br>
             <code>${c.id}</code>${c.note ? `<br><span style="color:var(--mut)">${c.note}</span>` : ''}</td>
         <td class="num">${c.qubits ?? ''}</td><td class="num">${c.detectors ?? ''}</td>
         <td class="num">${c.observables ?? ''}</td>

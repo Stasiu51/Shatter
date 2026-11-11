@@ -52,6 +52,10 @@ def main():
     ap.add_argument("--note", default=None, help="one line shown in the gallery")
     ap.add_argument("--base", default="https://stasiu51.github.io/Shatter/",
                     help="site root, used only to print the link")
+    ap.add_argument("--start-bookmark", type=int, default=None,
+                    help="open on this bookmark rather than at the start; 1 is "
+                         "the first bookmark after the opening projections, "
+                         "i.e. the first tick of the circuit proper")
     a = ap.parse_args()
 
     if not ID_RE.match(a.id):
@@ -62,6 +66,8 @@ def main():
 
     entry = dict(id=a.id, title=a.title or a.id, note=a.note or "",
                  file=f"{a.id}.stim", **describe(text))
+    if a.start_bookmark is not None:
+        entry["start_bookmark"] = a.start_bookmark
     index = load_index()
     index["circuits"] = [c for c in index["circuits"] if c.get("id") != a.id]
     index["circuits"].append(entry)
@@ -69,6 +75,8 @@ def main():
     INDEX.write_text(json.dumps(index, indent=1) + "\n")
 
     link = a.base.rstrip("/") + "/#id=" + a.id
+    if a.start_bookmark is not None:
+        link += f"&bookmark={a.start_bookmark}"
     print(f"{a.id}: {entry['qubits']} qubits, {entry['detectors']} detectors, "
           f"{entry['observables']} observables, {entry['bytes']/1e6:.2f} MB")
     print(link)
