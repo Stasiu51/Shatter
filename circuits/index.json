@@ -157,6 +157,19 @@
    "start_bookmark": 1
   },
   {
+   "id": "bb72-scbbzz-v8-viz",
+   "title": "surface-to-bicycle ZZ surgery, v8 schedule (bb72)",
+   "note": "VISUALISATION COPY -- v8 re-timed schedule: 78 ticks against v7's 86, 23% less idle, DEM isomorphic to v7. Fewer detectors and observables kept than the circuit that gets decoded.",
+   "file": "bb72-scbbzz-v8-viz.stim",
+   "qubits": 228,
+   "detectors": 6,
+   "observables": 4,
+   "ticks": 79,
+   "bookmarks": 13,
+   "bytes": 139944,
+   "start_bookmark": 1
+  },
+  {
    "id": "fig2-bb72-bb2generic-1087-viz",
    "title": "Figure 2: two-block bb72 generic quilt (visualisation copy)",
    "note": "VISUALISATION COPY -- the quilt drawn in Figure 2, BB2_GENERIC-1087, in the figure's orientation, torus shifts and palette. Lattice lines only; logical support by Pauli (X red, Y purple, Z green); stitches are endpoint gradients; both outlined product stabilisers shown",
