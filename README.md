@@ -16,6 +16,11 @@ Edges can carry several colours and are then drawn as a gradient, written
 second. This is a text-only feature for now; see
 [`docs/gradient-edges.md`](docs/gradient-edges.md).
 
+Labels can be drawn straight onto the panel with
+`##! TEXT X=.. Y=.. LABEL=".."`, in a monospace font, with optional size,
+rotation, bold and italic. Like polygons they are sticky by layer: the panel
+shows the text of the most recent layer that declares any. See `SPEC.md` §6.1.
+
 ### Running locally
 
 Shatter is a static, zero-backend app, so any static file server works:

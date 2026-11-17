@@ -25,6 +25,7 @@ import {
   embedding_invalid,
 } from '../diag/diag_factory.js';
 import { timestep_no_tick } from '../diag/diag_factory.js';
+import { text_missing_position } from '../diag/diag_factory.js';
 import {make_mpp_gate, make_spp_gate} from '../gates/gateset_mpp.js';
 
 /**
@@ -501,6 +502,39 @@ export class AnnotatedCircuit {
           }
         }
         currentLayer.annotations.push({ kind: 'ConnSet', line: lineNo, sheet, droop, edges, colour, thickness });
+        return;
+      }
+
+      if (kind === 'TEXT') {
+        // Free text drawn on the panel at a circuit coordinate.
+        //   ##! TEXT X=<num> Y=<num> LABEL="..." [SIZE=<px>] [ROT=<deg>]
+        //            [BOLD=TRUE] [ITALIC=TRUE] [COLOUR=<css>] [SHEET=<name>]
+        //            [ALIGN=left|center|right] [VALIGN=top|middle|bottom]
+        const x = getNum(KVs, 'X', undefined);
+        const y = getNum(KVs, 'Y', undefined);
+        // LABEL is the documented spelling; TEXT= is accepted so the key can
+        // match the directive name if that reads better in a hand-written file.
+        const label = getStr(KVs, 'LABEL', undefined) ?? getStr(KVs, 'TEXT', '');
+        if (x === undefined || y === undefined) {
+          diag(text_missing_position(lineNo));
+          return;
+        }
+        const sheetName = getStr(KVs, 'SHEET', 'DEFAULT');
+        const entry = {
+          kind: 'Text',
+          line: lineNo,
+          sheet: sheetName,
+          x, y,
+          text: String(label ?? ''),
+          size: getNum(KVs, 'SIZE', undefined),
+          rot: getNum(KVs, 'ROT', undefined),
+          bold: getBool(KVs, 'BOLD', false),
+          italic: getBool(KVs, 'ITALIC', false),
+          colour: getStr(KVs, 'COLOUR', undefined),
+          align: getStr(KVs, 'ALIGN', undefined),
+          valign: getStr(KVs, 'VALIGN', undefined),
+        };
+        currentLayer.annotations.push(entry);
         return;
       }
 
@@ -1471,6 +1505,20 @@ export class AnnotatedCircuit {
                 out.push(`#!pragma POLYGON(${args}) ${ids.join(' ')}`);
               }
             } catch {}
+          } else if (a.kind === 'Text') {
+            const parts = ['##! TEXT', `X=${a.x}`, `Y=${a.y}`];
+            const lbl = String(a.text ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            parts.push(`LABEL="${lbl}"`);
+            if (a.size !== undefined) parts.push(`SIZE=${a.size}`);
+            if (a.rot !== undefined && a.rot !== 0) parts.push(`ROT=${a.rot}`);
+            if (a.bold) parts.push('BOLD=TRUE');
+            if (a.italic) parts.push('ITALIC=TRUE');
+            if (a.colour) parts.push(`COLOUR=${a.colour}`);
+            if (a.align) parts.push(`ALIGN=${a.align}`);
+            if (a.valign) parts.push(`VALIGN=${a.valign}`);
+            const sheetName = a.sheet || 'DEFAULT';
+            if (sheetName !== 'DEFAULT') parts.push(`SHEET=${sheetName}`);
+            out.push(parts.join(' '));
           } else if (a.kind === 'QubitHighlight') {
             // Re-emit simple qubit highlight overlays.
             const ids = (Array.isArray(a.qubits) ? a.qubits : [])

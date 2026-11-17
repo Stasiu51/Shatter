@@ -84,3 +84,7 @@ export const timestep_no_tick = (line) => make(line, 'error', 'TIME001', 'TIMEST
 // BOOKMARK ---
 /** BOOKMARK must immediately precede a TICK. */
 export const bookmark_no_tick = (line) => make(line, 'error', 'BOOK001', 'BOOKMARK must attach to next TICK.');
+
+// TEXT ---
+/** A ##! TEXT overlay needs somewhere to be drawn. */
+export const text_missing_position = (line) => make(line, 'warning', 'TEXT001', '##! TEXT needs both X= and Y=; the directive was ignored.');

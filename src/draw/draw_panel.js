@@ -224,6 +224,69 @@ function drawAnnotations(ctx, snap, qubitCoordsFunc, visibleSheetNames, focusDim
     }
 }
 
+// --- Free text overlays (drawn last, on top of everything) ------------------
+/** Default font size in draw units when a TEXT carries no SIZE. */
+const TEXT_DEFAULT_SIZE = 14;
+const TEXT_FONT_STACK = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+
+/**
+ * Draw the `##! TEXT` overlays of the most recent layer that carries any.
+ *
+ * Text follows the same stickiness as polygons: the labels of one layer stay
+ * on screen until a later layer declares its own, so a figure can be annotated
+ * once per phase rather than on every tick.
+ *
+ * @param {!CanvasRenderingContext2D} ctx
+ * @param {!StateSnapshot} snap
+ * @param {!function(x: !number, y: !number): ![!number, !number]} c2dCoordTransform
+ * @param {!Set<string>} visibleSheetNames
+ */
+function drawTexts(ctx, snap, c2dCoordTransform, visibleSheetNames) {
+    const layers = snap.circuit.layers;
+    let last = -1;
+    for (let r = 0; r <= snap.curLayer && r < layers.length; r++) {
+        const anns = layers[r].annotations || [];
+        if (anns.some(a => a && a.kind === 'Text')) last = r;
+    }
+    if (last < 0) return;
+    const texts = (layers[last].annotations || []).filter(a => a && a.kind === 'Text');
+    if (texts.length === 0) return;
+
+    ctx.save();
+    try {
+        for (const a of texts) {
+            const sheetName = a.sheet || 'DEFAULT';
+            if (!visibleSheetNames.has(sheetName)) continue;
+            const label = String(a.text ?? '');
+            if (label.length === 0) continue;
+            const x = Number(a.x), y = Number(a.y);
+            if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+            const size = (typeof a.size === 'number' && isFinite(a.size) && a.size > 0)
+                ? a.size : TEXT_DEFAULT_SIZE;
+            const rot = (typeof a.rot === 'number' && isFinite(a.rot)) ? a.rot : 0;
+            const weight = a.bold ? 'bold ' : '';
+            const style = a.italic ? 'italic ' : '';
+
+            const [dx, dy] = c2dCoordTransform(x, y);
+            ctx.save();
+            try {
+                ctx.translate(dx, dy);
+                if (rot) ctx.rotate(rot * Math.PI / 180);
+                ctx.font = `${style}${weight}${size}px ${TEXT_FONT_STACK}`;
+                ctx.textAlign = a.align || 'left';
+                ctx.textBaseline = a.valign || 'middle';
+                ctx.fillStyle = parseCssColor(a.colour) || 'black';
+                ctx.fillText(label, 0, 0);
+            } finally {
+                ctx.restore();
+            }
+        }
+    } finally {
+        ctx.restore();
+    }
+}
+
 // --- Connections (under qubits, above polygons) ----------------------------
 /**
  * Normalise a ConnSet COLOUR for the connector stroker.
@@ -1004,6 +1067,11 @@ function drawPanel(ctx, snap, sheetsToDraw) {
                 ctx.fillRect(x - rad, y - rad, rad*2, rad*2);
             }
         });
+    });
+
+    // Free text sits on top of everything else it is labelling.
+    defensiveDraw(ctx, () => {
+        drawTexts(ctx, snap, c2dCoordTransform, visibleSheetNames);
     });
 
     // Timeline rendering and scrubber have been removed from this panel draw.

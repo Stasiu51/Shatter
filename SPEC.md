@@ -132,6 +132,49 @@ Status: Partially. Qubit highlights are drawn in panels; gate highlights are par
 Diagnostics:
 - HL001: had no gate to attach to.
 
+## 6.1) Free text
+
+Syntax:
+```
+##! TEXT X=<num> Y=<num> LABEL="..."
+    [SIZE=<px>] [ROT=<deg>] [BOLD=TRUE] [ITALIC=TRUE]
+    [COLOUR=<css>] [ALIGN=left|center|right] [VALIGN=top|middle|bottom] [SHEET=<name>]
+```
+- Draws a text label on the panel at circuit coordinates `X,Y` — the same
+  coordinate space as `QUBIT_COORDS`, so a label stays put relative to the
+  lattice under pan and zoom.
+- Always rendered in a monospace font.
+- `LABEL` carries the string; `TEXT=` is accepted as an alias so the key can
+  match the directive name. Quote anything containing spaces.
+- `SIZE` is in draw-space pixels (one coordinate unit is 50), default 14.
+  A qubit square is 20 pixels across, so a label meant to sit beside the
+  lattice usually wants something in the 25–40 range.
+- `ROT` is in degrees, clockwise, about the anchor point. Default 0.
+- `BOLD` / `ITALIC` take the same values as any other boolean
+  (`TRUE`/`1`/`YES`, or the bare key).
+- `ALIGN` / `VALIGN` place the anchor within the text; defaults are `left`
+  and `middle`.
+- `COLOUR` defaults to black. Themes that invert the canvas (the hacker
+  theme) invert the label with it.
+- Draw order: on top of everything else on the panel.
+- Visibility: filtered by `SHEET` like every other annotation, defaulting to
+  `DEFAULT`. A circuit that declares named sheets and never declares
+  `DEFAULT` must therefore name a sheet it does declare, or the label will
+  not be drawn.
+
+Duration semantics: text is **sticky by layer**, like polygons. All `##! TEXT`
+directives within one layer are drawn together, and they stay on screen until
+a later layer declares text of its own. In other words the panel always shows
+the text of the most recent layer that contains at least one `##! TEXT`. A
+figure can therefore be labelled once at the top of the circuit and keep its
+labels throughout, or relabelled per phase.
+
+Status: Implemented (panel rendering + round-tripping). No editor UI; this is
+a text-edit feature.
+
+Diagnostics:
+- TEXT001 (warning): `##! TEXT` without both `X=` and `Y=`; the directive is ignored.
+
 ## 7) Marks & Errors (Crumble pragmas)
 
 Crumble pragmas are part of Stim parsing and remain as operations:
@@ -263,6 +306,7 @@ Status: Layout helpers Planned.
 - GATE001 (warning): ignoring unrecognized instruction.
 - REP001/002: repeat errors.
 - TIME001: `##! TIMESTEP` not attached to a `TICK`.
+- TEXT001 (warning): `##! TEXT` without a position.
 
 ## 14) Examples
 
@@ -287,6 +331,12 @@ Connections:
 ```
 ##! CONN SET SHEET=DEFAULT EDGES=(0-1, 1-2) COLOUR=#b0b5ba
 ##! CONN SET SHEET=DEFAULT EDGES=(2-3) COLOUR=#ff0000|#0000ff
+```
+
+Free text:
+```
+##! TEXT X=26 Y=4.8 LABEL="Block 1" SIZE=34 BOLD=TRUE
+##! TEXT X=0 Y=12 LABEL="time" SIZE=20 ROT=-90 ITALIC=TRUE VALIGN=bottom
 ```
 
 Highlight next gate:
