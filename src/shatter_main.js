@@ -16,6 +16,7 @@ import { createKeymap } from './keyboard/keymap.js';
 import { loadSettings, saveUserSettings, exportUserSettings, importUserSettings } from './settings/settings.js';
 import { setTerminalErrorsEnabled } from './circuit/propagated_pauli_frames.js';
 import { createSheetsDropdown } from './ui_elements/sheets_dropdown.js';
+import { createPanelNavWidget, watchModifiers } from './ui_elements/panel_nav_widget.js';
 import { setupTextEditorUI } from './ui_elements/text_editor_controller.js';
 import { setupMarkersUI as setupToolboxUI } from './ui_elements/markers_controller.js';
 import { renderMarkers as renderToolbox } from './ui_elements/markers_renderer.js';
@@ -59,6 +60,7 @@ seg?.addEventListener('click', (e) => {
   mgr.setLayout(btn.dataset.layout);
   schedulePanelsRender();
   renderPanelSheetsOptions();
+  renderPanelNav();
 });
 
 // Timeline sizing & collapse
@@ -207,6 +209,7 @@ const getSheetsSafe = () => (overlayState.sheets?.length ? overlayState.sheets :
 
 // Initialize per-panel sheets UI immediately so the initial layout is correct
 renderPanelSheetsOptions();
+renderPanelNav();
 
 // Theme switching
 (function initThemeSelector(){
@@ -656,6 +659,72 @@ function renderToolboxUI() {
 }
 
 
+
+/** First configured binding for a command, else the given fallback. */
+function firstBinding(id, fallback) {
+  try {
+    const b = appSettings?.keybindings?.commands?.[id]?.bindings;
+    if (Array.isArray(b) && b.length > 0) return String(b[0]);
+  } catch {}
+  return fallback;
+}
+
+/** The modifier part of a binding pattern ("Shift+Q" -> "Shift"), else a fallback. */
+function bindingModifier(pattern, fallback) {
+  const p = String(pattern || '');
+  return p.includes('+') ? p.split('+').slice(0, -1).join('+') : fallback;
+}
+
+/**
+ * Mount the centred layer-navigation control in the first panel's header.
+ * Panels are rebuilt on every layout change, so the widget is cached on the
+ * panel object and re-created whenever that object is new.
+ */
+function renderPanelNav() {
+  const p = mgr?.panels?.[0];
+  if (!p?.header) return;
+
+  // Any other panel that still carries one (after a layout change) drops it.
+  for (let i = 1; i < (mgr.panels?.length || 0); i++) {
+    const q = mgr.panels[i];
+    if (q?.navWidget) { try { q.navWidget.el.remove(); } catch {} q.navWidget = undefined; }
+    if (q?.header) q.header.classList.remove('has-nav');
+  }
+
+  // Marks the one header that must keep its left content clear of the
+  // centred control; the width cap itself lives in CSS so it can shrink
+  // with the container query that hides the hint line.
+  p.header.classList.add('has-nav');
+
+  if (!p.navWidget) {
+    p.navWidget = createPanelNavWidget({
+      onStep: (dir, modifier) => {
+        if (!circuit) return;
+        if (modifier === 'ctrl') gotoBookmark(dir);
+        else if (modifier === 'shift') setLayer(currentLayer + dir * 5);
+        else setLayer(currentLayer + dir);
+      },
+      getKeyLabels: () => {
+        const prevPat = firstBinding('layer.prev', 'Q');
+        const nextPat = firstBinding('layer.next', 'E');
+        return {
+          prev: String(prevPat).split('+').pop(),
+          next: String(nextPat).split('+').pop(),
+          fastMod: bindingModifier(firstBinding('layer.prev.fast', 'Shift+Q'), 'Shift').toLowerCase(),
+          bookmarkMod: bindingModifier(firstBinding('bookmark.prev', 'Ctrl+Q'), 'Ctrl').toLowerCase(),
+        };
+      },
+    });
+    p.header.appendChild(p.navWidget.el);
+  }
+  p.navWidget.render();
+}
+
+// Mirror Shift/Ctrl into the nav control so a click's effect is visible before
+// the click happens.
+watchModifiers((mod) => {
+  try { mgr?.panels?.[0]?.navWidget?.setModifier(mod); } catch {}
+});
 
 /** Build inline per-panel sheet toggles inside each panel header. */
 function renderPanelSheetsOptions() {
@@ -1294,6 +1363,9 @@ function applySettings() {
       keymap.setDefaultBindings(id, pats);
     }
   } catch {}
+  // Key labels in the header controls are read from the bindings, so repaint.
+  try { renderPanelNav(); } catch {}
+  try { updateLayerIndicator(); } catch {}
 }
 
 async function initSettingsAndKeymap() {

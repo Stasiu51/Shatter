@@ -245,6 +245,95 @@
       position: relative;
       z-index: 1;
       background: var(--hdr-panel);
+      container-type: inline-size;
+    }
+
+    /* Centred layer-navigation control (panel 1 only). Absolutely positioned so
+       it stays centred in the bar whatever the left/right content weighs. */
+    .panel-nav {
+      /* Themed via these, so a theme can recolour the control without
+         restating its layout. See src/styles/theme-hacker.css. */
+      --pn-fg: #57606a;
+      --pn-fg-strong: #24292f;
+      --pn-hint-fg: #8b949e;
+      --pn-glow: none;
+      --pn-text-glow: none;
+      position: absolute;
+      left: 50%;
+      top: 0;
+      transform: translateX(-50%);
+      height: 47px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      pointer-events: none;   /* let the bar behind stay clickable */
+      user-select: none;
+    }
+
+    .panel-nav .pn-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    /* No chrome: the triangle and its letter are the control. */
+    .panel-nav .pn-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      padding: 0;
+      height: 20px;
+      line-height: 1;
+      border: 0;
+      background: none;
+      color: var(--pn-fg);
+      cursor: pointer;
+      filter: var(--pn-glow);
+      /* Triangles grow sideways with the modifier; reserve the widest
+         footprint so the pair does not jitter as it changes. */
+      min-width: 40px;
+    }
+
+    .panel-nav .pn-btn:hover { color: var(--pn-fg-strong); }
+    .panel-nav .pn-btn:active { transform: translateY(1px); }
+    .panel-nav .pn-btn:focus-visible { outline: 1px solid var(--border); outline-offset: 2px; }
+
+    .panel-nav .pn-tri { display: inline-flex; align-items: center; }
+    .panel-nav .pn-key { font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
+
+    .panel-nav .pn-hint {
+      font-size: 9px;
+      color: var(--pn-hint-fg);
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* The whole phrase emboldens, not just the modifier's name. */
+    .panel-nav .pn-mod { font-weight: 400; }
+    .panel-nav .pn-mod.active { font-weight: 700; color: var(--pn-fg-strong); text-shadow: var(--pn-text-glow); }
+
+    .panel-nav.mod-ctrl .pn-btn, .panel-nav.mod-shift .pn-btn { color: var(--pn-fg-strong); }
+
+    /* Keep the header's left content clear of the centred control. The cap is
+       half the bar less half the control, so it tracks the control's width. */
+    .panel-header.has-nav > :first-child { max-width: calc(50% - 115px); min-width: 0; overflow: hidden; }
+
+    /* A narrow panel (multi-panel layouts) cannot carry the hint line without
+       colliding with the sheets dropdown; drop it and keep the buttons. The
+       control is then much narrower, so the left content may have more room. */
+    @container (max-width: 420px) {
+      .panel-nav .pn-hint { display: none; }
+      .panel-header.has-nav > :first-child { max-width: calc(50% - 55px); }
+    }
+    /* Below this the buttons themselves no longer fit beside anything else,
+       so give up rather than overlap. */
+    @container (max-width: 170px) {
+      .panel-nav { display: none; }
+      .panel-header.has-nav > :first-child { max-width: none; }
     }
 
     .panel-header> :first-child {
@@ -773,7 +862,7 @@
     <span class="label">Name:</span>
     <span id="circuit-name" class="name" title="Click to edit">circuit</span>
     <span class="label" style="margin-left:12px;">Timestep:</span>
-    <input id="timestep-label" type="text" placeholder="(no label)" style="height:24px; padding:2px 6px; border:1px solid var(--border); border-radius:4px; background:var(--bg); color:var(--text); min-width:140px;" />
+    <input id="timestep-label" type="text" placeholder="(no label)" style="height:24px; padding:2px 6px; border:1px solid var(--border); border-radius:4px; background:var(--bg); color:var(--text); min-width:280px;" />
     <label id="timestep-bookmark-wrap" class="label" title="Bookmark this tick (hop with Ctrl+Q / Ctrl+E)" style="margin-left:6px; display:inline-flex; align-items:center; gap:4px; cursor:pointer; user-select:none;">
       <input id="timestep-bookmark" type="checkbox" style="margin:0; cursor:pointer;" />Bookmark
     </label>

@@ -135,3 +135,28 @@ h1,
   font-style: normal;
   font-display: swap;
 }
+
+/* Centred layer-navigation control: make it pop in the same bright green as
+   everything else, with a glow on the triangles and on whichever modifier
+   phrase is live. */
+.panel-nav {
+  --pn-fg: var(--text);
+  --pn-fg-strong: var(--text);
+  --pn-hint-fg: var(--text);
+  --pn-glow: drop-shadow(0 0 3px var(--text));
+  --pn-text-glow: 0 0 6px var(--text);
+}
+
+.panel-nav .pn-btn,
+.panel-nav .pn-key,
+.panel-nav .pn-hint,
+.panel-nav .pn-mod {
+  color: var(--text) !important;
+}
+
+/* Dim the inactive phrase so the bold one reads as the live choice rather
+   than two equally bright lines of green. */
+.panel-nav .pn-mod { opacity: 0.6; }
+.panel-nav .pn-mod.active { opacity: 1; }
+.panel-nav.mod-shift .pn-btn,
+.panel-nav.mod-ctrl .pn-btn { filter: drop-shadow(0 0 6px var(--text)); }
