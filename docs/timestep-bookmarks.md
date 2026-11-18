@@ -106,18 +106,17 @@ Hopping past the last bookmark in either direction is a no-op with a status mess
 
 - **Subbar** — `Timestep:` text box and a `Bookmark` checkbox, both acting on the current tick and
   both enabled for every tick including `0` and `N`.
-- **Timeline header** — two lines inside the fixed 47px header:
+- **Timeline header** — one line, the layer position and the key hint:
 
   ```
   Layer 3/7. Use Q/E to move.
-  At bookmark [syndrome round 1]  Shift to jump 5, ctrl for bookmarks
   ```
 
-  Line two reads `At bookmark [name]` when the current tick is itself bookmarked, otherwise
-  `Last bookmark [name]` for the nearest bookmark before it, otherwise `No bookmark yet`. An unnamed
-  bookmark displays as `(unnamed)`. The key hint is dropped when the panel is narrow.
+  A second line naming the current bookmark was tried and removed: the header is a fixed 47px,
+  as every other panel header is, and there was not room for it.
 
-  All other panel headers are also 47px, so adding a third line would break their alignment.
+- **Panel 1 header** — the centred navigation triangles carry the modifier hint
+  (`shift: jump 5; ctrl: next bookmark`), and ctrl-clicking one hops between bookmarks.
 
 ## Where the code lives
 

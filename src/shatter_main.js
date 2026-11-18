@@ -902,68 +902,25 @@ btnCopyUrl?.addEventListener('click', async () => {
 });
 
 
-/** Update timeline layer indicator text (two lines: position, then bookmark state). */
+/** Update the timeline layer indicator: position and the Q/E hint. */
 function updateLayerIndicator() {
   const el = document.getElementById('timeline-layer-info');
   if (!el) return;
   const f = el.querySelector('.full');
   const c = el.querySelector('.compact');
-  const bk = el.querySelector('.bk');
-  const hint = el.querySelector('.hint');
   if (!circuit) {
     if (f) f.textContent = '';
     if (c) c.textContent = '';
-    if (bk) bk.textContent = '';
-    if (hint) hint.textContent = '';
     return;
   }
   // Show a virtual final TICK by reporting one extra layer column.
   const last = Math.max(0, circuit.layers.length);
-  const getFirstBinding = (id, fallback) => {
-    try {
-      const b = appSettings?.keybindings?.commands?.[id]?.bindings;
-      if (Array.isArray(b) && b.length > 0) return String(b[0]);
-    } catch {}
-    return fallback;
-  };
-  const shortKey = (pattern) => String(pattern).split('+').pop();
-  const prevKey = getFirstBinding('layer.prev', 'Q');
-  const nextKey = getFirstBinding('layer.next', 'E');
+  const prevKey = String(firstBinding('layer.prev', 'Q')).split('+').pop();
+  const nextKey = String(firstBinding('layer.next', 'E')).split('+').pop();
   const fullTxt = `Layer ${currentLayer}/${last}. Use ${prevKey}/${nextKey} to move.`;
   const compactTxt = `${currentLayer}/${last} (${prevKey}/${nextKey})`;
   if (f) f.textContent = fullTxt; else el.textContent = fullTxt;
   if (c) c.textContent = compactTxt;
-
-  // Line 2a: bookmark state at (or most recently before) the current tick.
-  if (bk) {
-    const ticks = bookmarkTicks();
-    const atHere = ticks.includes(currentLayer);
-    const prior = atHere ? currentLayer : [...ticks].reverse().find(t => t < currentLayer);
-    bk.textContent = '';
-    if (prior === undefined) {
-      bk.classList.add('none');
-      bk.textContent = 'No bookmark yet';
-    } else {
-      bk.classList.remove('none');
-      const name = getTimestep(prior).label.trim() || '(unnamed)';
-      bk.appendChild(document.createTextNode(atHere ? 'At bookmark [' : 'Last bookmark ['));
-      const nameEl = document.createElement('span');
-      nameEl.className = 'bk-name';
-      nameEl.textContent = name;
-      bk.appendChild(nameEl);
-      bk.appendChild(document.createTextNode(']'));
-      bk.title = `Tick ${prior}: ${name}`;
-    }
-  }
-
-  // Line 2b: modifier hint under "Use Q/E to move".
-  if (hint) {
-    const fastPrev = getFirstBinding('layer.prev.fast', 'Shift+Q');
-    const bmPrev = getFirstBinding('bookmark.prev', 'Ctrl+Q');
-    const fastMod = String(fastPrev).includes('+') ? String(fastPrev).split('+').slice(0, -1).join('+') : 'Shift';
-    const bmMod = String(bmPrev).includes('+') ? String(bmPrev).split('+').slice(0, -1).join('+') : 'Ctrl';
-    hint.textContent = `${fastMod} to jump 5, ${bmMod.toLowerCase()} for bookmarks`;
-  }
 }
 
 function setLayer(layer) {
